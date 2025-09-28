@@ -62,7 +62,10 @@ def test_file_session_store_round_trip(
     assert retrieved.world_state.location == sample_snapshot.world_state.location
     assert retrieved.world_state.inventory == sample_snapshot.world_state.inventory
     assert retrieved.world_state.history == sample_snapshot.world_state.history
-    assert retrieved.world_state.memory.recent() == sample_snapshot.world_state.memory.recent()
+    assert (
+        retrieved.world_state.memory.recent()
+        == sample_snapshot.world_state.memory.recent()
+    )
 
     listing_before_delete = store.list_sessions()
     assert listing_before_delete == ["my-session"]
@@ -116,7 +119,9 @@ def test_snapshot_from_payload_validates() -> None:
     assert snapshot.world_state.history == ["Started."]
     assert [entry.kind for entry in snapshot.world_state.memory.recent()] == ["action"]
     assert [entry.content for entry in snapshot.world_state.memory.recent()] == ["move"]
-    assert [entry.tags for entry in snapshot.world_state.memory.recent()] == [("northern",)]
+    assert [entry.tags for entry in snapshot.world_state.memory.recent()] == [
+        ("northern",)
+    ]
 
 
 def test_session_snapshot_apply_to_world(sample_snapshot: SessionSnapshot) -> None:

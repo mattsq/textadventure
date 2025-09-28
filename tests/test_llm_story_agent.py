@@ -121,8 +121,7 @@ def test_llm_story_agent_respects_memory_request_override(
 
     _, user_message = mock_llm_client.calls[0]
     assert (
-        "Recent player actions:\n- inspect\n- touch\n- retreat"
-        in user_message.content
+        "Recent player actions:\n- inspect\n- touch\n- retreat" in user_message.content
     )
     assert "search" not in user_message.content
     assert "Recent observations: (none)" in user_message.content

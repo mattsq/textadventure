@@ -93,8 +93,8 @@ class LLMStoryAgent(Agent):
         context = self._render_context(world_state, trigger)
         instructions = (
             "Return a compact JSON object. Example format: "
-            "{\"narration\": str, \"choices\": [{\"command\": str, \"description\": str}], "
-            "\"metadata\": {str: str}}. Omit keys you do not need."
+            '{"narration": str, "choices": [{"command": str, "description": str}], '
+            '"metadata": {str: str}}. Omit keys you do not need.'
         )
         user_prompt = f"{context}\n\n{instructions}"
         return [
@@ -102,9 +102,7 @@ class LLMStoryAgent(Agent):
             LLMMessage(role="user", content=user_prompt),
         ]
 
-    def _render_context(
-        self, world_state: WorldState, trigger: AgentTrigger
-    ) -> str:
+    def _render_context(self, world_state: WorldState, trigger: AgentTrigger) -> str:
         inventory = ", ".join(sorted(world_state.inventory)) or "(empty)"
         history = world_state.history[-self.history_limit :]
         memory_request = trigger.memory_request
@@ -154,7 +152,9 @@ class LLMStoryAgent(Agent):
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise ValueError("LLMStoryAgent expected JSON content from the LLM") from exc
+            raise ValueError(
+                "LLMStoryAgent expected JSON content from the LLM"
+            ) from exc
 
         if not isinstance(data, Mapping):
             raise ValueError("LLMStoryAgent response must be a JSON object")

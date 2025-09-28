@@ -147,7 +147,9 @@ def run_cli(
 
         if command_lower == "load":
             if session_store is None:
-                print("\nSession persistence is not configured. Loading is unavailable.")
+                print(
+                    "\nSession persistence is not configured. Loading is unavailable."
+                )
             else:
                 session_id = argument.strip()
                 if not session_id:
@@ -207,9 +209,7 @@ def run_cli(
             continue
 
         world.remember_action(player_input)
-        event = _capture_event(
-            engine.propose_event(world, player_input=player_input)
-        )
+        event = _capture_event(engine.propose_event(world, player_input=player_input))
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -246,9 +246,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
     world = WorldState()
     scripted_engine = ScriptedStoryEngine()
-    coordinator = MultiAgentCoordinator(
-        ScriptedStoryAgent("narrator", scripted_engine)
-    )
+    coordinator = MultiAgentCoordinator(ScriptedStoryAgent("narrator", scripted_engine))
     engine: StoryEngine = coordinator
 
     session_store: SessionStore | None = None

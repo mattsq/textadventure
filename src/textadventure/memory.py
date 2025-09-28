@@ -55,9 +55,7 @@ class MemoryRequest:
         object.__setattr__(
             self,
             "observation_limit",
-            _validate_limit(
-                self.observation_limit, field_name="observation_limit"
-            ),
+            _validate_limit(self.observation_limit, field_name="observation_limit"),
         )
 
     def resolve_action_limit(self, default: int) -> int:

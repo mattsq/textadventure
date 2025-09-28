@@ -70,4 +70,4 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Introduce a debug command (such as `status`) that prints the active location, inventory summary, queued agent messages, and pending saves.
   - [x] Provide a coordinator debug snapshot with visibility into queued messages.
   - [x] Surface the world/persistence details through a CLI `status` command and cover it with tests.
-- [ ] Set up a continuous integration workflow (GitHub Actions) to run tests, type checks, and linting on each push.
+- [x] Set up a continuous integration workflow (GitHub Actions) to run tests, type checks, and linting on each push. *(Added a GitHub Actions pipeline executing pytest, mypy, Ruff, and Black on pushes and pull requests.)*
