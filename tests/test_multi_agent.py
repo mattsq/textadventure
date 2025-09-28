@@ -11,6 +11,7 @@ from textadventure.multi_agent import (
     AgentTrigger,
     AgentTurnResult,
     MultiAgentCoordinator,
+    QueuedAgentMessage,
     ScriptedStoryAgent,
 )
 from textadventure.scripted_story_engine import ScriptedStoryEngine
@@ -190,3 +191,59 @@ def test_coordinator_routes_queued_messages_between_turns() -> None:
     assert narration.startswith("Primary continues the tale.")
     assert "Scout whispers a warning." in narration
     assert "Scout continues commentary." in narration
+
+
+def test_coordinator_debug_snapshot_reports_queued_messages() -> None:
+    """Queued triggers should be surfaced through the debug snapshot."""
+
+    world = WorldState()
+
+    primary = SequencedAgent(
+        "narrator",
+        (
+            AgentTurnResult(
+                event=StoryEvent(
+                    "Primary narrates the opening.",
+                    choices=(StoryChoice("wait", "Wait"),),
+                    metadata={"mood": "tense"},
+                ),
+                messages=(
+                    AgentTrigger(
+                        kind="alert",
+                        metadata={"target": "scout", "note": "prepare"},
+                    ),
+                ),
+            ),
+            AgentTurnResult(event=StoryEvent("Primary follows up.")),
+        ),
+    )
+
+    scout = SequencedAgent(
+        "scout",
+        (
+            AgentTurnResult(event=StoryEvent("Scout responds.")),
+            AgentTurnResult(event=StoryEvent("Scout reacts to alert.")),
+            AgentTurnResult(event=StoryEvent("Scout concludes.")),
+        ),
+    )
+
+    coordinator = MultiAgentCoordinator(primary, secondary_agents=[scout])
+
+    coordinator.propose_event(world)
+
+    snapshot = coordinator.debug_snapshot()
+    assert len(snapshot.queued_messages) == 1
+    queued = snapshot.queued_messages[0]
+    assert isinstance(queued, QueuedAgentMessage)
+    assert queued.origin_agent == "narrator"
+    assert queued.trigger_kind == "alert"
+    assert queued.player_input is None
+    assert dict(queued.metadata) == {"note": "prepare", "target": "scout"}
+
+    with pytest.raises(TypeError):
+        queued.metadata["target"] = "other"  # type: ignore[index]
+
+    # Mutating the coordinator should not affect captured snapshots.
+    coordinator.propose_event(world)
+    assert len(snapshot.queued_messages) == 1
+    assert coordinator.debug_snapshot().queued_messages == ()
