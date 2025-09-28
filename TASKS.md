@@ -21,7 +21,8 @@ This document captures recommended starting tasks for building out the text-adve
 
 ## Priority 3: Testing & Tooling Enhancements
 - [x] Write unit tests covering the world state mutations and narrative branching logic.
-- [ ] Set up fixtures or mocks for LLM interactions to keep tests deterministic.
+- [x] Set up fixtures or mocks for LLM interactions to keep tests deterministic.
+  - Added a reusable `StubLLMClient` fixture that records invocations and replays canned responses.
 - [ ] Consider integrating type checking (e.g., `mypy`) and continuous integration workflows (GitHub Actions).
 - [ ] Add smoke tests for the CLI once the interactive loop is implemented. (The scripted engine now supports manual runs.)
 
