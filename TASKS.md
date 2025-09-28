@@ -112,8 +112,19 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Sketch a location graph covering at least three distinct regions plus connecting transitional scenes.
   - [x] Identify key items, puzzle locks, and narrative beats that can be expressed purely through the JSON schema.
 - [ ] Extend `src/textadventure/data/scripted_scenes.json` with the new regions, ensuring consistent descriptions, commands, and transitions.
-  - [ ] Introduce multi-step objectives (e.g., fetch quests or combination puzzles) that require revisiting earlier locations.
-  - [ ] Add optional flavour interactions so the demo highlights lore lookups, journal entries, and memory recall hooks.
+  - [x] Add region hubs for the Sunken Bastion and Aether Spire that connect the planned scene graph.
+  - [x] Populate optional detours (`scavenger-camp`, `ranger-lookout`, side rooms) with unique interactions and returns.
+  - [x] Gate at least one transition on collected items to set up later objectives.
+  - [x] Ensure the lore guide includes entries for newly introduced locations or key items.
+  - [x] Update automated tests so expectations match the broadened content.
+  - [x] Update documentation if new commands, items, or mechanics are introduced.
+  - [x] Capture notes about additional engine support needed for future iterations.
+    - [ ] Follow-up: Explore conditional narration hooks (beyond inventory checks) for future scripted-engine enhancements.
+  - [x] Flesh out the `starting-area` branches leading to the scavenger camp and lookout tutorials.
+  - [x] Author narrative beats for the Sunken Bastion hub scenes.
+  - [x] Define the Aether Spire ascent and finale scaffolding.
+  - [x] Review lore flavour interactions to highlight journal and memory hooks.
+  - [ ] Mark the original checklist item complete once all subtasks pass review.
 - [ ] Update scripted-engine tests and fixtures to cover the expanded scene graph and any new command patterns.
   - [ ] Add regression coverage validating transition targets, required items, and failure messages for gated actions.
   - [ ] Refresh golden transcripts (if any) so the CLI demo walkthrough exercises the broader storyline.

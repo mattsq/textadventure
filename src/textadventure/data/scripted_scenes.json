@@ -1,9 +1,11 @@
 {
   "starting-area": {
-    "description": "Sunlight filters through tall trees at the forest trailhead. An old stone gate lies to the north, its archway draped in moss.",
+    "description": "Sunlight filters through tall trees at the forest trailhead. An old stone gate lies to the north, while flag-marked paths lead toward a scavenger camp and a ranger lookout.",
     "choices": [
       {"command": "look", "description": "Take in the surroundings."},
       {"command": "explore", "description": "Head toward the mossy gate."},
+      {"command": "camp", "description": "Visit the scavenger camp."},
+      {"command": "lookout", "description": "Climb toward the ranger lookout."},
       {"command": "inventory", "description": "Check what you're carrying."},
       {"command": "journal", "description": "Review the notes in your journal."},
       {"command": "recall", "description": "Reflect on your recent decisions."},
@@ -19,14 +21,23 @@
       "explore": {
         "narration": "You follow the worn path toward the gate.",
         "target": "old-gate"
+      },
+      "camp": {
+        "narration": "You veer west as the trees thin around a cluster of patched tents.",
+        "target": "scavenger-camp"
+      },
+      "lookout": {
+        "narration": "You climb the winding ridge toward the ranger lookout.",
+        "target": "ranger-lookout"
       }
     }
   },
   "old-gate": {
-    "description": "The gate stands ajar, revealing a courtyard blanketed in mist. A rusty key glints between the stones nearby.",
+    "description": "The gate stands ajar, revealing a courtyard blanketed in mist. A rusty key glints between the stones nearby, and the hinges groan when nudged.",
     "choices": [
       {"command": "look", "description": "Study the ancient masonry."},
       {"command": "inspect", "description": "Investigate the glinting object."},
+      {"command": "enter", "description": "Push through into the courtyard."},
       {"command": "return", "description": "Head back down the forest trail."},
       {"command": "inventory", "description": "Check your belongings."},
       {"command": "journal", "description": "Look over your recorded memories."},
@@ -44,9 +55,378 @@
         "narration": "You kneel and pick up the rusty key.",
         "item": "rusty key"
       },
+      "enter": {
+        "narration": "You shoulder the gate wider and step into the mist-shrouded courtyard.",
+        "target": "misty-courtyard"
+      },
       "return": {
         "narration": "You retrace your steps to the trailhead.",
         "target": "starting-area"
+      }
+    }
+  },
+  "scavenger-camp": {
+    "description": "A circle of tents surrounds a banked fire. Salvagers sort their findings while a map table displays weathered charts of the ruins.",
+    "choices": [
+      {"command": "look", "description": "Survey the busy camp."},
+      {"command": "search", "description": "Rummage through the supply crates."},
+      {"command": "rest", "description": "Share stories with the scavengers."},
+      {"command": "return", "description": "Head back to the trailhead."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide map')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Veteran salvagers trade rumours about hidden vaults beneath the bastion."
+      },
+      "search": {
+        "narration": "Beneath a stack of tarps you discover a weathered map annotated with faded ink.",
+        "item": "weathered map"
+      },
+      "rest": {
+        "narration": "You warm your hands by the coals as the salvagers recount daring recoveries and close calls."
+      },
+      "return": {
+        "narration": "You follow the flagged trail back to the trailhead.",
+        "target": "starting-area"
+      }
+    }
+  },
+  "ranger-lookout": {
+    "description": "The lookout overlooks the ruins. Wind chimes sway from the rafters, and a ranger polishes a carved signal whistle.",
+    "choices": [
+      {"command": "look", "description": "Admire the sweeping view."},
+      {"command": "train", "description": "Learn the ranger signal."},
+      {"command": "signal", "description": "Practice the new call."},
+      {"command": "return", "description": "Climb back down to the trailhead."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide lookout')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "From here you can trace the bastion's collapsed walls and the spire piercing the clouds."
+      },
+      "train": {
+        "narration": "The ranger walks you through a sequence of resonant notes and gifts you a small whistle.",
+        "item": "signal lesson"
+      },
+      "signal": {
+        "narration": "You practice the cadence until the surrounding woods echo the final note back to you."
+      },
+      "return": {
+        "narration": "You descend the ridge and return to the trailhead.",
+        "target": "starting-area"
+      }
+    }
+  },
+  "misty-courtyard": {
+    "description": "Fog swirls around toppled statues. Three archways lead deeper: a bronze door to the west, a flooded passage east, and a spiral stair ahead.",
+    "choices": [
+      {"command": "look", "description": "Listen to the shifting mist."},
+      {"command": "hall", "description": "Approach the bronze door."},
+      {"command": "archives", "description": "Wade toward the flooded archives."},
+      {"command": "stair", "description": "Climb the spiral stair."},
+      {"command": "return", "description": "Slip back through the gate."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide courtyard')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "The statues hum softly, responding to distant notes on the wind."
+      },
+      "hall": {
+        "narration": "You fit the rusty key into the bronze door and the lock releases with a resonant click.",
+        "target": "collapsed-hall",
+        "requires": ["rusty key"],
+        "failure_narration": "The bronze door refuses to budge—perhaps the key you spotted earlier could help."
+      },
+      "archives": {
+        "narration": "Cold water laps at your boots as you edge into the drowned archives.",
+        "target": "flooded-archives"
+      },
+      "stair": {
+        "narration": "You ascend the spiral stair, the fog thinning with each step.",
+        "target": "echoing-stair"
+      },
+      "return": {
+        "narration": "You slip back toward the forest gate.",
+        "target": "old-gate"
+      }
+    }
+  },
+  "collapsed-hall": {
+    "description": "Fallen pillars criss-cross the hall. A sealed crypt door waits beyond a maze of rubble, etched with sigils of resonance.",
+    "choices": [
+      {"command": "look", "description": "Study the fractured architecture."},
+      {"command": "excavate", "description": "Clear rubble near the sigils."},
+      {"command": "crypt", "description": "Attempt to signal the guardians."},
+      {"command": "return", "description": "Retreat to the misty courtyard."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide hall')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Echoes linger in the vaulted ceiling, amplifying even quiet notes."}
+      ,
+      "excavate": {
+        "narration": "Beneath the rubble you uncover a shard that vibrates when held near the sigils.",
+        "item": "echo shard"
+      },
+      "crypt": {
+        "narration": "You sound the practiced signal. The sigils glow and the crypt door slides open just enough for you to slip inside.",
+        "target": "sealed-crypt",
+        "requires": ["signal lesson"],
+        "failure_narration": "Without mastering the ranger's signal, the guardians remain unmoved."
+      },
+      "return": {
+        "narration": "You navigate the rubble back to the courtyard.",
+        "target": "misty-courtyard"
+      }
+    }
+  },
+  "sealed-crypt": {
+    "description": "Antechambers ring the crypt, lit by gentle bioluminescent moss. Stone guardians rest with their eyes closed, awaiting a calming cadence.",
+    "choices": [
+      {"command": "look", "description": "Examine the resting guardians."},
+      {"command": "glean", "description": "Study the carved murals."},
+      {"command": "return", "description": "Step back into the collapsed hall."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide crypt')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "The guardians' stone hands cradle tuning forks carved from the same crystal as your shard."
+      },
+      "glean": {
+        "narration": "You trace a spiral sigil and feel warmth in a small tablet that bears the guardians' crest.",
+        "item": "ancient sigil"
+      },
+      "return": {
+        "narration": "You ease the door open and return to the collapsed hall.",
+        "target": "collapsed-hall"
+      }
+    }
+  },
+  "flooded-archives": {
+    "description": "Submerged shelves lean at precarious angles. Light refracts through the water, scattering patterns across the ceiling.",
+    "choices": [
+      {"command": "look", "description": "Peer between the shelves."},
+      {"command": "salvage", "description": "Recover intact artifacts."},
+      {"command": "study", "description": "Decode marginalia with your map."},
+      {"command": "return", "description": "Retreat to the misty courtyard."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide archives')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Water drips from the ceiling in a rhythm that almost forms a song."
+      },
+      "salvage": {
+        "narration": "You pry open a sealed case and retrieve a gleaming sunstone lens.",
+        "item": "sunstone lens"
+      },
+      "study": {
+        "narration": "Aligning the map with the shelves reveals hidden annotations about the spire's machinery.",
+        "requires": ["weathered map"],
+        "failure_narration": "Without the camp's weathered map, the marginalia remains a blur of waterlogged ink."
+      },
+      "return": {
+        "narration": "You slog back through the water to the courtyard.",
+        "target": "misty-courtyard"
+      }
+    }
+  },
+  "echoing-stair": {
+    "description": "The stairwell coils upward, each footstep resonating like a chime. Alcoves hold instruments tuned to the spire's frequency.",
+    "choices": [
+      {"command": "look", "description": "Listen to the stairwell's harmonics."},
+      {"command": "ascend", "description": "Continue toward the spire."},
+      {"command": "return", "description": "Descend to the courtyard."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide stair')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "You pluck a chord from a nearby harp and the stair answers with a shimmering overtone."
+      },
+      "ascend": {
+        "narration": "You emerge above the mist at the base of the aether spire.",
+        "target": "aether-spire-base"
+      },
+      "return": {
+        "narration": "You descend back into the courtyard fog.",
+        "target": "misty-courtyard"
+      }
+    }
+  },
+  "aether-spire-base": {
+    "description": "Platforms ring the spire's base. Conduits hum with latent power, branching toward workshops, archives, and the observatory above.",
+    "choices": [
+      {"command": "look", "description": "Observe the busy junction."},
+      {"command": "workshop", "description": "Enter the astral workshop."},
+      {"command": "chamber", "description": "Visit the chronicle chamber."},
+      {"command": "observatory", "description": "Climb to the celestial observatory."},
+      {"command": "descend", "description": "Head back down the echoing stair."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide spire')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Pipelines pulse with a gentle glow, syncing to the heartbeats of the spire's mechanisms."
+      },
+      "workshop": {
+        "narration": "You follow a resonant hum into the astral workshop.",
+        "target": "astral-workshop"
+      },
+      "chamber": {
+        "narration": "You slip through an archway into the chronicle chamber.",
+        "target": "chronicle-chamber"
+      },
+      "observatory": {
+        "narration": "You climb the latticework stairs toward the observatory dome.",
+        "target": "celestial-observatory"
+      },
+      "descend": {
+        "narration": "You return down the resonant stairwell.",
+        "target": "echoing-stair"
+      }
+    }
+  },
+  "astral-workshop": {
+    "description": "Glass instruments and levitating tools fill the workshop. Notes hang in the air like motes of light, waiting to be woven into new harmonies.",
+    "choices": [
+      {"command": "look", "description": "Inspect the instruments."},
+      {"command": "scavenge", "description": "Gather shimmering components."},
+      {"command": "craft", "description": "Forge a resonant chime."},
+      {"command": "return", "description": "Head back to the spire base."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide chime')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Harmonic diagrams cover the walls, detailing how sound shapes the spire's defenses."
+      },
+      "scavenge": {
+        "narration": "You collect strands of luminous filament that hum with stored resonance.",
+        "item": "luminous filament"
+      },
+      "craft": {
+        "narration": "You weave the filament around the echo shard, the two resonances merging into a balanced chord.",
+        "item": "resonant chime",
+        "requires": ["echo shard", "luminous filament"],
+        "consumes": ["echo shard", "luminous filament"],
+        "failure_narration": "You need both the echo shard and luminous filament to forge the chime."
+      },
+      "return": {
+        "narration": "You leave the workshop's glow behind.",
+        "target": "aether-spire-base"
+      }
+    }
+  },
+  "chronicle-chamber": {
+    "description": "Shelves of etched crystal tablets surround a central projector. Images flicker when light passes through the engravings.",
+    "choices": [
+      {"command": "look", "description": "Browse the etched histories."},
+      {"command": "study", "description": "Align the map with the crystals."},
+      {"command": "return", "description": "Slip back to the spire base."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide chronicle')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "The tablets glow when you recall the tales you've recorded so far."
+      },
+      "study": {
+        "narration": "Overlaying the weathered map reveals notes from prior expeditions about resonant frequencies.",
+        "requires": ["weathered map"],
+        "failure_narration": "Without the weathered map from the camp, the crystals refuse to share their secrets."
+      },
+      "return": {
+        "narration": "You exit into the hum of the spire base.",
+        "target": "aether-spire-base"
+      }
+    }
+  },
+  "celestial-observatory": {
+    "description": "The observatory dome opens to the stars. Arrays of lenses hang above a central dais surrounded by resonant pylons.",
+    "choices": [
+      {"command": "look", "description": "Gaze at the constellations."},
+      {"command": "activate", "description": "Channel the spire's energies."},
+      {"command": "reflect", "description": "Contemplate your journey."},
+      {"command": "return", "description": "Descend to the spire base."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide observatory')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Stars wink in response to the gentle chime of the spire's machinery."
+      },
+      "activate": {
+        "narration": "You set the sunstone lens within the dais and ring the resonant chime. The pylons answer, harmonising with the night sky as pathways of light unfurl before you.",
+        "requires": ["sunstone lens", "resonant chime"],
+        "failure_narration": "The machinery sputters—the observatory clearly expects both the sunstone lens and resonant chime."
+      },
+      "reflect": {
+        "narration": "Memories of the journey ripple through the dome, painting constellations that echo your choices."
+      },
+      "return": {
+        "narration": "You descend the lattice back toward the spire base.",
+        "target": "aether-spire-base"
       }
     }
   }
