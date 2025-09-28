@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Mapping, MutableMapping, Protocol, Sequence
 
 from .llm import LLMClient
@@ -89,6 +90,33 @@ class LLMProviderRegistry:
             options = _validate_options_mapping(raw_options)
 
         return self.create(identifier, **options)
+
+    def create_from_config_file(self, path: str | Path) -> LLMClient:
+        """Instantiate a provider using configuration loaded from ``path``."""
+
+        config_path = Path(path)
+        try:
+            raw_text = config_path.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(
+                f"Provider config file '{config_path}' was not found"
+            ) from exc
+        except OSError as exc:  # pragma: no cover - exercised in integration usage
+            raise OSError(
+                f"Could not read provider config file '{config_path}': {exc}"
+            ) from exc
+
+        try:
+            data = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Provider config file '{config_path}' contained invalid JSON: {exc}"
+            ) from exc
+
+        if not isinstance(data, Mapping):
+            raise TypeError("provider config file must contain a JSON object mapping")
+
+        return self.create_from_config(data)
 
     def create_from_cli(
         self, provider: str, option_strings: Sequence[str] | None = None

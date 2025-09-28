@@ -249,6 +249,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--llm-config",
+        type=Path,
+        help=(
+            "Path to a JSON file describing the LLM provider and options. "
+            "Cannot be combined with --llm-provider/--llm-option."
+        ),
+    )
+    parser.add_argument(
         "--llm-option",
         dest="llm_options",
         action="append",
@@ -269,6 +277,20 @@ def main(argv: Sequence[str] | None = None) -> None:
     scripted_engine = ScriptedStoryEngine()
     primary_agent = ScriptedStoryAgent("narrator", scripted_engine)
 
+    if args.llm_config and args.llm_provider:
+        print(
+            "Both --llm-config and --llm-provider were supplied. "
+            "Please choose one configuration style."
+        )
+        raise SystemExit(2)
+
+    if args.llm_config and args.llm_options:
+        print(
+            "--llm-option cannot be combined with --llm-config. "
+            "Encode additional options within the JSON file."
+        )
+        raise SystemExit(2)
+
     if args.llm_options and not args.llm_provider:
         print(
             "--llm-option was provided but no --llm-provider was specified. "
@@ -277,21 +299,29 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(2)
 
     secondary_agents: list[LLMStoryAgent] = []
-    if args.llm_provider:
+    if args.llm_provider or args.llm_config:
         registry = LLMProviderRegistry()
         register_builtin_providers(registry)
-        option_strings: Sequence[str] | None
-        if args.llm_options is None:
-            option_strings = None
-        else:
-            option_strings = tuple(args.llm_options)
         try:
-            llm_client = registry.create_from_cli(
-                args.llm_provider,
-                option_strings,
-            )
+            if args.llm_config:
+                llm_client = registry.create_from_config_file(args.llm_config)
+            else:
+                option_strings: Sequence[str] | None
+                if args.llm_options is None:
+                    option_strings = None
+                else:
+                    option_strings = tuple(args.llm_options)
+                llm_client = registry.create_from_cli(
+                    args.llm_provider,
+                    option_strings,
+                )
         except Exception as exc:
-            print(f"Failed to initialise LLM provider '{args.llm_provider}': {exc}")
+            identifier = (
+                str(args.llm_config)
+                if args.llm_config is not None
+                else args.llm_provider
+            )
+            print(f"Failed to initialise LLM provider '{identifier}': {exc}")
             raise SystemExit(2) from exc
 
         secondary_agents.append(LLMStoryAgent(name="oracle", llm_client=llm_client))

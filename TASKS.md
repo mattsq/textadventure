@@ -95,7 +95,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Implement adapters for local runtimes (e.g., Hugging Face Text Generation Inference, llama.cpp servers) so self-hosted models can plug into the same flow.
   - [x] Document setup instructions and configuration flags required to target each local runtime.
   - [x] Add smoke tests or mocks verifying adapters handle streaming, chunked responses, and offline failure scenarios.
-- [ ] Create a provider registry that loads adapters dynamically based on configuration files or CLI options.
+- [x] Create a provider registry that loads adapters dynamically based on configuration files or CLI options.
   - [x] Define an `LLMProviderRegistry` that handles registering and resolving provider factories.
   - [x] Support instantiating providers from configuration mappings (e.g., parsed config files).
   - [x] Support instantiating providers from CLI-style option strings for manual selection.
@@ -105,3 +105,4 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Instantiate LLM-backed agents via the provider registry when configured and integrate them with the coordinator.
     - [x] Document the workflow and add regression tests covering provider selection.
   - [x] Ensure registry lookups and adapter instantiation are covered by tests, including misconfiguration handling. *(Added coverage for dynamic import errors, invalid identifiers, and duplicate CLI options to assert descriptive failures.)*
+  - [x] Support loading provider configuration from JSON files and exposing a matching CLI flag. *(Added `LLMProviderRegistry.create_from_config_file`, CLI wiring, tests, and documentation.)*
