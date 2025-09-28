@@ -21,7 +21,10 @@ narrative.
 This setup assumes a single authoritative story engine that owns both narrative
 logic and NPC behaviour. To support multi-agent scenarios we need a layer that
 can orchestrate multiple story contributors, arbitrate their outputs, and keep
-the world state consistent.
+the world state consistent. The CLI demo exposes this orchestration path by
+allowing an LLM-backed secondary narrator to be attached at runtime with the
+`--llm-provider` flag, keeping experimentation in parity with the scripted
+primary agent.
 
 ## Proposed Components
 1. **Agent Interface**

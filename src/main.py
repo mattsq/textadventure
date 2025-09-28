@@ -8,6 +8,8 @@ from typing import Sequence, TextIO
 
 from textadventure import (
     FileSessionStore,
+    LLMProviderRegistry,
+    LLMStoryAgent,
     MultiAgentCoordinator,
     ScriptedStoryAgent,
     SessionSnapshot,
@@ -237,6 +239,24 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "Path to a transcript log capturing narration, metadata, and player input."
         ),
     )
+    parser.add_argument(
+        "--llm-provider",
+        type=str,
+        help=(
+            "Identifier of an LLM provider to add as a secondary agent. "
+            "Accepts registered names or module paths (module:factory)."
+        ),
+    )
+    parser.add_argument(
+        "--llm-option",
+        dest="llm_options",
+        action="append",
+        metavar="KEY=VALUE",
+        help=(
+            "Additional option to pass to the LLM provider factory. "
+            "May be supplied multiple times."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -246,7 +266,38 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = _parse_args(argv)
     world = WorldState()
     scripted_engine = ScriptedStoryEngine()
-    coordinator = MultiAgentCoordinator(ScriptedStoryAgent("narrator", scripted_engine))
+    primary_agent = ScriptedStoryAgent("narrator", scripted_engine)
+
+    if args.llm_options and not args.llm_provider:
+        print(
+            "--llm-option was provided but no --llm-provider was specified. "
+            "The adventure cannot start with LLM options alone."
+        )
+        raise SystemExit(2)
+
+    secondary_agents: list[LLMStoryAgent] = []
+    if args.llm_provider:
+        registry = LLMProviderRegistry()
+        option_strings: Sequence[str] | None
+        if args.llm_options is None:
+            option_strings = None
+        else:
+            option_strings = tuple(args.llm_options)
+        try:
+            llm_client = registry.create_from_cli(
+                args.llm_provider,
+                option_strings,
+            )
+        except Exception as exc:
+            print(f"Failed to initialise LLM provider '{args.llm_provider}': {exc}")
+            raise SystemExit(2) from exc
+
+        secondary_agents.append(LLMStoryAgent(name="oracle", llm_client=llm_client))
+
+    coordinator = MultiAgentCoordinator(
+        primary_agent,
+        secondary_agents=secondary_agents,
+    )
     engine: StoryEngine = coordinator
 
     session_store: SessionStore | None = None
