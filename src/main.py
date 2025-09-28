@@ -13,6 +13,7 @@ def run_cli(engine: StoryEngine, world: WorldState) -> None:
     print("Type 'quit' at any time to end the session.\n")
 
     event = engine.propose_event(world)
+    world.remember_observation(event.narration)
     while True:
         print(engine.format_event(event))
         if not event.has_choices:
@@ -38,7 +39,9 @@ def run_cli(engine: StoryEngine, world: WorldState) -> None:
             print("\nThanks for playing!")
             break
 
+        world.remember_action(player_input)
         event = engine.propose_event(world, player_input=player_input)
+        world.remember_observation(event.narration)
 
 
 def main() -> None:

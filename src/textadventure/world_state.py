@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable, List, Set
+from typing import Iterable, List, Sequence, Set
+
+from .memory import MemoryLog
 
 
 @dataclass
@@ -23,6 +25,7 @@ class WorldState:
     location: str = "starting-area"
     inventory: Set[str] = field(default_factory=set)
     history: List[str] = field(default_factory=list)
+    memory: MemoryLog = field(default_factory=MemoryLog)
 
     def __post_init__(self) -> None:
         self.location = self._validate_label(self.location, "location")
@@ -105,6 +108,30 @@ class WorldState:
 
         for description in descriptions:
             self.record_event(description)
+
+    def remember_action(self, command: str) -> None:
+        """Record a player action in the memory log."""
+
+        validated = self._validate_label(command, "player action")
+        self.memory.remember("action", validated)
+
+    def remember_observation(self, description: str) -> None:
+        """Store a narrative observation produced by the story engine."""
+
+        validated = self._validate_label(description, "observation")
+        self.memory.remember("observation", validated)
+
+    def recent_actions(self, limit: int = 5) -> Sequence[str]:
+        """Return the most recent player actions in chronological order."""
+
+        entries = self.memory.recent(kind="action", limit=limit)
+        return tuple(entry.content for entry in entries)
+
+    def recent_observations(self, limit: int = 5) -> Sequence[str]:
+        """Return the most recent story observations in chronological order."""
+
+        entries = self.memory.recent(kind="observation", limit=limit)
+        return tuple(entry.content for entry in entries)
 
     @staticmethod
     def _validate_label(value: str, field_name: str) -> str:

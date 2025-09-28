@@ -13,7 +13,9 @@ def test_initial_event_describes_location() -> None:
     event = engine.propose_event(world)
 
     assert "trailhead" in event.narration
-    assert "look" in event.iter_choice_commands()
+    commands = event.iter_choice_commands()
+    assert "look" in commands
+    assert "recall" in commands
 
 
 def test_explore_transitions_to_gate() -> None:
@@ -47,3 +49,17 @@ def test_unknown_command_reprompts() -> None:
 
     assert "not sure" in event.narration.lower()
     assert "dance" in event.narration
+
+
+def test_recall_command_reports_recent_actions() -> None:
+    world = WorldState()
+    engine = ScriptedStoryEngine()
+
+    world.remember_action("look")
+    world.remember_action("explore the gate")
+
+    event = engine.propose_event(world, player_input="recall")
+
+    assert "reflect on your recent decisions" in event.narration.lower()
+    assert "look" in event.narration
+    assert "explore the gate" in event.narration

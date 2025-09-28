@@ -58,3 +58,16 @@ def test_remove_item_returns_false_when_absent(world_state: WorldState) -> None:
 
     assert result is False
     assert world_state.history == []
+
+
+def test_recent_actions_reflect_recorded_memory(world_state: WorldState) -> None:
+    world_state.remember_action("Open the gate")
+    world_state.remember_action("Step through")
+
+    assert world_state.recent_actions() == ("Open the gate", "Step through")
+
+
+def test_recent_observations_reflect_story_notes(world_state: WorldState) -> None:
+    world_state.remember_observation("A lantern flickers in the dusk.")
+
+    assert world_state.recent_observations(limit=1) == ("A lantern flickers in the dusk.",)

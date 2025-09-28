@@ -17,7 +17,7 @@ This document captures recommended starting tasks for building out the text-adve
 
 ## Priority 2: Persistence & Memory
 - [x] Define how game sessions will be persisted (in-memory first, followed by optional file-based persistence).
-- [ ] Introduce a lightweight memory mechanism so the agent can recall past actions and player choices.
+- [x] Introduce a lightweight memory mechanism so the agent can recall past actions and player choices. *(Implemented `MemoryLog` utilities, wired into the world state, and surfaced via a scripted "recall" command.)*
 
 ## Priority 3: Testing & Tooling Enhancements
 - [x] Write unit tests covering the world state mutations and narrative branching logic.
