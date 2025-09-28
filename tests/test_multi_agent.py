@@ -71,7 +71,9 @@ class SequencedAgent(Agent):
         del world_state
         self.triggers.append(trigger)
         if not self._results:
-            raise AssertionError(f"no scripted result available for agent {self.name!r}")
+            raise AssertionError(
+                f"no scripted result available for agent {self.name!r}"
+            )
         return self._results.pop(0)
 
 
@@ -80,9 +82,7 @@ def test_coordinator_defaults_to_primary_agent_output() -> None:
 
     world = WorldState()
     scripted_engine = ScriptedStoryEngine()
-    coordinator = MultiAgentCoordinator(
-        ScriptedStoryAgent("narrator", scripted_engine)
-    )
+    coordinator = MultiAgentCoordinator(ScriptedStoryAgent("narrator", scripted_engine))
 
     expected = scripted_engine.propose_event(WorldState())
     result = coordinator.propose_event(world)
@@ -121,7 +121,9 @@ def test_coordinator_merges_secondary_contributions() -> None:
     )
 
     # Primary narration appears first followed by the secondary fragment.
-    assert event.narration.startswith(scripted_engine.propose_event(WorldState()).narration)
+    assert event.narration.startswith(
+        scripted_engine.propose_event(WorldState()).narration
+    )
     assert "A cold wind whispers through the trees." in event.narration
 
     commands = [choice.command for choice in event.choices]

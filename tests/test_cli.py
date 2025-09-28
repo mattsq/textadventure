@@ -63,7 +63,9 @@ class _SequencedAgent(Agent):
     ) -> AgentTurnResult:
         del world_state, trigger
         if not self._results:
-            raise AssertionError(f"no scripted result available for agent {self.name!r}")
+            raise AssertionError(
+                f"no scripted result available for agent {self.name!r}"
+            )
         return self._results.pop(0)
 
 
@@ -226,7 +228,9 @@ def test_status_command_reports_world_and_queue_details(monkeypatch, capsys) -> 
     assert "Location: starting-area" in captured
     assert "Inventory: lantern" in captured
     assert "Queued agent messages:" in captured
-    assert "from narrator (kind=alert, metadata={note=prepare, target=scout})" in captured
+    assert (
+        "from narrator (kind=alert, metadata={note=prepare, target=scout})" in captured
+    )
     assert "Pending saves: checkpoint" in captured
 
 

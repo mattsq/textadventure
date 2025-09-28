@@ -59,7 +59,9 @@ def _memory_summary(world_state: WorldState) -> str:
     return f"You reflect on your recent decisions:\n{entries}"
 
 
-def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[str, _Scene]:
+def load_scenes_from_mapping(
+    definitions: Mapping[str, Any],
+) -> MutableMapping[str, _Scene]:
     """Convert a mapping of scene definitions into internal `_Scene` objects.
 
     The ``definitions`` mapping is typically produced by parsing a JSON file.
@@ -108,7 +110,9 @@ def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[s
 
         raw_transitions = payload.get("transitions")
         if not isinstance(raw_transitions, Mapping):
-            raise ValueError(f"Scene '{location}' must define a mapping of transitions.")
+            raise ValueError(
+                f"Scene '{location}' must define a mapping of transitions."
+            )
 
         transitions: dict[str, _Transition] = {}
         for command, transition_payload in raw_transitions.items():
@@ -178,7 +182,9 @@ def load_scenes_from_file(path: str | Path) -> MutableMapping[str, _Scene]:
 def _load_default_scenes() -> MutableMapping[str, _Scene]:
     """Read the bundled demo scenes from the package data directory."""
 
-    data_resource = resources.files("textadventure.data").joinpath("scripted_scenes.json")
+    data_resource = resources.files("textadventure.data").joinpath(
+        "scripted_scenes.json"
+    )
     with data_resource.open("r", encoding="utf-8") as handle:
         raw_data = json.load(handle)
 
@@ -275,7 +281,8 @@ class ScriptedStoryEngine(StoryEngine):
         if transition is None:
             available = scene.command_list()
             narration = (
-                f"You're not sure how to '{cleaned_input}'. " f"Try one of: {available}."
+                f"You're not sure how to '{cleaned_input}'. "
+                f"Try one of: {available}."
             )
             return StoryEvent(narration=narration, choices=scene.choices)
 

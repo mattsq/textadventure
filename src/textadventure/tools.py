@@ -132,12 +132,18 @@ class KnowledgeBaseTool(Tool):
         entry = self._entries.get(cleaned_query)
         if entry is None:
             hints = self.usage_hints()
-            hint_text = "\n".join(hints) if hints else "No additional topics are listed."
+            hint_text = (
+                "\n".join(hints) if hints else "No additional topics are listed."
+            )
             return ToolResponse(
                 narration=(
                     f"The field guide has no entry for '{cleaned_query}'.\n{hint_text}"
                 ),
-                metadata={"tool": self.name, "status": "not_found", "topic": cleaned_query},
+                metadata={
+                    "tool": self.name,
+                    "status": "not_found",
+                    "topic": cleaned_query,
+                },
             )
 
         return ToolResponse(

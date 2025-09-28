@@ -175,7 +175,10 @@ class MultiAgentCoordinator(StoryEngine):
     ) -> None:
         self._primary = primary_agent
         self._secondary_agents = tuple(secondary_agents or ())
-        all_names = [primary_agent.name, *[agent.name for agent in self._secondary_agents]]
+        all_names = [
+            primary_agent.name,
+            *[agent.name for agent in self._secondary_agents],
+        ]
         if len(all_names) != len(set(all_names)):
             raise ValueError("agent names must be unique")
         self._is_first_turn = True
@@ -218,8 +221,10 @@ class MultiAgentCoordinator(StoryEngine):
             for recipient in self._resolve_recipients(message):
                 run_agent(recipient, message.trigger)
 
-        trigger_kind = "player-input" if player_input is not None else (
-            "initial" if self._is_first_turn else "tick"
+        trigger_kind = (
+            "player-input"
+            if player_input is not None
+            else ("initial" if self._is_first_turn else "tick")
         )
         primary_trigger = AgentTrigger(
             kind=trigger_kind,
@@ -284,9 +289,7 @@ class MultiAgentCoordinator(StoryEngine):
                 ) from exc
 
         return tuple(
-            agent
-            for agent in self._iter_agents()
-            if agent.name != message.origin_agent
+            agent for agent in self._iter_agents() if agent.name != message.origin_agent
         )
 
 
@@ -315,19 +318,26 @@ class _EventAccumulator:
             if choice.command not in self._choices:
                 self._choices[choice.command] = choice
 
-        for key, value in event.metadata.items():
-            if prefer_metadata_keys and key not in self._metadata:
-                self._metadata[key] = value
-                continue
+        if event.metadata:
+            for key, value in event.metadata.items():
+                if prefer_metadata_keys and key not in self._metadata:
+                    self._metadata[key] = value
+                    continue
 
-            namespaced_key = f"{agent_name}:{key}" if key in self._metadata or not prefer_metadata_keys else key
-            self._metadata[namespaced_key] = value
+                namespaced_key = (
+                    f"{agent_name}:{key}"
+                    if key in self._metadata or not prefer_metadata_keys
+                    else key
+                )
+                self._metadata[namespaced_key] = value
 
     def build_event(self) -> StoryEvent:
         if not self._narrations:
             raise ValueError("no narration was provided by the coordinated agents")
         primary_segments = [text for is_primary, text in self._narrations if is_primary]
-        other_segments = [text for is_primary, text in self._narrations if not is_primary]
+        other_segments = [
+            text for is_primary, text in self._narrations if not is_primary
+        ]
         narration = "\n\n".join([*primary_segments, *other_segments])
         return StoryEvent(
             narration=narration,
