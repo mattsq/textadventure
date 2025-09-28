@@ -7,7 +7,7 @@ from collections.abc import Iterator
 import builtins
 
 from main import run_cli
-from textadventure import WorldState
+from textadventure import InMemorySessionStore, SessionSnapshot, WorldState
 from textadventure.scripted_story_engine import ScriptedStoryEngine
 from textadventure.story_engine import StoryEngine, StoryEvent
 
@@ -83,3 +83,68 @@ def test_run_cli_stops_when_event_has_no_choices(monkeypatch, capsys) -> None:
 
     assert engine.calls == [(None, "starting-area")]
     assert world.recent_actions() == ()
+
+
+def test_run_cli_supports_saving_and_loading(monkeypatch, capsys) -> None:
+    """Ensure the CLI can persist and restore sessions through commands."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+    store = InMemorySessionStore()
+
+    inputs = iter(["save demo", "explore", "save demo", "load demo", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world, session_store=store)
+
+    captured = capsys.readouterr().out
+    assert "Saved session 'demo'." in captured
+    assert "Loaded session 'demo'." in captured
+
+    snapshot = store.load("demo")
+    assert snapshot.world_state.location == "old-gate"
+    assert world.location == "old-gate"
+    assert world.recent_actions() == ("explore",)
+
+
+def test_run_cli_informs_when_saving_unavailable(monkeypatch, capsys) -> None:
+    """Saving without a configured session store should produce guidance."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["save test", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world)
+
+    captured = capsys.readouterr().out
+    assert "Saving is unavailable" in captured
+    assert "Saved session" not in captured
+    assert world.recent_actions() == ()
+
+
+def test_run_cli_autoloads_session(monkeypatch, capsys) -> None:
+    """Providing autoload details should restore the world before the loop."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+    store = InMemorySessionStore()
+
+    world.move_to("old-gate")
+    world.remember_action("explore")
+    snapshot = SessionSnapshot.capture(world)
+    store.save("resume", snapshot)
+
+    # Reset world to confirm autoload applies snapshot
+    world = WorldState()
+
+    inputs = iter(["quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world, session_store=store, autoload_session="resume")
+
+    captured = capsys.readouterr().out
+    assert "Loaded session 'resume'." in captured
+    assert world.location == "old-gate"
+    assert world.recent_actions() == ("explore",)

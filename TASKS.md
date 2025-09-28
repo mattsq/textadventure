@@ -31,7 +31,10 @@ This document captures recommended starting tasks for building out the text-adve
   - [x] Define a lightweight tool abstraction and document how tools are registered with a story engine.
   - [x] Provide an initial knowledge-base tool that surfaces lore lookups through scripted commands.
   - [x] Add automated tests covering the new tool flow and update user-facing guidance where appropriate.
-- [ ] Investigate saving/loading checkpoints for long-running adventures.
+- [x] Investigate saving/loading checkpoints for long-running adventures.
+  - [x] Add CLI commands to save and load sessions using the persistence layer.
+  - [x] Extend persistence snapshots to cover memory and provide helpers for applying them.
+  - [x] Add automated tests demonstrating a save/load round-trip through the CLI.
 - [ ] Evaluate multi-agent orchestration for NPC behaviors or parallel storylines.
 
 Revisit this backlog as soon as the initial scaffolding is in place so we can refine upcoming milestones based on early feedback.
