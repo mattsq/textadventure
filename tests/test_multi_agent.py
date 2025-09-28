@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Sequence
+
 import pytest
 
 from textadventure.multi_agent import (
@@ -48,6 +50,27 @@ class StubAgent(Agent):
                 metadata=self._metadata,
             )
         )
+
+
+class SequencedAgent(Agent):
+    """Agent that replays a scripted sequence of turn results."""
+
+    def __init__(self, name: str, results: Sequence[AgentTurnResult]) -> None:
+        self.name = name
+        self._results = list(results)
+        self.triggers: list[AgentTrigger] = []
+
+    def propose_event(
+        self,
+        world_state: WorldState,
+        *,
+        trigger: AgentTrigger,
+    ) -> AgentTurnResult:
+        del world_state
+        self.triggers.append(trigger)
+        if not self._results:
+            raise AssertionError(f"no scripted result available for agent {self.name!r}")
+        return self._results.pop(0)
 
 
 def test_coordinator_defaults_to_primary_agent_output() -> None:
@@ -115,3 +138,55 @@ def test_coordinator_rejects_duplicate_agent_names() -> None:
 
     with pytest.raises(ValueError):
         MultiAgentCoordinator(primary, secondary_agents=[duplicate])
+
+
+def test_coordinator_routes_queued_messages_between_turns() -> None:
+    """Queued triggers are replayed on the following turn for targeted agents."""
+
+    world = WorldState()
+
+    primary = SequencedAgent(
+        "narrator",
+        (
+            AgentTurnResult(
+                event=StoryEvent("Primary opens the scene."),
+                messages=(
+                    AgentTrigger(
+                        kind="alert",
+                        metadata={"target": "scout"},
+                    ),
+                ),
+            ),
+            AgentTurnResult(
+                event=StoryEvent("Primary continues the tale."),
+            ),
+        ),
+    )
+
+    scout = SequencedAgent(
+        "scout",
+        (
+            AgentTurnResult(event=StoryEvent("Scout echoes the main story.")),
+            AgentTurnResult(event=StoryEvent("Scout whispers a warning.")),
+            AgentTurnResult(event=StoryEvent("Scout continues commentary.")),
+        ),
+    )
+
+    coordinator = MultiAgentCoordinator(primary, secondary_agents=[scout])
+
+    first_event = coordinator.propose_event(world)
+    assert [trigger.kind for trigger in scout.triggers] == ["story-event"]
+    assert "Primary opens the scene." in first_event.narration
+    assert "Scout echoes the main story." in first_event.narration
+
+    second_event = coordinator.propose_event(world)
+    assert [trigger.kind for trigger in scout.triggers] == [
+        "story-event",
+        "alert",
+        "story-event",
+    ]
+
+    narration = second_event.narration
+    assert narration.startswith("Primary continues the tale.")
+    assert "Scout whispers a warning." in narration
+    assert "Scout continues commentary." in narration
