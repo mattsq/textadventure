@@ -68,7 +68,10 @@ print(engine.propose_event(world).narration)
 ```
 
 Running the CLI with this engine lets designers iterate on adventures without
-changing the Python source.
+changing the Python source. See
+[`docs/data_driven_scenes.md`](docs/data_driven_scenes.md) for a full breakdown
+of the JSON schema, validation rules, and tips for wiring custom files into the
+demo.
 
 ## Testing and Quality Checks
 

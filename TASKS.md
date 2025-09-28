@@ -52,7 +52,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Add validation helpers that load the scene definitions, ensure commands are unique, verify transition targets exist, and surface descriptive errors with unit tests.
   - [x] Add validation checks for duplicate choice commands and unknown transition targets when loading scenes.
   - [x] Cover validation failure scenarios with dedicated unit tests.
-- [ ] Document the data format and authoring workflow in `docs/` and update the README so contributors can build new adventures quickly.
+- [x] Document the data format and authoring workflow in `docs/` and update the README so contributors can build new adventures quickly. *(Added `docs/data_driven_scenes.md` and linked guidance from the README.)*
 
 ## Priority 6: Generative Agent Integration
 - [ ] Implement an `LLMStoryAgent` that wraps `LLMClient`, assembles prompts from the world state, and can participate in the `MultiAgentCoordinator` turn loop.
