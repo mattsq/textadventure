@@ -20,6 +20,9 @@ class _Transition:
     narration: str
     target: str | None = None
     item: str | None = None
+    requires: tuple[str, ...] = ()
+    failure_narration: str | None = None
+    consumes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -145,10 +148,45 @@ def load_scenes_from_mapping(
                     f"Transition '{command}' in scene '{location}' must use a string 'item'."
                 )
 
+            raw_requires = transition_payload.get("requires")
+            requires: tuple[str, ...]
+            if raw_requires is None:
+                requires = ()
+            elif isinstance(raw_requires, list) and all(
+                isinstance(entry, str) for entry in raw_requires
+            ):
+                requires = tuple(entry for entry in raw_requires)
+            else:
+                raise ValueError(
+                    f"Transition '{command}' in scene '{location}' must define 'requires' as a list of strings."
+                )
+
+            failure_narration = transition_payload.get("failure_narration")
+            if failure_narration is not None and not isinstance(failure_narration, str):
+                raise ValueError(
+                    f"Transition '{command}' in scene '{location}' must use a string 'failure_narration'."
+                )
+
+            raw_consumes = transition_payload.get("consumes")
+            consumes: tuple[str, ...]
+            if raw_consumes is None:
+                consumes = ()
+            elif isinstance(raw_consumes, list) and all(
+                isinstance(entry, str) for entry in raw_consumes
+            ):
+                consumes = tuple(entry for entry in raw_consumes)
+            else:
+                raise ValueError(
+                    f"Transition '{command}' in scene '{location}' must define 'consumes' as a list of strings."
+                )
+
             transitions[command] = _Transition(
                 narration=narration,
                 target=target,
                 item=item,
+                requires=requires,
+                failure_narration=failure_narration,
+                consumes=consumes,
             )
 
         scenes[location] = _Scene(
@@ -198,7 +236,7 @@ _DEFAULT_SCENES: MutableMapping[str, _Scene] = _load_default_scenes()
 
 
 class ScriptedStoryEngine(StoryEngine):
-    """A deterministic `StoryEngine` with two handcrafted locations."""
+    """A deterministic `StoryEngine` backed by bundled demo scenes."""
 
     def __init__(
         self,
@@ -286,6 +324,17 @@ class ScriptedStoryEngine(StoryEngine):
             )
             return StoryEvent(narration=narration, choices=scene.choices)
 
+        missing_items = tuple(
+            item for item in transition.requires if item not in world_state.inventory
+        )
+        if missing_items:
+            if transition.failure_narration:
+                narration = transition.failure_narration
+            else:
+                formatted = ", ".join(missing_items)
+                narration = f"You need {formatted} before you can do that."
+            return StoryEvent(narration=narration, choices=scene.choices)
+
         narration = transition.narration
 
         if transition.item:
@@ -294,6 +343,9 @@ class ScriptedStoryEngine(StoryEngine):
                 narration += f"\n\nYou tuck the {transition.item} safely away."
             else:
                 narration += f"\n\nYou already have the {transition.item}."
+
+        for item in transition.consumes:
+            world_state.remove_item(item)
 
         if transition.target:
             world_state.move_to(transition.target)
@@ -327,6 +379,61 @@ _DEFAULT_TOOLS: Mapping[str, Tool] = {
                 "Keys forged in the old city rarely rust, yet this one bears"
                 " a reddish patina. Legends hint that such keys respond to"
                 " whispered passwords, revealing secret mechanisms."
+            ),
+            "camp": (
+                "Scavengers established a semi-permanent camp to catalog"
+                " relics from the bastion. Their annotated maps point toward"
+                " sealed sectors and the safest paths between them."
+            ),
+            "lookout": (
+                "The lookout predates the bastion's fall. Rangers still"
+                " maintain it as a listening post and teach the resonant"
+                " signal used to calm the guardians below."
+            ),
+            "courtyard": (
+                "The misty courtyard acts as a nexus between the ruins'"
+                " wings. Statues here attune to specific harmonies, hinting"
+                " at the puzzles that await deeper within."
+            ),
+            "archives": (
+                "Flooded though they are, the archives contain expedition"
+                " reports and schematics etched to survive water damage. A"
+                " proper map helps align the shelving system."
+            ),
+            "hall": (
+                "Collapsed pillars once amplified ceremonial songs. The"
+                " guardians respond to anyone who can reproduce the old"
+                " ranger signal with confidence."
+            ),
+            "stair": (
+                "The echoing stair doubles as an instrument. Travelers tune"
+                " themselves to its harmonics before approaching the spire"
+                " to avoid disturbing latent wards."
+            ),
+            "map": (
+                "The weathered map layers annotations from generations of"
+                " explorers. Marginalia reveal how certain frequencies"
+                " interact with the spire's mechanisms."
+            ),
+            "lens": (
+                "Sunstone lenses focus ambient aether into coherent beams."
+                " They're essential for activating observatory equipment and"
+                " are notoriously difficult to craft."
+            ),
+            "chime": (
+                "Resonant chimes pair rare crystals with harmonic filaments."
+                " When struck in sequence they pacify guardians and unlock"
+                " sealed pathways."
+            ),
+            "sigil": (
+                "Ancient sigils store ceremonial authority. Carrying one"
+                " marks you as a recognized ally to the bastion's guardians"
+                " and allows limited passage through their halls."
+            ),
+            "observatory": (
+                "The celestial observatory channels starlight through"
+                " suspended lenses. Only those who complete the bastion's"
+                " resonant trials can align its arrays."
             ),
         },
     ),

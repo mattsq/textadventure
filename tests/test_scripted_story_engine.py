@@ -103,7 +103,9 @@ def test_load_scenes_from_file_matches_default() -> None:
     event = engine.propose_event(world)
 
     assert "trailhead" in event.narration
-    assert "guide" in event.iter_choice_commands()
+    commands = event.iter_choice_commands()
+    assert "guide" in commands
+    assert "camp" in commands
 
 
 def test_duplicate_choice_commands_raise_error() -> None:
@@ -143,3 +145,52 @@ def test_missing_transition_target_raises_error() -> None:
         load_scenes_from_mapping(scene_definitions)
 
     assert "unknown target" in str(excinfo.value)
+
+
+def test_locked_hall_requires_key() -> None:
+    world = WorldState(location="misty-courtyard")
+    engine = ScriptedStoryEngine()
+
+    failure_event = engine.propose_event(world, player_input="hall")
+
+    assert "door refuses" in failure_event.narration.lower()
+    assert world.location == "misty-courtyard"
+
+    world.add_item("rusty key")
+
+    success_event = engine.propose_event(world, player_input="hall")
+
+    assert world.location == "collapsed-hall"
+    assert "fallen pillars" in success_event.narration.lower()
+
+
+def test_crafting_consumes_components() -> None:
+    world = WorldState(location="astral-workshop")
+    engine = ScriptedStoryEngine()
+
+    world.add_item("echo shard")
+    world.add_item("luminous filament")
+
+    event = engine.propose_event(world, player_input="craft")
+
+    assert "resonant chime" in world.inventory
+    assert "echo shard" not in world.inventory
+    assert "luminous filament" not in world.inventory
+    assert "weave the filament" in event.narration.lower()
+
+
+def test_observatory_activation_requires_items() -> None:
+    world = WorldState(location="celestial-observatory")
+    engine = ScriptedStoryEngine()
+
+    failure_event = engine.propose_event(world, player_input="activate")
+
+    assert "expects both the sunstone lens" in failure_event.narration
+    assert world.location == "celestial-observatory"
+
+    world.add_item("sunstone lens")
+    world.add_item("resonant chime")
+
+    success_event = engine.propose_event(world, player_input="activate")
+
+    assert "pathways of light" in success_event.narration.lower()

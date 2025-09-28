@@ -43,6 +43,15 @@ Each scene definition must provide the following keys:
   - `item` (string, optional) – Inventory item to grant the player. The
     `WorldState` ensures the item is only added once, even if the scene is
     replayed.
+  - `requires` (array of strings, optional) – List of inventory items the
+    player must currently hold for the transition to succeed. When any items
+    are missing the engine narrates either the provided `failure_narration` or
+    a default reminder and leaves the player in the current scene.
+  - `failure_narration` (string, optional) – Custom narration used when
+    `requires` checks fail.
+  - `consumes` (array of strings, optional) – Items to remove from the
+    inventory when the transition succeeds. This is useful for crafting steps
+    where reagents combine into a new item granted via `item`.
 
 Commands listed in `choices` should have matching entries in `transitions`
 unless the command is handled by the story engine directly (see the "Built-in
@@ -50,6 +59,10 @@ Commands" section below). The validation helpers in
 `textadventure.scripted_story_engine.load_scenes_from_mapping` raise descriptive
 errors if required fields are missing, commands are duplicated, or transitions
 reference unknown targets.
+
+When using `requires`, remember that item names are compared literally against
+the player's inventory. For readability, keep item names consistent between
+the `item`, `requires`, and `consumes` fields.
 
 ## Built-in Commands and Tools
 
