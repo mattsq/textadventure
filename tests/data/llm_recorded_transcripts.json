@@ -1,0 +1,110 @@
+{
+  "world": {
+    "location": "ancient-library",
+    "inventory": [
+      "torch",
+      "map"
+    ],
+    "history": [
+      "Entered the ancient library",
+      "A layer of dust muffles every sound"
+    ],
+    "actions": [
+      "look around"
+    ],
+    "observations": [
+      "Cobwebs sway gently between the stacks"
+    ]
+  },
+  "turns": [
+    {
+      "description": "Initial examination of the relic",
+      "player_input": "examine relic",
+      "expected_prompt_snippets": [
+        "Trigger kind: story-event",
+        "Player input: examine relic",
+        "Current location: ancient-library",
+        "Inventory: map, torch",
+        "Recent history:\n- Entered the ancient library\n- A layer of dust muffles every sound",
+        "Recent player actions:\n- look around",
+        "Recent observations:\n- Cobwebs sway gently between the stacks"
+      ],
+      "response_payload": {
+        "narration": "The relic hums softly, casting dancing motes of light.",
+        "choices": [
+          {
+            "command": "study",
+            "description": "Study the glowing runes more carefully."
+          },
+          {
+            "command": "pocket",
+            "description": "Pocket the relic for later."
+          }
+        ],
+        "metadata": {
+          "tone": "curious"
+        }
+      },
+      "response_metadata": {
+        "model": "fixture-gpt",
+        "request_id": "turn-1"
+      },
+      "expected_choices": [
+        "study",
+        "pocket"
+      ],
+      "expected_metadata": {
+        "tone": "curious",
+        "llm:model": "fixture-gpt",
+        "llm:request_id": "turn-1"
+      }
+    },
+    {
+      "description": "Following up on the rune discovery",
+      "player_input": "study",
+      "expected_prompt_snippets": [
+        "Player input: study",
+        "Previous event narration:",
+        "The relic hums softly, casting dancing motes of light.",
+        "Previous choices:\n- study: Study the glowing runes more carefully."
+      ],
+      "response_payload": {
+        "narration": "As you trace the runes, they rearrange into a shimmering map.",
+        "choices": [
+          {
+            "command": "follow",
+            "description": "Follow the path revealed by the shimmering map."
+          }
+        ]
+      },
+      "response_metadata": {
+        "model": "fixture-gpt",
+        "request_id": "turn-2"
+      },
+      "expected_choices": [
+        "follow"
+      ],
+      "expected_metadata": {
+        "llm:model": "fixture-gpt",
+        "llm:request_id": "turn-2"
+      }
+    }
+  ],
+  "invalid_payloads": [
+    {
+      "description": "non-object payload",
+      "payload": "\"nonsense\"",
+      "error_match": "response must be a JSON object"
+    },
+    {
+      "description": "missing narration",
+      "payload": "{\"choices\": []}",
+      "error_match": "missing 'narration'"
+    },
+    {
+      "description": "choices wrong type",
+      "payload": "{\"narration\": \"ok\", \"choices\": \"nope\"}",
+      "error_match": "'choices' must be an array"
+    }
+  ]
+}

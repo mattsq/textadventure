@@ -85,7 +85,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Implement a configurable retry policy with exponential backoff and optional jitter.
   - [x] Add a shared fixed-interval rate limiter that adapters can reuse to throttle requests.
   - [x] Cover the new helpers with deterministic unit tests.
-  - [ ] Add integration tests using recorded responses or fixtures to validate prompt/response translation and error handling.
+- [x] Add integration tests using recorded responses or fixtures to validate prompt/response translation and error handling.
+  - [x] Replay recorded transcript fixtures to assert prompts, choices, and metadata merge correctly.
+  - [x] Cover misconfigured fixture payloads to verify descriptive error handling from LLMStoryAgent.
 - [ ] Implement adapters for local runtimes (e.g., Hugging Face Text Generation Inference, llama.cpp servers) so self-hosted models can plug into the same flow.
   - [ ] Document setup instructions and configuration flags required to target each local runtime.
   - [ ] Add smoke tests or mocks verifying adapters handle streaming, chunked responses, and offline failure scenarios.
