@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import json
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -63,6 +64,39 @@ def test_create_from_config_string(registry: LLMProviderRegistry) -> None:
     client = registry.create_from_config("dummy")
     assert isinstance(client, DummyClient)
     assert client.config == {}
+
+
+def test_create_from_config_file(tmp_path: Path, registry: LLMProviderRegistry) -> None:
+    registry.register("dummy", _registered_factory)
+    config_path = tmp_path / "provider.json"
+    config_path.write_text(
+        json.dumps({"provider": "dummy", "options": {"temperature": 0.7}}),
+        encoding="utf-8",
+    )
+
+    client = registry.create_from_config_file(config_path)
+    assert isinstance(client, DummyClient)
+    assert client.config == {"temperature": 0.7}
+
+
+def test_create_from_config_file_rejects_invalid_json(
+    tmp_path: Path, registry: LLMProviderRegistry
+) -> None:
+    config_path = tmp_path / "provider.json"
+    config_path.write_text('{"provider": }', encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        registry.create_from_config_file(config_path)
+
+
+def test_create_from_config_file_requires_mapping(
+    tmp_path: Path, registry: LLMProviderRegistry
+) -> None:
+    config_path = tmp_path / "provider.json"
+    config_path.write_text(json.dumps(["dummy"]), encoding="utf-8")
+
+    with pytest.raises(TypeError):
+        registry.create_from_config_file(config_path)
 
 
 def test_create_from_cli_with_options(registry: LLMProviderRegistry) -> None:

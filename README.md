@@ -70,7 +70,9 @@ TASKS.md                   # Planning notes and backlog ideas
    (`--log-file`). The CLI can also attach an LLM-backed secondary narrator via
    `--llm-provider`, forwarding additional key/value pairs to the selected
    provider with repeated `--llm-option` flags (for example,
-   `--llm-provider openai --llm-option api_key=...`).
+   `--llm-provider openai --llm-option api_key=...`). Alternatively pass
+   `--llm-config path/to/config.json` to load the provider identifier and
+   options from a JSON file.
 
 ### Adding an LLM Co-narrator
 
@@ -88,6 +90,21 @@ The registry resolves registered provider names or dynamic import paths of the
 form `module:factory`. Each `--llm-option` supplies a `key=value` pair that is
 parsed as JSON when possible (e.g., numbers, booleans) before being forwarded to
 the provider factory.
+
+JSON configuration files expose the same fields in a reusable format:
+
+```json
+{
+  "provider": "openai",
+  "options": {
+    "api_key": "sk-demo",
+    "model": "gpt-4o-mini"
+  }
+}
+```
+
+Launch the CLI with `--llm-config config/openai.json` to load the provider
+without specifying multiple command-line flags.
 
 ### Built-in provider adapters
 
