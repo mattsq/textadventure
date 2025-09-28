@@ -16,6 +16,7 @@ from .multi_agent import (
     QueuedAgentMessage,
     ScriptedStoryAgent,
 )
+from .llm_story_agent import LLMStoryAgent
 from .persistence import (
     FileSessionStore,
     InMemorySessionStore,
@@ -41,6 +42,7 @@ __all__ = [
     "MultiAgentCoordinator",
     "CoordinatorDebugState",
     "QueuedAgentMessage",
+    "LLMStoryAgent",
     "Tool",
     "ToolResponse",
     "KnowledgeBaseTool",
