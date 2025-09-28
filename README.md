@@ -16,4 +16,10 @@ For detailed setup, testing and contribution instructions, see [AGENTS.md](Agent
 2. Install dependencies from `requirements.txt`.
 3. Run the sample driver script under `src/` to launch the game.
 
+## Development Workflow
+
+- Format and lint the codebase with `black` and `ruff` before committing changes.
+- Run the automated tests with `pytest -q`.
+- Check static typing with `mypy` (configuration lives in `mypy.ini`).
+
 We welcome contributions! Please read the contribution guidelines in `AGENTS.md` before submitting pull requests.
