@@ -66,7 +66,27 @@ TASKS.md                   # Planning notes and backlog ideas
    ```
    Run `python src/main.py --help` to discover options for enabling persistence
    (`--session-dir`, `--session-id`, `--no-persistence`) and transcript logging
-   (`--log-file`).
+   (`--log-file`). The CLI can also attach an LLM-backed secondary narrator via
+   `--llm-provider`, forwarding additional key/value pairs to the selected
+   provider with repeated `--llm-option` flags (for example,
+   `--llm-provider openai --llm-option api_key=...`).
+
+### Adding an LLM Co-narrator
+
+Use the provider registry flags to experiment with LLM-driven agents alongside
+the scripted narrator:
+
+```bash
+python src/main.py \
+  --llm-provider my_package.llm:build_client \
+  --llm-option api_key="sk-demo" \
+  --llm-option model="fiction-gpt"
+```
+
+The registry resolves registered provider names or dynamic import paths of the
+form `module:factory`. Each `--llm-option` supplies a `key=value` pair that is
+parsed as JSON when possible (e.g., numbers, booleans) before being forwarded to
+the provider factory.
 
 ## Customising the Demo Adventure
 
