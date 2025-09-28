@@ -49,7 +49,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Extract the current hard-coded demo scenes into a reusable data file checked into the repo.
   - [x] Update `ScriptedStoryEngine` so it can load scenes from structured data and still provide a default demo set.
   - [x] Refresh tests and docs to cover the data-driven scene workflow.
-- [ ] Add validation helpers that load the scene definitions, ensure commands are unique, verify transition targets exist, and surface descriptive errors with unit tests.
+- [x] Add validation helpers that load the scene definitions, ensure commands are unique, verify transition targets exist, and surface descriptive errors with unit tests.
+  - [x] Add validation checks for duplicate choice commands and unknown transition targets when loading scenes.
+  - [x] Cover validation failure scenarios with dedicated unit tests.
 - [ ] Document the data format and authoring workflow in `docs/` and update the README so contributors can build new adventures quickly.
 
 ## Priority 6: Generative Agent Integration

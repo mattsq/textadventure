@@ -69,6 +69,7 @@ def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[s
     """
 
     scenes: dict[str, _Scene] = {}
+    pending_targets: list[tuple[str, str]] = []
 
     for location, payload in definitions.items():
         if not isinstance(location, str):
@@ -85,6 +86,7 @@ def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[s
             raise ValueError(f"Scene '{location}' must define a list of choices.")
 
         choices: list[StoryChoice] = []
+        seen_commands: set[str] = set()
         for index, choice_payload in enumerate(raw_choices):
             if not isinstance(choice_payload, Mapping):
                 raise ValueError(
@@ -97,6 +99,11 @@ def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[s
                 raise ValueError(
                     f"Choice #{index} in scene '{location}' must provide 'command' and 'description' strings."
                 )
+            if command in seen_commands:
+                raise ValueError(
+                    f"Scene '{location}' defines duplicate choice command '{command}'."
+                )
+            seen_commands.add(command)
             choices.append(StoryChoice(command, description_text))
 
         raw_transitions = payload.get("transitions")
@@ -125,6 +132,8 @@ def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[s
                 raise ValueError(
                     f"Transition '{command}' in scene '{location}' must use a string 'target'."
                 )
+            if target:
+                pending_targets.append((location, target))
 
             item = transition_payload.get("item")
             if item is not None and not isinstance(item, str):
@@ -143,6 +152,12 @@ def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[s
             choices=tuple(choices),
             transitions=transitions,
         )
+
+    for location, target in pending_targets:
+        if target not in scenes:
+            raise ValueError(
+                f"Scene '{location}' transitions to unknown target '{target}'."
+            )
 
     return scenes
 
