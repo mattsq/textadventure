@@ -92,9 +92,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Add integration tests using recorded responses or fixtures to validate prompt/response translation and error handling.
   - [x] Replay recorded transcript fixtures to assert prompts, choices, and metadata merge correctly.
   - [x] Cover misconfigured fixture payloads to verify descriptive error handling from LLMStoryAgent.
-- [ ] Implement adapters for local runtimes (e.g., Hugging Face Text Generation Inference, llama.cpp servers) so self-hosted models can plug into the same flow.
-  - [ ] Document setup instructions and configuration flags required to target each local runtime.
-  - [ ] Add smoke tests or mocks verifying adapters handle streaming, chunked responses, and offline failure scenarios.
+- [x] Implement adapters for local runtimes (e.g., Hugging Face Text Generation Inference, llama.cpp servers) so self-hosted models can plug into the same flow.
+  - [x] Document setup instructions and configuration flags required to target each local runtime.
+  - [x] Add smoke tests or mocks verifying adapters handle streaming, chunked responses, and offline failure scenarios.
 - [ ] Create a provider registry that loads adapters dynamically based on configuration files or CLI options.
   - [x] Define an `LLMProviderRegistry` that handles registering and resolving provider factories.
   - [x] Support instantiating providers from configuration mappings (e.g., parsed config files).

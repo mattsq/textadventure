@@ -35,7 +35,7 @@ src/
   textadventure/
     __init__.py            # Public package surface
     llm.py                 # LLM client abstractions + helpers
-    llm_providers/         # Adapters for specific hosted LLM providers
+    llm_providers/         # Adapters for hosted and local LLM providers
     llm_story_agent.py     # Agent bridge between the coordinator and an LLM
     memory.py              # Memory log utilities
     multi_agent.py         # Agent coordination primitives
@@ -99,10 +99,13 @@ the CLI can be configured with concise identifiers:
 | OpenAI | `openai` | `model` (e.g., `gpt-4o-mini`) | Supports chat-completions features such as function calling and streaming. Additional `openai.OpenAI` keyword arguments (like `api_key`, `organization`, or `base_url`) can be provided via `--llm-option`. |
 | Anthropic | `anthropic` | `model` (e.g., `claude-3-sonnet-20240229`), `max_tokens` | Forwards options to `anthropic.Anthropic.messages.create`. Streaming is reported as supported. |
 | Cohere | `cohere` | `model` (e.g., `command-r`) | Wraps `cohere.Client.chat` and surfaces Cohere's usage metadata. |
+| Hugging Face TGI | `tgi` or `text-generation-inference` | `base_url` (e.g., `http://localhost:8080`) | Sends chat prompts to a running Text Generation Inference server. Supports forwarding additional JSON parameters via `default_parameters.*` options. |
+| llama.cpp | `llama-cpp` | `model_path` when the adapter constructs the client | Wraps the `llama-cpp-python` bindings. Accepts sampling options such as `n_predict`, `top_p`, etc., via `--llm-option`. |
 
 Each adapter raises a descriptive error if the corresponding third-party SDK is
 not installed locally. Supply API keys and any additional configuration through
-the standard `--llm-option key=value` flag.
+the standard `--llm-option key=value` flag. For detailed setup instructions for
+local runtimes see [`docs/local_llm_adapters.md`](docs/local_llm_adapters.md).
 
 ## Customising the Demo Adventure
 
