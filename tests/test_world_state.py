@@ -70,4 +70,6 @@ def test_recent_actions_reflect_recorded_memory(world_state: WorldState) -> None
 def test_recent_observations_reflect_story_notes(world_state: WorldState) -> None:
     world_state.remember_observation("A lantern flickers in the dusk.")
 
-    assert world_state.recent_observations(limit=1) == ("A lantern flickers in the dusk.",)
+    assert world_state.recent_observations(limit=1) == (
+        "A lantern flickers in the dusk.",
+    )

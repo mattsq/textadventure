@@ -6,7 +6,7 @@ This document captures recommended starting tasks for building out the text-adve
 - [x] Create a minimal `src/main.py` entry point that can be executed after dependency installation.
 - [x] Configure a package structure under `src/` (e.g., `src/textadventure/__init__.py`).
 - [x] Add basic test scaffolding in `tests/` (at least one placeholder test verifying the package imports).
-- [ ] Confirm linting and formatting commands (`black`, `ruff`) run cleanly on the scaffolded code.
+- [x] Confirm linting and formatting commands (`black`, `ruff`) run cleanly on the scaffolded code. *(Added `pytest.ini` to expose the `src/` layout and reformatted existing modules so Black and Ruff both pass.)*
 
 ## Priority 1: Core Framework Skeleton
 - [x] Implement a `WorldState` object responsible for tracking locations, inventory, and history.
