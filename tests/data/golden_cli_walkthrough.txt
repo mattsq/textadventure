@@ -1,0 +1,337 @@
+Welcome to the Text Adventure prototype!
+Type 'quit' at any time to end the session.
+
+Sunlight filters through tall trees at the forest trailhead. An old stone gate lies to the north, while flag-marked paths lead toward a scavenger camp and a ranger lookout.
+
+[look] Take in the surroundings.
+[explore] Head toward the mossy gate.
+[camp] Visit the scavenger camp.
+[lookout] Climb toward the ranger lookout.
+[inventory] Check what you're carrying.
+[journal] Review the notes in your journal.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide gate').
+You veer west as the trees thin around a cluster of patched tents.
+
+A circle of tents surrounds a banked fire. Salvagers sort their findings while a map table displays weathered charts of the ruins.
+
+[look] Survey the busy camp.
+[search] Rummage through the supply crates.
+[rest] Share stories with the scavengers.
+[return] Head back to the trailhead.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide map').
+Beneath a stack of tarps you discover a weathered map annotated with faded ink.
+
+You tuck the weathered map safely away.
+
+[look] Survey the busy camp.
+[search] Rummage through the supply crates.
+[rest] Share stories with the scavengers.
+[return] Head back to the trailhead.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide map').
+You follow the flagged trail back to the trailhead.
+
+Sunlight filters through tall trees at the forest trailhead. An old stone gate lies to the north, while flag-marked paths lead toward a scavenger camp and a ranger lookout.
+
+[look] Take in the surroundings.
+[explore] Head toward the mossy gate.
+[camp] Visit the scavenger camp.
+[lookout] Climb toward the ranger lookout.
+[inventory] Check what you're carrying.
+[journal] Review the notes in your journal.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide gate').
+You climb the winding ridge toward the ranger lookout.
+
+The lookout overlooks the ruins. Wind chimes sway from the rafters, and a ranger polishes a carved signal whistle.
+
+[look] Admire the sweeping view.
+[train] Learn the ranger signal.
+[signal] Practice the new call.
+[return] Climb back down to the trailhead.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide lookout').
+The ranger walks you through a sequence of resonant notes and gifts you a small whistle.
+
+You tuck the signal lesson safely away.
+
+[look] Admire the sweeping view.
+[train] Learn the ranger signal.
+[signal] Practice the new call.
+[return] Climb back down to the trailhead.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide lookout').
+You descend the ridge and return to the trailhead.
+
+Sunlight filters through tall trees at the forest trailhead. An old stone gate lies to the north, while flag-marked paths lead toward a scavenger camp and a ranger lookout.
+
+[look] Take in the surroundings.
+[explore] Head toward the mossy gate.
+[camp] Visit the scavenger camp.
+[lookout] Climb toward the ranger lookout.
+[inventory] Check what you're carrying.
+[journal] Review the notes in your journal.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide gate').
+You follow the worn path toward the gate.
+
+The gate stands ajar, revealing a courtyard blanketed in mist. A rusty key glints between the stones nearby, and the hinges groan when nudged.
+
+[look] Study the ancient masonry.
+[inspect] Investigate the glinting object.
+[enter] Push through into the courtyard.
+[return] Head back down the forest trail.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide gate').
+You kneel and pick up the rusty key.
+
+You tuck the rusty key safely away.
+
+[look] Study the ancient masonry.
+[inspect] Investigate the glinting object.
+[enter] Push through into the courtyard.
+[return] Head back down the forest trail.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide gate').
+You shoulder the gate wider and step into the mist-shrouded courtyard.
+
+Fog swirls around toppled statues. Three archways lead deeper: a bronze door to the west, a flooded passage east, and a spiral stair ahead.
+
+[look] Listen to the shifting mist.
+[hall] Approach the bronze door.
+[archives] Wade toward the flooded archives.
+[stair] Climb the spiral stair.
+[return] Slip back through the gate.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide courtyard').
+You fit the rusty key into the bronze door and the lock releases with a resonant click.
+
+Fallen pillars criss-cross the hall. A sealed crypt door waits beyond a maze of rubble, etched with sigils of resonance.
+
+[look] Study the fractured architecture.
+[excavate] Clear rubble near the sigils.
+[crypt] Attempt to signal the guardians.
+[return] Retreat to the misty courtyard.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide hall').
+Beneath the rubble you uncover a shard that vibrates when held near the sigils.
+
+You tuck the echo shard safely away.
+
+[look] Study the fractured architecture.
+[excavate] Clear rubble near the sigils.
+[crypt] Attempt to signal the guardians.
+[return] Retreat to the misty courtyard.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide hall').
+You sound the practiced signal. The sigils glow and the crypt door slides open just enough for you to slip inside.
+
+Antechambers ring the crypt, lit by gentle bioluminescent moss. Stone guardians rest with their eyes closed, awaiting a calming cadence.
+
+[look] Examine the resting guardians.
+[glean] Study the carved murals.
+[return] Step back into the collapsed hall.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide crypt').
+You trace a spiral sigil and feel warmth in a small tablet that bears the guardians' crest.
+
+You tuck the ancient sigil safely away.
+
+[look] Examine the resting guardians.
+[glean] Study the carved murals.
+[return] Step back into the collapsed hall.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide crypt').
+You ease the door open and return to the collapsed hall.
+
+Fallen pillars criss-cross the hall. A sealed crypt door waits beyond a maze of rubble, etched with sigils of resonance.
+
+[look] Study the fractured architecture.
+[excavate] Clear rubble near the sigils.
+[crypt] Attempt to signal the guardians.
+[return] Retreat to the misty courtyard.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide hall').
+You navigate the rubble back to the courtyard.
+
+Fog swirls around toppled statues. Three archways lead deeper: a bronze door to the west, a flooded passage east, and a spiral stair ahead.
+
+[look] Listen to the shifting mist.
+[hall] Approach the bronze door.
+[archives] Wade toward the flooded archives.
+[stair] Climb the spiral stair.
+[return] Slip back through the gate.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide courtyard').
+Cold water laps at your boots as you edge into the drowned archives.
+
+Submerged shelves lean at precarious angles. Light refracts through the water, scattering patterns across the ceiling.
+
+[look] Peer between the shelves.
+[salvage] Recover intact artifacts.
+[study] Decode marginalia with your map.
+[return] Retreat to the misty courtyard.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide archives').
+You pry open a sealed case and retrieve a gleaming sunstone lens.
+
+You tuck the sunstone lens safely away.
+
+[look] Peer between the shelves.
+[salvage] Recover intact artifacts.
+[study] Decode marginalia with your map.
+[return] Retreat to the misty courtyard.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide archives').
+Aligning the map with the shelves reveals hidden annotations about the spire's machinery.
+
+[look] Peer between the shelves.
+[salvage] Recover intact artifacts.
+[study] Decode marginalia with your map.
+[return] Retreat to the misty courtyard.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide archives').
+You slog back through the water to the courtyard.
+
+Fog swirls around toppled statues. Three archways lead deeper: a bronze door to the west, a flooded passage east, and a spiral stair ahead.
+
+[look] Listen to the shifting mist.
+[hall] Approach the bronze door.
+[archives] Wade toward the flooded archives.
+[stair] Climb the spiral stair.
+[return] Slip back through the gate.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide courtyard').
+You ascend the spiral stair, the fog thinning with each step.
+
+The stairwell coils upward, each footstep resonating like a chime. Alcoves hold instruments tuned to the spire's frequency.
+
+[look] Listen to the stairwell's harmonics.
+[ascend] Continue toward the spire.
+[return] Descend to the courtyard.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide stair').
+You emerge above the mist at the base of the aether spire.
+
+Platforms ring the spire's base. Conduits hum with latent power, branching toward workshops, archives, and the observatory above.
+
+[look] Observe the busy junction.
+[workshop] Enter the astral workshop.
+[chamber] Visit the chronicle chamber.
+[observatory] Climb to the celestial observatory.
+[descend] Head back down the echoing stair.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide spire').
+You follow a resonant hum into the astral workshop.
+
+Glass instruments and levitating tools fill the workshop. Notes hang in the air like motes of light, waiting to be woven into new harmonies.
+
+[look] Inspect the instruments.
+[scavenge] Gather shimmering components.
+[craft] Forge a resonant chime.
+[return] Head back to the spire base.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide chime').
+You collect strands of luminous filament that hum with stored resonance.
+
+You tuck the luminous filament safely away.
+
+[look] Inspect the instruments.
+[scavenge] Gather shimmering components.
+[craft] Forge a resonant chime.
+[return] Head back to the spire base.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide chime').
+You weave the filament around the echo shard, the two resonances merging into a balanced chord.
+
+You tuck the resonant chime safely away.
+
+[look] Inspect the instruments.
+[scavenge] Gather shimmering components.
+[craft] Forge a resonant chime.
+[return] Head back to the spire base.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide chime').
+You leave the workshop's glow behind.
+
+Platforms ring the spire's base. Conduits hum with latent power, branching toward workshops, archives, and the observatory above.
+
+[look] Observe the busy junction.
+[workshop] Enter the astral workshop.
+[chamber] Visit the chronicle chamber.
+[observatory] Climb to the celestial observatory.
+[descend] Head back down the echoing stair.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide spire').
+You climb the latticework stairs toward the observatory dome.
+
+The observatory dome opens to the stars. Arrays of lenses hang above a central dais surrounded by resonant pylons.
+
+[look] Gaze at the constellations.
+[activate] Channel the spire's energies.
+[reflect] Contemplate your journey.
+[return] Descend to the spire base.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide observatory').
+You set the sunstone lens within the dais and ring the resonant chime. The pylons answer, harmonising with the night sky as pathways of light unfurl before you.
+
+[look] Gaze at the constellations.
+[activate] Channel the spire's energies.
+[reflect] Contemplate your journey.
+[return] Descend to the spire base.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide observatory').
+
+Thanks for playing!

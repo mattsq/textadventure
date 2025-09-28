@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
 from io import StringIO
+from pathlib import Path
 
 import builtins
 
@@ -254,3 +255,54 @@ def test_transcript_logger_captures_inputs_and_events(monkeypatch) -> None:
     assert "Metadata: (none)" in log
     assert "Player input: look" in log
     assert "Player input: quit" in log
+
+
+def test_cli_walkthrough_matches_golden(monkeypatch, capsys) -> None:
+    """The CLI demo walkthrough should match the curated golden transcript."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(
+        [
+            "camp",
+            "search",
+            "return",
+            "lookout",
+            "train",
+            "return",
+            "explore",
+            "inspect",
+            "enter",
+            "hall",
+            "excavate",
+            "crypt",
+            "glean",
+            "return",
+            "return",
+            "archives",
+            "salvage",
+            "study",
+            "return",
+            "stair",
+            "ascend",
+            "workshop",
+            "scavenge",
+            "craft",
+            "return",
+            "observatory",
+            "activate",
+            "quit",
+        ]
+    )
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world)
+
+    captured = capsys.readouterr().out
+    golden_path = (
+        Path(__file__).with_name("data").joinpath("golden_cli_walkthrough.txt")
+    )
+    assert golden_path.is_file(), "Expected golden CLI transcript to be present."
+    expected = golden_path.read_text(encoding="utf-8")
+    assert captured == expected
