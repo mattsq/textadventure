@@ -23,7 +23,7 @@ This document captures recommended starting tasks for building out the text-adve
 - [x] Write unit tests covering the world state mutations and narrative branching logic.
 - [x] Set up fixtures or mocks for LLM interactions to keep tests deterministic. *(Added reusable `MockLLMClient` pytest fixtures for queuing scripted responses.)*
 - [ ] Consider integrating type checking (e.g., `mypy`) and continuous integration workflows (GitHub Actions).
-- [ ] Add smoke tests for the CLI once the interactive loop is implemented. (The scripted engine now supports manual runs.)
+- [x] Add smoke tests for the CLI once the interactive loop is implemented. *(Introduced `tests/test_cli.py` to simulate player commands and verify graceful termination scenarios.)*
 
 ## Priority 4: Stretch Goals
 - [ ] Explore integrating external tools (e.g., knowledge bases or calculators) the agent can invoke during gameplay.
