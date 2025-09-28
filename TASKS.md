@@ -126,6 +126,6 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Review lore flavour interactions to highlight journal and memory hooks.
   - [ ] Mark the original checklist item complete once all subtasks pass review.
 - [ ] Update scripted-engine tests and fixtures to cover the expanded scene graph and any new command patterns.
-  - [ ] Add regression coverage validating transition targets, required items, and failure messages for gated actions.
+  - [x] Add regression coverage validating transition targets, required items, and failure messages for gated actions. *(Added targeted tests for the ranger signal gate, flooded archives study requirement, and related success flows.)*
   - [ ] Refresh golden transcripts (if any) so the CLI demo walkthrough exercises the broader storyline.
 - [ ] Document the enhanced demo in `docs/data_driven_scenes.md`, including a high-level map, quest summaries, and authoring tips for further expansion.

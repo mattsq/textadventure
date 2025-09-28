@@ -164,6 +164,33 @@ def test_locked_hall_requires_key() -> None:
     assert "fallen pillars" in success_event.narration.lower()
 
 
+def test_ranger_training_grants_signal_lesson() -> None:
+    world = WorldState(location="ranger-lookout")
+    engine = ScriptedStoryEngine()
+
+    event = engine.propose_event(world, player_input="train")
+
+    assert "signal" in event.narration.lower()
+    assert "signal lesson" in world.inventory
+
+
+def test_crypt_requires_signal_lesson() -> None:
+    world = WorldState(location="collapsed-hall")
+    engine = ScriptedStoryEngine()
+
+    failure_event = engine.propose_event(world, player_input="crypt")
+
+    assert "ranger's signal" in failure_event.narration.lower()
+    assert world.location == "collapsed-hall"
+
+    world.add_item("signal lesson")
+
+    success_event = engine.propose_event(world, player_input="crypt")
+
+    assert world.location == "sealed-crypt"
+    assert "practiced signal" in success_event.narration.lower()
+
+
 def test_crafting_consumes_components() -> None:
     world = WorldState(location="astral-workshop")
     engine = ScriptedStoryEngine()
@@ -194,3 +221,19 @@ def test_observatory_activation_requires_items() -> None:
     success_event = engine.propose_event(world, player_input="activate")
 
     assert "pathways of light" in success_event.narration.lower()
+
+
+def test_archives_study_requires_map() -> None:
+    world = WorldState(location="flooded-archives")
+    engine = ScriptedStoryEngine()
+
+    failure_event = engine.propose_event(world, player_input="study")
+
+    assert "weathered map" in failure_event.narration.lower()
+    assert world.location == "flooded-archives"
+
+    world.add_item("weathered map")
+
+    success_event = engine.propose_event(world, player_input="study")
+
+    assert "hidden annotations" in success_event.narration.lower()
