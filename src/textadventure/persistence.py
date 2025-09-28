@@ -6,8 +6,9 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Sequence
 
+from .memory import MemoryLog
 from .world_state import WorldState
 
 
@@ -25,6 +26,14 @@ class SessionSnapshot:
                 "location": self.world_state.location,
                 "inventory": sorted(self.world_state.inventory),
                 "history": list(self.world_state.history),
+                "memory": [
+                    {
+                        "kind": entry.kind,
+                        "content": entry.content,
+                        "tags": list(entry.tags),
+                    }
+                    for entry in self.world_state.memory
+                ],
             }
         }
 
@@ -45,13 +54,30 @@ class SessionSnapshot:
         if not isinstance(history, Iterable) or isinstance(history, (str, bytes)):
             raise ValueError("Invalid snapshot payload: history must be iterable")
 
+        memory = _memory_from_payload(world_state_payload.get("memory", []))
+
         return cls(
             world_state=WorldState(
                 location=str(location) if location is not None else "starting-area",
                 inventory=set(str(item) for item in inventory),
                 history=[str(event) for event in history],
+                memory=memory,
             )
         )
+
+    @classmethod
+    def capture(cls, world_state: WorldState) -> "SessionSnapshot":
+        """Create a snapshot from the provided world state."""
+
+        return cls(world_state=_clone_world_state(world_state))
+
+    def apply_to_world(self, world_state: WorldState) -> None:
+        """Mutate ``world_state`` to match this snapshot."""
+
+        world_state.location = self.world_state.location
+        world_state.inventory = set(self.world_state.inventory)
+        world_state.history = list(self.world_state.history)
+        world_state.memory = _clone_memory(self.world_state.memory)
 
 
 class SessionStore(ABC):
@@ -146,3 +172,48 @@ def _validate_session_id(session_id: str) -> str:
     if not stripped:
         raise ValueError("session_id must be a non-empty string")
     return stripped
+
+
+def _clone_world_state(world_state: WorldState) -> WorldState:
+    return WorldState(
+        location=world_state.location,
+        inventory=set(world_state.inventory),
+        history=list(world_state.history),
+        memory=_clone_memory(world_state.memory),
+    )
+
+
+def _clone_memory(memory: MemoryLog) -> MemoryLog:
+    clone = MemoryLog()
+    for entry in memory:
+        clone.remember(entry.kind, entry.content, tags=entry.tags)
+    return clone
+
+
+def _memory_from_payload(payload: object) -> MemoryLog:
+    if isinstance(payload, (str, bytes)):
+        raise ValueError("Invalid snapshot payload: memory must be a sequence")
+    if payload is None:
+        return MemoryLog()
+    if not isinstance(payload, Iterable):
+        raise ValueError("Invalid snapshot payload: memory must be iterable")
+
+    log = MemoryLog()
+    for entry in payload:
+        if not isinstance(entry, dict):
+            raise ValueError("Invalid snapshot payload: memory entries must be objects")
+
+        kind = entry.get("kind")
+        content = entry.get("content")
+        if kind is None or content is None:
+            raise ValueError("Memory entry must include 'kind' and 'content'")
+
+        tags_value = entry.get("tags", [])
+        if isinstance(tags_value, (str, bytes)):
+            raise ValueError("Memory entry tags must be a sequence")
+        if not isinstance(tags_value, Iterable):
+            raise ValueError("Memory entry tags must be iterable")
+
+        tags: Sequence[str] = [str(tag) for tag in tags_value]
+        log.remember(str(kind), str(content), tags=tags)
+    return log
