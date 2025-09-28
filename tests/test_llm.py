@@ -75,4 +75,3 @@ def test_iter_contents_returns_message_text() -> None:
     ]
 
     assert iter_contents(messages) == ["Rules", "Go north"]
-

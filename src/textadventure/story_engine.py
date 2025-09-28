@@ -65,8 +65,9 @@ class StoryEvent:
         else:
             metadata = MappingProxyType(
                 {
-                    _validate_text(str(k), field_name="metadata key"):
-                        _validate_text(str(v), field_name="metadata value")
+                    _validate_text(str(k), field_name="metadata key"): _validate_text(
+                        str(v), field_name="metadata value"
+                    )
                     for k, v in self.metadata.items()
                 }
             )
@@ -108,4 +109,3 @@ class StoryEngine(ABC):
 
 
 __all__ = ["StoryChoice", "StoryEvent", "StoryEngine"]
-
