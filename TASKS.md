@@ -39,7 +39,7 @@ This document captures recommended starting tasks for building out the text-adve
   - [x] Survey the existing single-agent architecture to identify integration points for orchestrating multiple agents.
   - [x] Draft a design proposal describing a coordinator component, message flows, and how NPC agents might plug into the story engine.
   - [x] Prototype the coordinator interfaces and stub implementations to validate the design with the scripted engine. *(Added a `MultiAgentCoordinator` with a `ScriptedStoryAgent` adapter and regression tests covering secondary narration merging.)*
-  - [ ] Extend the coordinator to route queued agent messages between turns once richer NPC behaviour is introduced.
+  - [x] Extend the coordinator to route queued agent messages between turns once richer NPC behaviour is introduced. *(Coordinator now drains message queues each turn, targets recipients, and defers newly queued triggers to the following round with regression coverage.)*
   - [ ] Outline testing strategies (unit and integration) to ensure deterministic behaviour with multiple agents.
 
 Revisit this backlog as soon as the initial scaffolding is in place so we can refine upcoming milestones based on early feedback.

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Mapping, Protocol, Sequence
+from typing import Deque, Iterable, Mapping, Protocol, Sequence
 from types import MappingProxyType
 
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
@@ -120,6 +121,10 @@ class MultiAgentCoordinator(StoryEngine):
         if len(all_names) != len(set(all_names)):
             raise ValueError("agent names must be unique")
         self._is_first_turn = True
+        self._agents_by_name = {primary_agent.name: primary_agent}
+        for agent in self._secondary_agents:
+            self._agents_by_name[agent.name] = agent
+        self._queued_messages: Deque[_QueuedMessage] = deque()
 
     def propose_event(
         self,
@@ -127,6 +132,34 @@ class MultiAgentCoordinator(StoryEngine):
         *,
         player_input: str | None = None,
     ) -> StoryEvent:
+        accumulator = _EventAccumulator()
+        next_turn_messages: list[_QueuedMessage] = []
+
+        def queue_messages(agent_name: str, messages: Sequence[AgentTrigger]) -> None:
+            for message in messages:
+                next_turn_messages.append(
+                    _QueuedMessage(origin_agent=agent_name, trigger=message)
+                )
+
+        def run_agent(
+            agent: Agent,
+            trigger: AgentTrigger,
+            *,
+            prefer_metadata_keys: bool = False,
+        ) -> None:
+            result = agent.propose_event(world_state, trigger=trigger)
+            if result.event is not None:
+                accumulator.add_event(
+                    result.event,
+                    agent_name=agent.name,
+                    prefer_metadata_keys=prefer_metadata_keys,
+                )
+            queue_messages(agent.name, result.messages)
+
+        for message in self._drain_message_queue():
+            for recipient in self._resolve_recipients(message):
+                run_agent(recipient, message.trigger)
+
         trigger_kind = "player-input" if player_input is not None else (
             "initial" if self._is_first_turn else "tick"
         )
@@ -134,40 +167,64 @@ class MultiAgentCoordinator(StoryEngine):
             kind=trigger_kind,
             player_input=player_input,
         )
-        primary_result = self._primary.propose_event(
-            world_state,
-            trigger=primary_trigger,
+        run_agent(
+            self._primary,
+            primary_trigger,
+            prefer_metadata_keys=True,
         )
-        if primary_result.event is None:
+        if accumulator.is_empty:
             raise ValueError(
                 "primary agent must always produce a StoryEvent",
             )
 
-        accumulator = _EventAccumulator()
-        accumulator.add_event(primary_result.event, agent_name=self._primary.name, prefer_metadata_keys=True)
-
         follow_up_trigger = AgentTrigger(
             kind="story-event",
             player_input=player_input,
-            source_event=primary_result.event,
+            source_event=accumulator.primary_event,
         )
 
         for agent in self._secondary_agents:
-            result = agent.propose_event(world_state, trigger=follow_up_trigger)
-            if result.event is not None:
-                accumulator.add_event(result.event, agent_name=agent.name)
+            run_agent(agent, follow_up_trigger)
 
         self._is_first_turn = False
+        self._queued_messages.extend(next_turn_messages)
         return accumulator.build_event()
+
+    def _iter_agents(self) -> Iterable[Agent]:
+        yield self._primary
+        yield from self._secondary_agents
+
+    def _drain_message_queue(self) -> Sequence["_QueuedMessage"]:
+        messages = tuple(self._queued_messages)
+        self._queued_messages.clear()
+        return messages
+
+    def _resolve_recipients(self, message: "_QueuedMessage") -> Sequence[Agent]:
+        trigger = message.trigger
+        target_name = trigger.metadata.get("target") if trigger.metadata else None
+        if target_name:
+            try:
+                return (self._agents_by_name[target_name],)
+            except KeyError as exc:  # pragma: no cover - defensive branch
+                raise ValueError(
+                    f"queued message targeted unknown agent {target_name!r}",
+                ) from exc
+
+        return tuple(
+            agent
+            for agent in self._iter_agents()
+            if agent.name != message.origin_agent
+        )
 
 
 class _EventAccumulator:
     """Helper for combining multiple ``StoryEvent`` instances."""
 
     def __init__(self) -> None:
-        self._narrations: list[str] = []
+        self._narrations: list[tuple[bool, str]] = []
         self._choices: dict[str, StoryChoice] = {}
         self._metadata: dict[str, str] = {}
+        self._primary_event: StoryEvent | None = None
 
     def add_event(
         self,
@@ -177,7 +234,9 @@ class _EventAccumulator:
         prefer_metadata_keys: bool = False,
     ) -> None:
         if event.narration:
-            self._narrations.append(event.narration)
+            self._narrations.append((prefer_metadata_keys, event.narration))
+            if self._primary_event is None and prefer_metadata_keys:
+                self._primary_event = event
 
         for choice in event.choices:
             if choice.command not in self._choices:
@@ -194,12 +253,30 @@ class _EventAccumulator:
     def build_event(self) -> StoryEvent:
         if not self._narrations:
             raise ValueError("no narration was provided by the coordinated agents")
-        narration = "\n\n".join(self._narrations)
+        primary_segments = [text for is_primary, text in self._narrations if is_primary]
+        other_segments = [text for is_primary, text in self._narrations if not is_primary]
+        narration = "\n\n".join([*primary_segments, *other_segments])
         return StoryEvent(
             narration=narration,
             choices=tuple(self._choices.values()),
             metadata=dict(self._metadata) if self._metadata else None,
         )
+
+    @property
+    def is_empty(self) -> bool:
+        return not self._narrations
+
+    @property
+    def primary_event(self) -> StoryEvent:
+        if self._primary_event is None:
+            raise ValueError("primary event has not been recorded")
+        return self._primary_event
+
+
+@dataclass(frozen=True)
+class _QueuedMessage:
+    origin_agent: str
+    trigger: AgentTrigger
 
 
 __all__ = [
