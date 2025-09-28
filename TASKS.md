@@ -60,7 +60,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Parse JSON responses from the LLM into `StoryEvent` instances with validation.
   - [x] Cover the agent with unit tests demonstrating prompt construction and error handling.
 - [x] Extend the memory system so agents can request recent observations/actions as part of their prompts, with configuration for how much history to include. *(Added `MemoryRequest` for triggers, debug visibility, and overrides in `LLMStoryAgent` with regression tests.)*
-- [ ] Provide integration tests (or golden transcripts) that exercise a hybrid scripted + LLM-backed coordinator using deterministic fixtures.
+- [x] Provide integration tests (or golden transcripts) that exercise a hybrid scripted + LLM-backed coordinator using deterministic fixtures.
+  - [x] Add an integration test that runs the multi-agent coordinator with the scripted primary agent and an LLM-driven secondary agent, asserting the merged narration, choices, and metadata.
 
 ## Priority 7: Observability & Tooling
 - [x] Add transcript logging options to the CLI (e.g., `--log-file`) that capture narration, player input, and agent metadata for debugging sessions.
