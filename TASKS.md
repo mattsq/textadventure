@@ -63,7 +63,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [ ] Provide integration tests (or golden transcripts) that exercise a hybrid scripted + LLM-backed coordinator using deterministic fixtures.
 
 ## Priority 7: Observability & Tooling
-- [ ] Add transcript logging options to the CLI (e.g., `--log-file`) that capture narration, player input, and agent metadata for debugging sessions.
+- [x] Add transcript logging options to the CLI (e.g., `--log-file`) that capture narration, player input, and agent metadata for debugging sessions.
+  - [x] Outline transcript logging format and captured fields.
+  - [x] Implement the CLI `--log-file` flag with a structured transcript writer.
+  - [x] Add regression tests and documentation covering the logging workflow.
 - [x] Introduce a debug command (such as `status`) that prints the active location, inventory summary, queued agent messages, and pending saves.
   - [x] Provide a coordinator debug snapshot with visibility into queued messages.
   - [x] Surface the world/persistence details through a CLI `status` command and cover it with tests.

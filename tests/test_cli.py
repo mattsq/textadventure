@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
+from io import StringIO
 
 import builtins
 
-from main import run_cli
+from main import TranscriptLogger, run_cli
 from textadventure import InMemorySessionStore, SessionSnapshot, WorldState
 from textadventure.multi_agent import (
     Agent,
@@ -227,3 +228,25 @@ def test_status_command_reports_world_and_queue_details(monkeypatch, capsys) -> 
     assert "Queued agent messages:" in captured
     assert "from narrator (kind=alert, metadata={note=prepare, target=scout})" in captured
     assert "Pending saves: checkpoint" in captured
+
+
+def test_transcript_logger_captures_inputs_and_events(monkeypatch) -> None:
+    """A transcript logger should record narration, metadata, and inputs."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["look", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    buffer = StringIO()
+    logger = TranscriptLogger(buffer)
+
+    run_cli(engine, world, transcript_logger=logger)
+
+    log = buffer.getvalue()
+    assert "=== Turn 1 ===" in log
+    assert "Narration:" in log
+    assert "Metadata: (none)" in log
+    assert "Player input: look" in log
+    assert "Player input: quit" in log

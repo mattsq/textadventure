@@ -48,7 +48,9 @@ Additional project planning notes live in [`TASKS.md`](TASKS.md).
    ```bash
    python src/main.py
    ```
-   Use `python src/main.py --help` to discover save/load options.
+   Use `python src/main.py --help` to discover save/load options. Pass
+   `--log-file transcript.txt` to record a debugging transcript that captures
+   narration, player input, and any agent metadata emitted during the session.
 
 ## Customising the Demo Adventure
 
