@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Deque, Iterable, Mapping, Protocol, Sequence
 from types import MappingProxyType
 
+from .memory import MemoryRequest
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
 from .world_state import WorldState
 
@@ -37,6 +38,7 @@ class AgentTrigger:
     player_input: str | None = None
     source_event: StoryEvent | None = None
     metadata: Mapping[str, str] = field(default_factory=dict)
+    memory_request: MemoryRequest | None = None
 
     def __post_init__(self) -> None:
         kind = str(self.kind).strip()
@@ -50,6 +52,11 @@ class AgentTrigger:
             )
 
         object.__setattr__(self, "metadata", _normalise_mapping(self.metadata))
+
+        if self.memory_request is not None and not isinstance(
+            self.memory_request, MemoryRequest
+        ):
+            raise TypeError("memory_request must be a MemoryRequest or None")
 
 
 @dataclass(frozen=True)
@@ -73,6 +80,7 @@ class QueuedAgentMessage:
     trigger_kind: str
     player_input: str | None
     metadata: Mapping[str, str]
+    memory_request: MemoryRequest | None = None
 
     def __post_init__(self) -> None:
         origin = str(self.origin_agent).strip()
@@ -98,6 +106,11 @@ class QueuedAgentMessage:
                 raise ValueError("metadata values must be non-empty strings")
             normalised[key_text] = value_text
         object.__setattr__(self, "metadata", MappingProxyType(normalised))
+
+        if self.memory_request is not None and not isinstance(
+            self.memory_request, MemoryRequest
+        ):
+            raise TypeError("memory_request must be a MemoryRequest or None")
 
 
 @dataclass(frozen=True)
@@ -244,6 +257,7 @@ class MultiAgentCoordinator(StoryEngine):
                 trigger_kind=message.trigger.kind,
                 player_input=message.trigger.player_input,
                 metadata=dict(message.trigger.metadata),
+                memory_request=message.trigger.memory_request,
             )
             for message in self._queued_messages
         )

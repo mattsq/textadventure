@@ -14,6 +14,7 @@ from textadventure.multi_agent import (
     QueuedAgentMessage,
     ScriptedStoryAgent,
 )
+from textadventure.memory import MemoryRequest
 from textadventure.scripted_story_engine import ScriptedStoryEngine
 from textadventure.story_engine import StoryChoice, StoryEvent
 from textadventure.world_state import WorldState
@@ -211,6 +212,7 @@ def test_coordinator_debug_snapshot_reports_queued_messages() -> None:
                     AgentTrigger(
                         kind="alert",
                         metadata={"target": "scout", "note": "prepare"},
+                        memory_request=MemoryRequest(action_limit=2),
                     ),
                 ),
             ),
@@ -239,6 +241,7 @@ def test_coordinator_debug_snapshot_reports_queued_messages() -> None:
     assert queued.trigger_kind == "alert"
     assert queued.player_input is None
     assert dict(queued.metadata) == {"note": "prepare", "target": "scout"}
+    assert queued.memory_request == MemoryRequest(action_limit=2)
 
     with pytest.raises(TypeError):
         queued.metadata["target"] = "other"  # type: ignore[index]

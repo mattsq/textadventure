@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from textadventure import LLMStoryAgent
+from textadventure.memory import MemoryRequest
 from textadventure.multi_agent import AgentTrigger
 from textadventure.story_engine import StoryChoice, StoryEvent
 from textadventure.world_state import WorldState
@@ -90,3 +91,39 @@ def test_llm_story_agent_requires_json_response(
 
     with pytest.raises(ValueError, match="expected JSON content"):
         agent.propose_event(WorldState(), trigger=_make_trigger())
+
+
+def test_llm_story_agent_respects_memory_request_override(
+    mock_llm_client: "MockLLMClient",
+) -> None:
+    world = WorldState()
+    for command in ("search", "inspect", "touch", "retreat"):
+        world.remember_action(command)
+    for description in ("Dust swirls in the air", "A glyph glows softly"):
+        world.remember_observation(description)
+
+    mock_llm_client.queue_response(json.dumps({"narration": "Done."}))
+
+    agent = LLMStoryAgent(
+        name="oracle",
+        llm_client=mock_llm_client,
+        memory_limit=1,
+    )
+
+    trigger = AgentTrigger(
+        kind="story-event",
+        player_input="inspect statue",
+        source_event=_make_trigger().source_event,
+        memory_request=MemoryRequest(action_limit=3, observation_limit=0),
+    )
+
+    agent.propose_event(world, trigger=trigger)
+
+    _, user_message = mock_llm_client.calls[0]
+    assert (
+        "Recent player actions:\n- inspect\n- touch\n- retreat"
+        in user_message.content
+    )
+    assert "search" not in user_message.content
+    assert "Recent observations: (none)" in user_message.content
+    assert "A glyph glows softly" not in user_message.content

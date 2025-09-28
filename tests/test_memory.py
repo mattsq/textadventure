@@ -1,6 +1,8 @@
 """Tests for the lightweight memory utilities."""
 
-from textadventure.memory import MemoryLog
+import pytest
+
+from textadventure.memory import MemoryLog, MemoryRequest
 
 
 def test_remember_normalises_fields() -> None:
@@ -39,3 +41,18 @@ def test_find_by_tag_matches_case_insensitively() -> None:
     matches = log.find_by_tag("Clue")
 
     assert matches == (first,)
+
+
+def test_memory_request_validates_and_resolves_limits() -> None:
+    request = MemoryRequest(action_limit=2, observation_limit=0)
+
+    assert request.resolve_action_limit(5) == 2
+    assert request.resolve_observation_limit(5) == 0
+
+
+def test_memory_request_rejects_invalid_values() -> None:
+    with pytest.raises(ValueError):
+        MemoryRequest(action_limit=-1)
+
+    with pytest.raises(TypeError):
+        MemoryRequest(observation_limit="many")  # type: ignore[arg-type]
