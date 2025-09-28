@@ -10,6 +10,7 @@ from .persistence import (
     SessionStore,
 )
 from .memory import MemoryEntry, MemoryLog
+from .tools import KnowledgeBaseTool, Tool, ToolResponse
 from .world_state import WorldState
 
 __all__ = [
@@ -18,6 +19,9 @@ __all__ = [
     "StoryEvent",
     "StoryEngine",
     "ScriptedStoryEngine",
+    "Tool",
+    "ToolResponse",
+    "KnowledgeBaseTool",
     "MemoryEntry",
     "MemoryLog",
     "LLMClient",
