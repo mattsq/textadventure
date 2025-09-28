@@ -58,6 +58,10 @@ package in `tests/`.
 
 ## Testing & Quality Gates
 
+> **Absolute rule:** before committing *any* change you **must** run every
+> command enforced by the GitHub Actions CI workflow locally and ensure they
+> pass. Skipping these checks is not acceptable.
+
 - Unit tests use `pytest`. Run the full suite with:
   ```bash
   pytest -q
@@ -70,7 +74,7 @@ package in `tests/`.
   [Ruff](https://github.com/astral-sh/ruff):
   ```bash
   black src tests
-  ruff src tests
+  ruff check src tests
   ```
 
 All new or modified Python modules should include test coverage under `tests/`.
