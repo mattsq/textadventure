@@ -82,3 +82,8 @@ metadata fields. For example:
 These metadata values should be documented in the adapter-specific modules so
 operators know how to enable or disable advanced behaviour such as temperature
 controls, caching, or safety filters.
+
+See ``textadventure.llm_providers`` for concrete adapters that wrap the OpenAI,
+Anthropic, and Cohere SDKs. Each adapter exposes the provider's configuration
+surface via keyword arguments and reports the capabilities that downstream
+agents can rely on when constructing prompts.

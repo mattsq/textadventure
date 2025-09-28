@@ -79,7 +79,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Extend the `LLMClient` interface to surface capabilities and update existing implementations/mocks to advertise their support levels.
   - [x] Add unit tests covering capability negotiation to ensure providers gracefully degrade when a feature is unsupported.
   - [x] Document the canonical interface in developer docs and surface configuration examples for advanced options like temperature, caching, and safety filters.
-- [ ] Implement adapters for popular online providers (e.g., OpenAI, Anthropic, Cohere) that wrap their SDKs and map responses to the generic interface.
+- [x] Implement adapters for popular online providers (e.g., OpenAI, Anthropic, Cohere) that wrap their SDKs and map responses to the generic interface.
+  - [x] Implement an OpenAI chat completion adapter that conforms to ``LLMClient``.
+  - [x] Implement an Anthropic messages adapter that conforms to ``LLMClient``.
+  - [x] Implement a Cohere chat adapter that conforms to ``LLMClient``.
+  - [x] Cover the new adapters with targeted unit tests and usage documentation.
 - [x] Provide retry, rate limiting, and error classification helpers that can be reused across adapters.
   - [x] Define reusable error categories and a classifier utility for mapping provider exceptions.
   - [x] Implement a configurable retry policy with exponential backoff and optional jitter.

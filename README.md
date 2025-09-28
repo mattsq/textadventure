@@ -35,6 +35,7 @@ src/
   textadventure/
     __init__.py            # Public package surface
     llm.py                 # LLM client abstractions + helpers
+    llm_providers/         # Adapters for specific hosted LLM providers
     llm_story_agent.py     # Agent bridge between the coordinator and an LLM
     memory.py              # Memory log utilities
     multi_agent.py         # Agent coordination primitives
@@ -87,6 +88,21 @@ The registry resolves registered provider names or dynamic import paths of the
 form `module:factory`. Each `--llm-option` supplies a `key=value` pair that is
 parsed as JSON when possible (e.g., numbers, booleans) before being forwarded to
 the provider factory.
+
+### Built-in provider adapters
+
+The registry automatically exposes adapters for a handful of hosted providers so
+the CLI can be configured with concise identifiers:
+
+| Provider | Identifier | Required options | Notes |
+| --- | --- | --- | --- |
+| OpenAI | `openai` | `model` (e.g., `gpt-4o-mini`) | Supports chat-completions features such as function calling and streaming. Additional `openai.OpenAI` keyword arguments (like `api_key`, `organization`, or `base_url`) can be provided via `--llm-option`. |
+| Anthropic | `anthropic` | `model` (e.g., `claude-3-sonnet-20240229`), `max_tokens` | Forwards options to `anthropic.Anthropic.messages.create`. Streaming is reported as supported. |
+| Cohere | `cohere` | `model` (e.g., `command-r`) | Wraps `cohere.Client.chat` and surfaces Cohere's usage metadata. |
+
+Each adapter raises a descriptive error if the corresponding third-party SDK is
+not installed locally. Supply API keys and any additional configuration through
+the standard `--llm-option key=value` flag.
 
 ## Customising the Demo Adventure
 
