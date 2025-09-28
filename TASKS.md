@@ -36,5 +36,9 @@ This document captures recommended starting tasks for building out the text-adve
   - [x] Extend persistence snapshots to cover memory and provide helpers for applying them.
   - [x] Add automated tests demonstrating a save/load round-trip through the CLI.
 - [ ] Evaluate multi-agent orchestration for NPC behaviors or parallel storylines.
+  - [x] Survey the existing single-agent architecture to identify integration points for orchestrating multiple agents.
+  - [x] Draft a design proposal describing a coordinator component, message flows, and how NPC agents might plug into the story engine.
+  - [ ] Prototype the coordinator interfaces and stub implementations to validate the design with the scripted engine.
+  - [ ] Outline testing strategies (unit and integration) to ensure deterministic behaviour with multiple agents.
 
 Revisit this backlog as soon as the initial scaffolding is in place so we can refine upcoming milestones based on early feedback.
