@@ -46,6 +46,15 @@ def _inventory_summary(world_state: WorldState) -> str:
     return f"Your pack currently holds: {items}."
 
 
+def _memory_summary(world_state: WorldState) -> str:
+    recent_actions = world_state.recent_actions()
+    if not recent_actions:
+        return "You search your thoughts but recall no deliberate choices yet."
+
+    entries = "\n".join(f"- {action}" for action in recent_actions)
+    return f"You reflect on your recent decisions:\n{entries}"
+
+
 class ScriptedStoryEngine(StoryEngine):
     """A deterministic `StoryEngine` with two handcrafted locations."""
 
@@ -86,6 +95,12 @@ class ScriptedStoryEngine(StoryEngine):
         if command == "inventory":
             return StoryEvent(
                 narration=_inventory_summary(world_state),
+                choices=scene.choices,
+            )
+
+        if command == "recall":
+            return StoryEvent(
+                narration=_memory_summary(world_state),
                 choices=scene.choices,
             )
 
@@ -131,6 +146,7 @@ _DEFAULT_SCENES: MutableMapping[str, _Scene] = {
             StoryChoice("explore", "Head toward the mossy gate."),
             StoryChoice("inventory", "Check what you're carrying."),
             StoryChoice("journal", "Review the notes in your journal."),
+            StoryChoice("recall", "Reflect on your recent decisions."),
         ),
         transitions={
             "look": _Transition(
@@ -153,6 +169,7 @@ _DEFAULT_SCENES: MutableMapping[str, _Scene] = {
             StoryChoice("return", "Head back down the forest trail."),
             StoryChoice("inventory", "Check your belongings."),
             StoryChoice("journal", "Look over your recorded memories."),
+            StoryChoice("recall", "Reflect on your recent decisions."),
         ),
         transitions={
             "look": _Transition(

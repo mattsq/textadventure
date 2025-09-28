@@ -9,6 +9,7 @@ from .persistence import (
     SessionSnapshot,
     SessionStore,
 )
+from .memory import MemoryEntry, MemoryLog
 from .world_state import WorldState
 
 __all__ = [
@@ -17,6 +18,8 @@ __all__ = [
     "StoryEvent",
     "StoryEngine",
     "ScriptedStoryEngine",
+    "MemoryEntry",
+    "MemoryLog",
     "LLMClient",
     "LLMClientError",
     "LLMMessage",
