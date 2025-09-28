@@ -27,7 +27,10 @@ This document captures recommended starting tasks for building out the text-adve
 - [x] Add smoke tests for the CLI once the interactive loop is implemented. *(Introduced `tests/test_cli.py` to simulate player commands and verify graceful termination scenarios.)*
 
 ## Priority 4: Stretch Goals
-- [ ] Explore integrating external tools (e.g., knowledge bases or calculators) the agent can invoke during gameplay.
+- [x] Explore integrating external tools (e.g., knowledge bases or calculators) the agent can invoke during gameplay.
+  - [x] Define a lightweight tool abstraction and document how tools are registered with a story engine.
+  - [x] Provide an initial knowledge-base tool that surfaces lore lookups through scripted commands.
+  - [x] Add automated tests covering the new tool flow and update user-facing guidance where appropriate.
 - [ ] Investigate saving/loading checkpoints for long-running adventures.
 - [ ] Evaluate multi-agent orchestration for NPC behaviors or parallel storylines.
 

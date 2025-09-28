@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Mapping, MutableMapping
 
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
+from .tools import KnowledgeBaseTool, Tool
 from .world_state import WorldState
 
 
@@ -58,10 +59,28 @@ def _memory_summary(world_state: WorldState) -> str:
 class ScriptedStoryEngine(StoryEngine):
     """A deterministic `StoryEngine` with two handcrafted locations."""
 
-    def __init__(self, *, scenes: Mapping[str, _Scene] | None = None):
+    def __init__(
+        self,
+        *,
+        scenes: Mapping[str, _Scene] | None = None,
+        tools: Mapping[str, Tool] | None = None,
+    ):
+        """Create a scripted engine with optional custom scenes and tools.
+
+        The ``tools`` mapping associates input commands (e.g. ``"guide"``)
+        with :class:`~textadventure.tools.Tool` instances. When a player's
+        input begins with a registered command the corresponding tool is
+        invoked with the remainder of the input as its query. The resulting
+        :class:`~textadventure.tools.ToolResponse` is converted into a
+        :class:`~textadventure.story_engine.StoryEvent` so that tools can
+        participate in the narrative loop alongside scripted transitions.
+        """
         if scenes is None:
             scenes = _DEFAULT_SCENES
+        if tools is None:
+            tools = _DEFAULT_TOOLS
         self._scenes: Mapping[str, _Scene] = scenes
+        self._tools: Mapping[str, Tool] = tools
 
     def propose_event(
         self,
@@ -82,9 +101,13 @@ class ScriptedStoryEngine(StoryEngine):
         if player_input is None:
             return StoryEvent(narration=scene.description, choices=scene.choices)
 
-        command = player_input.strip().lower()
-        if not command:
+        cleaned_input = player_input.strip()
+        if not cleaned_input:
             return StoryEvent(narration="Silence lingers...", choices=scene.choices)
+
+        parts = cleaned_input.lower().split(maxsplit=1)
+        command = parts[0]
+        argument = parts[1] if len(parts) > 1 else ""
 
         if command == "journal":
             return StoryEvent(
@@ -104,11 +127,20 @@ class ScriptedStoryEngine(StoryEngine):
                 choices=scene.choices,
             )
 
+        tool = self._tools.get(command)
+        if tool is not None:
+            response = tool.invoke(argument, world_state=world_state)
+            return StoryEvent(
+                narration=response.narration,
+                choices=scene.choices,
+                metadata=response.metadata,
+            )
+
         transition = scene.transitions.get(command)
         if transition is None:
             available = scene.command_list()
             narration = (
-                f"You're not sure how to '{command}'. " f"Try one of: {available}."
+                f"You're not sure how to '{cleaned_input}'. " f"Try one of: {available}."
             )
             return StoryEvent(narration=narration, choices=scene.choices)
 
@@ -147,6 +179,10 @@ _DEFAULT_SCENES: MutableMapping[str, _Scene] = {
             StoryChoice("inventory", "Check what you're carrying."),
             StoryChoice("journal", "Review the notes in your journal."),
             StoryChoice("recall", "Reflect on your recent decisions."),
+            StoryChoice(
+                "guide",
+                "Consult the field guide for lore (e.g. 'guide gate').",
+            ),
         ),
         transitions={
             "look": _Transition(
@@ -170,6 +206,10 @@ _DEFAULT_SCENES: MutableMapping[str, _Scene] = {
             StoryChoice("inventory", "Check your belongings."),
             StoryChoice("journal", "Look over your recorded memories."),
             StoryChoice("recall", "Reflect on your recent decisions."),
+            StoryChoice(
+                "guide",
+                "Consult the field guide for lore (e.g. 'guide gate').",
+            ),
         ),
         transitions={
             "look": _Transition(
@@ -182,6 +222,30 @@ _DEFAULT_SCENES: MutableMapping[str, _Scene] = {
             "return": _Transition(
                 narration="You retrace your steps to the trailhead.",
                 target="starting-area",
+            ),
+        },
+    ),
+}
+
+
+_DEFAULT_TOOLS: Mapping[str, Tool] = {
+    "guide": KnowledgeBaseTool(
+        entries={
+            "forest": (
+                "The surrounding forest is part of the Evermoss Preserve, a"
+                " sanctuary for ancient trees and the creatures that dwell"
+                " within. Rangers whisper that the woods shift to guide"
+                " friendly travelers."
+            ),
+            "gate": (
+                "The stone gate predates the nearby settlement by centuries."
+                " Its arch is said to resonate when moonlight and song"
+                " coincide, revealing hidden doorways to other realms."
+            ),
+            "key": (
+                "Keys forged in the old city rarely rust, yet this one bears"
+                " a reddish patina. Legends hint that such keys respond to"
+                " whispered passwords, revealing secret mechanisms."
             ),
         },
     ),

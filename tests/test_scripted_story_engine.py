@@ -63,3 +63,24 @@ def test_recall_command_reports_recent_actions() -> None:
     assert "reflect on your recent decisions" in event.narration.lower()
     assert "look" in event.narration
     assert "explore the gate" in event.narration
+
+
+def test_tool_command_returns_lore_entry() -> None:
+    world = WorldState(location="old-gate")
+    engine = ScriptedStoryEngine()
+
+    event = engine.propose_event(world, player_input="guide gate")
+
+    assert "stone gate" in event.narration.lower()
+    assert event.metadata["tool"] == "Field Guide"
+    assert event.metadata["status"] == "ok"
+
+
+def test_tool_command_prompts_for_topic_when_missing_argument() -> None:
+    world = WorldState()
+    engine = ScriptedStoryEngine()
+
+    event = engine.propose_event(world, player_input="guide")
+
+    assert "need a topic" in event.narration.lower()
+    assert event.metadata["status"] == "missing_query"
