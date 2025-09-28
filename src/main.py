@@ -8,6 +8,8 @@ from typing import Sequence
 
 from textadventure import (
     FileSessionStore,
+    MultiAgentCoordinator,
+    ScriptedStoryAgent,
     SessionSnapshot,
     SessionStore,
     StoryEngine,
@@ -140,7 +142,11 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     args = _parse_args(argv)
     world = WorldState()
-    engine = ScriptedStoryEngine()
+    scripted_engine = ScriptedStoryEngine()
+    coordinator = MultiAgentCoordinator(
+        ScriptedStoryAgent("narrator", scripted_engine)
+    )
+    engine: StoryEngine = coordinator
 
     session_store: SessionStore | None = None
     autoload_session: str | None = None

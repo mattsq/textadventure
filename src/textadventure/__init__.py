@@ -3,6 +3,13 @@
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
 from .scripted_story_engine import ScriptedStoryEngine
+from .multi_agent import (
+    Agent,
+    AgentTrigger,
+    AgentTurnResult,
+    MultiAgentCoordinator,
+    ScriptedStoryAgent,
+)
 from .persistence import (
     FileSessionStore,
     InMemorySessionStore,
@@ -19,6 +26,11 @@ __all__ = [
     "StoryEvent",
     "StoryEngine",
     "ScriptedStoryEngine",
+    "Agent",
+    "AgentTrigger",
+    "AgentTurnResult",
+    "ScriptedStoryAgent",
+    "MultiAgentCoordinator",
     "Tool",
     "ToolResponse",
     "KnowledgeBaseTool",
