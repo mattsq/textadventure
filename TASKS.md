@@ -16,7 +16,7 @@ This document captures recommended starting tasks for building out the text-adve
 - [x] Create an initial concrete `StoryEngine` implementation that returns scripted events for testing the loop.
 
 ## Priority 2: Persistence & Memory
-- [ ] Define how game sessions will be persisted (in-memory first, followed by optional file-based persistence).
+- [x] Define how game sessions will be persisted (in-memory first, followed by optional file-based persistence).
 - [ ] Introduce a lightweight memory mechanism so the agent can recall past actions and player choices.
 
 ## Priority 3: Testing & Tooling Enhancements
