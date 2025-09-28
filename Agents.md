@@ -1,87 +1,64 @@
 # Agents Guide
 
-## Overview
+## Repository Purpose
 
-This repository is an experimental playground for building a text‑based adventure game using agentic tools. The aim is to explore how autonomous agents can manage and evolve a narrative world.
+This project prototypes a small framework for running text adventures that are orchestrated by autonomous agents.  The codebase contains both a scripted demo experience and the building blocks for experimenting with planner/actor style agents, tool use, and session persistence.
 
-## Goals
+## Key Components
 
-- Prototype a lightweight framework where an agent orchestrates story progression.
-- Experiment with large language models and tool integrations for dynamic content generation.
-- Investigate memory and planning mechanisms that allow the agent to keep track of state and player choices.
+The `src/` directory contains the runtime code shipped as the `textadventure` package:
 
-## Architecture
+- **`main.py`** – CLI entry point that wires the world state, story engine, multi-agent coordinator, and optional session persistence together.
+- **`textadventure/world_state.py`** – data model representing locations, actors, inventory, observations, and remembered player actions.
+- **`textadventure/memory.py`** – rolling log of agent memories and utilities for replaying remembered observations/actions.
+- **`textadventure/story_engine.py`** – protocol defining how story events are generated and formatted.
+- **`textadventure/scripted_story_engine.py`** – deterministic story engine used by the demo adventure.
+- **`textadventure/multi_agent.py`** – lightweight coordinator that lets multiple agents take turns responding to player input.
+- **`textadventure/llm.py`** – abstractions for integrating LLM providers when experimenting with generative story engines.
+- **`textadventure/tools.py`** – base interfaces for tool-calling agents plus a simple knowledge-base lookup tool.
+- **`textadventure/persistence.py`** – session snapshot helpers and filesystem-backed storage used by the CLI save/load commands.
 
-A basic scaffolding for the agent might include:
+Design notes and experiments are collected under `docs/`, and automated tests live in `tests/`.
 
-- **World State Manager** – maintains the current location, inventory, NPC states and history.
-- **Story Engine** – proposes narrative events based on the world state and player inputs.
-- **LLM Interface** – wraps calls to language models for generating descriptions, dialogues and branching outcomes.
-- **Interaction Layer** – provides a text‑based interface (CLI or web) for the player to interact with the agent.
-- **Persistence Module** – stores session data and allows saving/loading game progress.
+## Environment Setup
 
-## Setup
-
-Follow these steps to get your development environment ready:
-
-1. **Prerequisites**: Install Python 3.9 or newer.
-2. **Install dependencies**: In the repository root, run:
-
+1. Install Python 3.9 or newer.
+2. Create a virtual environment and install dependencies:
    ```bash
    python -m venv .venv
-   source .venv/bin/activate  # on Windows use `.venv\Scripts\activate`
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
-
-3. **Run the project**: After installing dependencies, you can run the sample driver script to start a simple text adventure:
-
+3. Run the demo CLI:
    ```bash
    python src/main.py
    ```
+   Use `--help` for persistence-related options like `--session-dir` and `--session-id`.
 
-4. **Project structure**: Source code should live in the `src/` directory. Tests should live in `tests/`.
+## Testing & Quality Gates
 
-## Testing
-
-We use `pytest` for unit tests. To run the full test suite, execute:
-
-```bash
-pytest -q
-```
-
-Tests live in `tests/` with filenames prefixed by `test_`. When adding new modules, create accompanying tests.
-
-## Code Style & Formatting
-
-- Follow [PEP 8](https://peps.python.org/pep-0008/) conventions.
-- Use [Black](https://black.readthedocs.io/en/stable/) to auto‑format your code:
-
+- Unit tests use `pytest`. Run the full suite with:
+  ```bash
+  pytest -q
+  ```
+- Static typing is configured through `mypy.ini`. Check types with:
+  ```bash
+  mypy src
+  ```
+- Format the codebase with [Black](https://black.readthedocs.io/) and lint with [Ruff](https://github.com/astral-sh/ruff):
   ```bash
   black src tests
-  ```
-
-- Lint code with [Ruff](https://github.com/astral-sh/ruff) or [Flake8](https://flake8.pycqa.org/):
-
-  ```bash
   ruff src tests
   ```
 
-Formatting and linting should pass locally before committing.
+All new or modified Python modules should include test coverage under `tests/`.
 
-## Commit & Pull Request Guidelines
+## Contribution & Workflow Guidelines
 
-- Write clear, concise commit messages in the present tense (e.g., “Add inventory system”).
-- Each pull request should focus on a single feature or fix.
-- Include context in PR descriptions: what changed, why, and any follow‑ups.
-- Reference issue numbers if applicable (e.g., `Fixes #12`).
+- Keep commits focused and use imperative present-tense messages (e.g., "Add persistence helper").
+- Every pull request should explain the motivation, summarize the changes, and note follow-up work if needed.
+- Reference GitHub issues when applicable (e.g., `Fixes #12`).
+- Never commit secrets. Configuration that must stay local belongs in `.env` files (already ignored by git).
+- Reviewers expect passing tests, linting, and type checks before code review.
 
-## Dependency & Security Policy
-
-- Declare all runtime dependencies in `requirements.txt` (or `pyproject.toml` if using Poetry).
-- Regularly update dependencies and review release notes for security patches.
-- Do not commit secrets (API keys, credentials) to the repository. Use environment variables or a `.env` file (which is git‑ignored).
-
-## Contributing
-
-- Contributions are welcome from both humans and agents. Ensure your changes pass tests and linting.
-- For substantial changes, open an issue to discuss the approach before starting.
+Happy hacking and have fun exploring agent-driven storytelling!
