@@ -1,0 +1,53 @@
+{
+  "starting-area": {
+    "description": "Sunlight filters through tall trees at the forest trailhead. An old stone gate lies to the north, its archway draped in moss.",
+    "choices": [
+      {"command": "look", "description": "Take in the surroundings."},
+      {"command": "explore", "description": "Head toward the mossy gate."},
+      {"command": "inventory", "description": "Check what you're carrying."},
+      {"command": "journal", "description": "Review the notes in your journal."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide gate')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "You pause and listen to the rustling leaves."
+      },
+      "explore": {
+        "narration": "You follow the worn path toward the gate.",
+        "target": "old-gate"
+      }
+    }
+  },
+  "old-gate": {
+    "description": "The gate stands ajar, revealing a courtyard blanketed in mist. A rusty key glints between the stones nearby.",
+    "choices": [
+      {"command": "look", "description": "Study the ancient masonry."},
+      {"command": "inspect", "description": "Investigate the glinting object."},
+      {"command": "return", "description": "Head back down the forest trail."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide gate')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Time has scarred the gate, but it still stands firm."
+      },
+      "inspect": {
+        "narration": "You kneel and pick up the rusty key.",
+        "item": "rusty key"
+      },
+      "return": {
+        "narration": "You retrace your steps to the trailhead.",
+        "target": "starting-area"
+      }
+    }
+  }
+}

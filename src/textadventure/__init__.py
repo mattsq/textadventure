@@ -2,7 +2,11 @@
 
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
-from .scripted_story_engine import ScriptedStoryEngine
+from .scripted_story_engine import (
+    ScriptedStoryEngine,
+    load_scenes_from_file,
+    load_scenes_from_mapping,
+)
 from .multi_agent import (
     Agent,
     AgentTrigger,
@@ -26,6 +30,8 @@ __all__ = [
     "StoryEvent",
     "StoryEngine",
     "ScriptedStoryEngine",
+    "load_scenes_from_file",
+    "load_scenes_from_mapping",
     "Agent",
     "AgentTrigger",
     "AgentTurnResult",

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Mapping, MutableMapping
+from importlib import resources
+from pathlib import Path
+from typing import Any, Mapping, MutableMapping
 
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
 from .tools import KnowledgeBaseTool, Tool
@@ -54,6 +57,123 @@ def _memory_summary(world_state: WorldState) -> str:
 
     entries = "\n".join(f"- {action}" for action in recent_actions)
     return f"You reflect on your recent decisions:\n{entries}"
+
+
+def load_scenes_from_mapping(definitions: Mapping[str, Any]) -> MutableMapping[str, _Scene]:
+    """Convert a mapping of scene definitions into internal `_Scene` objects.
+
+    The ``definitions`` mapping is typically produced by parsing a JSON file.
+    Each entry should contain ``description`` (str), ``choices`` (sequence of
+    mappings with ``command``/``description`` keys) and ``transitions`` (mapping
+    of command to narration/optional target/item metadata).
+    """
+
+    scenes: dict[str, _Scene] = {}
+
+    for location, payload in definitions.items():
+        if not isinstance(location, str):
+            raise ValueError("Scene keys must be strings.")
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"Scene '{location}' must map to an object definition.")
+
+        description = payload.get("description")
+        if not isinstance(description, str):
+            raise ValueError(f"Scene '{location}' is missing a text description.")
+
+        raw_choices = payload.get("choices")
+        if not isinstance(raw_choices, list):
+            raise ValueError(f"Scene '{location}' must define a list of choices.")
+
+        choices: list[StoryChoice] = []
+        for index, choice_payload in enumerate(raw_choices):
+            if not isinstance(choice_payload, Mapping):
+                raise ValueError(
+                    f"Choice #{index} in scene '{location}' must be an object definition."
+                )
+
+            command = choice_payload.get("command")
+            description_text = choice_payload.get("description")
+            if not isinstance(command, str) or not isinstance(description_text, str):
+                raise ValueError(
+                    f"Choice #{index} in scene '{location}' must provide 'command' and 'description' strings."
+                )
+            choices.append(StoryChoice(command, description_text))
+
+        raw_transitions = payload.get("transitions")
+        if not isinstance(raw_transitions, Mapping):
+            raise ValueError(f"Scene '{location}' must define a mapping of transitions.")
+
+        transitions: dict[str, _Transition] = {}
+        for command, transition_payload in raw_transitions.items():
+            if not isinstance(command, str):
+                raise ValueError(
+                    f"Transition command keys must be strings in scene '{location}'."
+                )
+            if not isinstance(transition_payload, Mapping):
+                raise ValueError(
+                    f"Transition '{command}' in scene '{location}' must map to an object definition."
+                )
+
+            narration = transition_payload.get("narration")
+            if not isinstance(narration, str):
+                raise ValueError(
+                    f"Transition '{command}' in scene '{location}' requires a narration string."
+                )
+
+            target = transition_payload.get("target")
+            if target is not None and not isinstance(target, str):
+                raise ValueError(
+                    f"Transition '{command}' in scene '{location}' must use a string 'target'."
+                )
+
+            item = transition_payload.get("item")
+            if item is not None and not isinstance(item, str):
+                raise ValueError(
+                    f"Transition '{command}' in scene '{location}' must use a string 'item'."
+                )
+
+            transitions[command] = _Transition(
+                narration=narration,
+                target=target,
+                item=item,
+            )
+
+        scenes[location] = _Scene(
+            description=description,
+            choices=tuple(choices),
+            transitions=transitions,
+        )
+
+    return scenes
+
+
+def load_scenes_from_file(path: str | Path) -> MutableMapping[str, _Scene]:
+    """Load scene definitions from a JSON file on disk."""
+
+    data_path = Path(path)
+    with data_path.open("r", encoding="utf-8") as handle:
+        raw_data = json.load(handle)
+
+    if not isinstance(raw_data, Mapping):
+        raise ValueError("Scene files must contain an object at the top level.")
+
+    return load_scenes_from_mapping(raw_data)
+
+
+def _load_default_scenes() -> MutableMapping[str, _Scene]:
+    """Read the bundled demo scenes from the package data directory."""
+
+    data_resource = resources.files("textadventure.data").joinpath("scripted_scenes.json")
+    with data_resource.open("r", encoding="utf-8") as handle:
+        raw_data = json.load(handle)
+
+    if not isinstance(raw_data, Mapping):
+        raise ValueError("Bundled scenes must contain an object at the top level.")
+
+    return load_scenes_from_mapping(raw_data)
+
+
+_DEFAULT_SCENES: MutableMapping[str, _Scene] = _load_default_scenes()
 
 
 class ScriptedStoryEngine(StoryEngine):
@@ -167,67 +287,6 @@ class ScriptedStoryEngine(StoryEngine):
         return StoryEvent(narration=narration, choices=choices)
 
 
-_DEFAULT_SCENES: MutableMapping[str, _Scene] = {
-    "starting-area": _Scene(
-        description=(
-            "Sunlight filters through tall trees at the forest trailhead. "
-            "An old stone gate lies to the north, its archway draped in moss."
-        ),
-        choices=(
-            StoryChoice("look", "Take in the surroundings."),
-            StoryChoice("explore", "Head toward the mossy gate."),
-            StoryChoice("inventory", "Check what you're carrying."),
-            StoryChoice("journal", "Review the notes in your journal."),
-            StoryChoice("recall", "Reflect on your recent decisions."),
-            StoryChoice(
-                "guide",
-                "Consult the field guide for lore (e.g. 'guide gate').",
-            ),
-        ),
-        transitions={
-            "look": _Transition(
-                narration="You pause and listen to the rustling leaves."
-            ),
-            "explore": _Transition(
-                narration="You follow the worn path toward the gate.",
-                target="old-gate",
-            ),
-        },
-    ),
-    "old-gate": _Scene(
-        description=(
-            "The gate stands ajar, revealing a courtyard blanketed in mist. "
-            "A rusty key glints between the stones nearby."
-        ),
-        choices=(
-            StoryChoice("look", "Study the ancient masonry."),
-            StoryChoice("inspect", "Investigate the glinting object."),
-            StoryChoice("return", "Head back down the forest trail."),
-            StoryChoice("inventory", "Check your belongings."),
-            StoryChoice("journal", "Look over your recorded memories."),
-            StoryChoice("recall", "Reflect on your recent decisions."),
-            StoryChoice(
-                "guide",
-                "Consult the field guide for lore (e.g. 'guide gate').",
-            ),
-        ),
-        transitions={
-            "look": _Transition(
-                narration="Time has scarred the gate, but it still stands firm."
-            ),
-            "inspect": _Transition(
-                narration="You kneel and pick up the rusty key.",
-                item="rusty key",
-            ),
-            "return": _Transition(
-                narration="You retrace your steps to the trailhead.",
-                target="starting-area",
-            ),
-        },
-    ),
-}
-
-
 _DEFAULT_TOOLS: Mapping[str, Tool] = {
     "guide": KnowledgeBaseTool(
         entries={
@@ -252,4 +311,8 @@ _DEFAULT_TOOLS: Mapping[str, Tool] = {
 }
 
 
-__all__ = ["ScriptedStoryEngine"]
+__all__ = [
+    "ScriptedStoryEngine",
+    "load_scenes_from_file",
+    "load_scenes_from_mapping",
+]

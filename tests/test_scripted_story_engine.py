@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from importlib import resources
+
 from textadventure import WorldState
-from textadventure.scripted_story_engine import ScriptedStoryEngine
+from textadventure.scripted_story_engine import (
+    ScriptedStoryEngine,
+    load_scenes_from_file,
+)
 
 
 def test_initial_event_describes_location() -> None:
@@ -84,3 +89,15 @@ def test_tool_command_prompts_for_topic_when_missing_argument() -> None:
 
     assert "need a topic" in event.narration.lower()
     assert event.metadata["status"] == "missing_query"
+
+
+def test_load_scenes_from_file_matches_default() -> None:
+    data_path = resources.files("textadventure.data").joinpath("scripted_scenes.json")
+    scenes = load_scenes_from_file(str(data_path))
+    world = WorldState()
+    engine = ScriptedStoryEngine(scenes=scenes)
+
+    event = engine.propose_event(world)
+
+    assert "trailhead" in event.narration
+    assert "guide" in event.iter_choice_commands()
