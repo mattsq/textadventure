@@ -7,7 +7,12 @@ from typing import Any
 
 import pytest
 
-from textadventure.llm import LLMClient, LLMMessage, LLMResponse
+from textadventure.llm import (
+    LLMCapabilities,
+    LLMClient,
+    LLMMessage,
+    LLMResponse,
+)
 
 
 class MockLLMClient(LLMClient):
@@ -16,9 +21,12 @@ class MockLLMClient(LLMClient):
     def __init__(
         self,
         responses: Sequence[LLMResponse | str] | None = None,
+        *,
+        capabilities: LLMCapabilities | None = None,
     ) -> None:
         self.calls: list[list[LLMMessage]] = []
         self._responses: list[LLMResponse] = []
+        self._capabilities = capabilities or LLMCapabilities()
 
         if responses:
             for response in responses:
@@ -62,6 +70,9 @@ class MockLLMClient(LLMClient):
 
         return self._responses.pop(0)
 
+    def capabilities(self) -> LLMCapabilities:
+        return self._capabilities
+
 
 @pytest.fixture()
 def mock_llm_client() -> MockLLMClient:
@@ -76,8 +87,10 @@ def make_mock_llm_client() -> Any:
 
     def _factory(
         responses: Sequence[LLMResponse | str] | None = None,
+        *,
+        capabilities: LLMCapabilities | None = None,
     ) -> MockLLMClient:
-        return MockLLMClient(responses=responses)
+        return MockLLMClient(responses=responses, capabilities=capabilities)
 
     return _factory
 
