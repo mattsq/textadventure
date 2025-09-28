@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from importlib import resources
 
+import pytest
+
 from textadventure import WorldState
 from textadventure.scripted_story_engine import (
     ScriptedStoryEngine,
     load_scenes_from_file,
+    load_scenes_from_mapping,
 )
 
 
@@ -101,3 +104,42 @@ def test_load_scenes_from_file_matches_default() -> None:
 
     assert "trailhead" in event.narration
     assert "guide" in event.iter_choice_commands()
+
+
+def test_duplicate_choice_commands_raise_error() -> None:
+    scene_definitions = {
+        "start": {
+            "description": "A clearing.",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+                {"command": "look", "description": "Stare harder."},
+            ],
+            "transitions": {
+                "look": {"narration": "You see trees."},
+            },
+        }
+    }
+
+    with pytest.raises(ValueError) as excinfo:
+        load_scenes_from_mapping(scene_definitions)
+
+    assert "duplicate" in str(excinfo.value)
+
+
+def test_missing_transition_target_raises_error() -> None:
+    scene_definitions = {
+        "start": {
+            "description": "A crossroads.",
+            "choices": [
+                {"command": "north", "description": "Head north."},
+            ],
+            "transitions": {
+                "north": {"narration": "You walk onward.", "target": "unknown"},
+            },
+        }
+    }
+
+    with pytest.raises(ValueError) as excinfo:
+        load_scenes_from_mapping(scene_definitions)
+
+    assert "unknown target" in str(excinfo.value)
