@@ -111,3 +111,43 @@ You can integrate custom scenes into the CLI by instantiating
 `ScriptedStoryEngine` with your loaded mapping before passing it to
 `MultiAgentCoordinator`. Designers can iterate quickly by editing the JSON file
 and restarting the CLI without touching the engine implementation itself.
+
+## Planned Narrative Expansion
+
+To expand the bundled demo we will introduce a broader adventure that moves the
+player through three headline regions connected by transitional scenes. The map
+below groups the planned scenes by region and lists the intended connections:
+
+| Region | Purpose | Scenes & Connections |
+| --- | --- | --- |
+| Forest Approach | Tutorial area introducing movement, the lore guide, and the first inventory pickup. | `starting-area` → `old-gate` → `misty-courtyard`. Optional detours include `scavenger-camp` (yields the **weathered map**) and `ranger-lookout` (teaches the `signal` command to call distant allies). |
+| Sunken Bastion | Puzzle hub centred on unlocking sealed wings of the ruins. | `misty-courtyard` branches to `collapsed-hall` (requires **rusty key** from `old-gate`), `flooded-archives`, and the transitional `echoing-stair`. The archives hide the **sunstone lens** needed later, while the hall leads to `sealed-crypt` gated by the `signal` command. |
+| Aether Spire | Finale region showcasing multi-step objectives and memory recall hooks. | `echoing-stair` climbs to `aether-spire-base`, then `celestial-observatory`. Optional side rooms include `astral-workshop` (crafting the **resonant chime** from gathered items) and `chronicle-chamber` (lore-rich memory callbacks). The observatory contains the branching endings. |
+
+### Key Items and Locks
+
+- **Rusty Key** – Collected at `old-gate`; opens the `collapsed-hall` door in the
+  bastion.
+- **Weathered Map** – Optional pickup from `scavenger-camp`; unlocks extra lore
+  in the `chronicle-chamber` and hints at secret commands.
+- **Sunstone Lens** – Found in `flooded-archives`; required to activate the
+  observatory devices in `celestial-observatory`.
+- **Resonant Chime** – Crafted in `astral-workshop` using components found along
+  optional paths; used with the learned `signal` command to pacify guardians in
+  the finale.
+
+### Narrative Beats and Objectives
+
+1. **Orientation** – Establish the expedition goal at `starting-area`, introduce
+   the lore guide tool, and set up the mystery of the sealed bastion.
+2. **Reclaiming the Courtyard** – Encourage exploration to retrieve the key and
+   map, then unlock the bastion entrances. Memory recall scenes reinforce the
+   stakes after each milestone.
+3. **Diverging Paths** – Let players choose between archives or hall first,
+   learning that progress requires combining items and knowledge from both.
+4. **Ascending the Spire** – Trigger optional side objectives (crafting the
+   chime, uncovering lore) before converging at the observatory for branching
+   endings based on collected items and recalled memories.
+
+These notes will guide the upcoming JSON updates and test fixtures so the
+expanded storyline remains coherent and well-documented.
