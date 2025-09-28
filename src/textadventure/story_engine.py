@@ -60,6 +60,7 @@ class StoryEvent:
 
         object.__setattr__(self, "choices", normalised_choices)
 
+        metadata: Mapping[str, str]
         if self.metadata is None:
             metadata = MappingProxyType({})
         else:

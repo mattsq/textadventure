@@ -4,3 +4,4 @@ ruff>=0.0.292
 langchain>=0.0.350
 openai>=1.0.0
 python-dotenv>=1.0
+mypy>=1.5.1
