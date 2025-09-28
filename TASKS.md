@@ -43,3 +43,18 @@ This document captures recommended starting tasks for building out the text-adve
   - [x] Outline testing strategies (unit and integration) to ensure deterministic behaviour with multiple agents. *(Documented layered unit, integration, and tooling plans in `docs/multi_agent_orchestration.md`.)*
 
 Revisit this backlog as soon as the initial scaffolding is in place so we can refine upcoming milestones based on early feedback.
+
+## Priority 5: Data-Driven Narrative Expansion
+- [ ] Externalise the scripted scenes into structured data files (e.g., YAML or JSON) so adventures can be edited without touching code while retaining sensible defaults for the demo.
+- [ ] Add validation helpers that load the scene definitions, ensure commands are unique, verify transition targets exist, and surface descriptive errors with unit tests.
+- [ ] Document the data format and authoring workflow in `docs/` and update the README so contributors can build new adventures quickly.
+
+## Priority 6: Generative Agent Integration
+- [ ] Implement an `LLMStoryAgent` that wraps `LLMClient`, assembles prompts from the world state, and can participate in the `MultiAgentCoordinator` turn loop.
+- [ ] Extend the memory system so agents can request recent observations/actions as part of their prompts, with configuration for how much history to include.
+- [ ] Provide integration tests (or golden transcripts) that exercise a hybrid scripted + LLM-backed coordinator using deterministic fixtures.
+
+## Priority 7: Observability & Tooling
+- [ ] Add transcript logging options to the CLI (e.g., `--log-file`) that capture narration, player input, and agent metadata for debugging sessions.
+- [ ] Introduce a debug command (such as `status`) that prints the active location, inventory summary, queued agent messages, and pending saves.
+- [ ] Set up a continuous integration workflow (GitHub Actions) to run tests, type checks, and linting on each push.
