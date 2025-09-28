@@ -45,7 +45,10 @@ This document captures recommended starting tasks for building out the text-adve
 Revisit this backlog as soon as the initial scaffolding is in place so we can refine upcoming milestones based on early feedback.
 
 ## Priority 5: Data-Driven Narrative Expansion
-- [ ] Externalise the scripted scenes into structured data files (e.g., YAML or JSON) so adventures can be edited without touching code while retaining sensible defaults for the demo.
+- [x] Externalise the scripted scenes into structured data files (e.g., YAML or JSON) so adventures can be edited without touching code while retaining sensible defaults for the demo.
+  - [x] Extract the current hard-coded demo scenes into a reusable data file checked into the repo.
+  - [x] Update `ScriptedStoryEngine` so it can load scenes from structured data and still provide a default demo set.
+  - [x] Refresh tests and docs to cover the data-driven scene workflow.
 - [ ] Add validation helpers that load the scene definitions, ensure commands are unique, verify transition targets exist, and surface descriptive errors with unit tests.
 - [ ] Document the data format and authoring workflow in `docs/` and update the README so contributors can build new adventures quickly.
 

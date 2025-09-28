@@ -6,6 +6,7 @@ This repository hosts an experimental text-adventure framework that explores how
 
 - **World modelling** – `WorldState` tracks locations, actors, inventory, memories, and player actions.
 - **Story engines** – the `StoryEngine` protocol defines how narrative beats are proposed; the included `ScriptedStoryEngine` delivers a deterministic storyline that is easy to extend.
+- **Data-driven demo scenes** – the sample adventure reads its locations from `textadventure/data/scripted_scenes.json`, making narrative tweaks possible without touching Python code.
 - **Multi-agent orchestration** – `MultiAgentCoordinator` lets several agents (LLM-backed or scripted) take turns responding to the player.
 - **Session persistence** – `FileSessionStore` enables save/load checkpoints directly from the CLI demo.
 - **Tooling hooks** – `KnowledgeBaseTool` and base `Tool` interfaces illustrate how agents can extend their capabilities.
@@ -21,6 +22,8 @@ src/
     memory.py            # Memory log utilities
     multi_agent.py       # Agent coordination primitives
     persistence.py       # Session snapshot + storage helpers
+    data/
+      scripted_scenes.json  # Bundled demo adventure definition
     scripted_story_engine.py
     story_engine.py      # Story event interfaces
     tools.py             # Tool interface & knowledge base example
@@ -46,6 +49,26 @@ Additional project planning notes live in [`TASKS.md`](TASKS.md).
    python src/main.py
    ```
    Use `python src/main.py --help` to discover save/load options.
+
+## Customising the Demo Adventure
+
+The bundled `ScriptedStoryEngine` now loads its scenes from the JSON file at
+`textadventure/data/scripted_scenes.json`. Copy that file to craft new
+locations, choices, and transitions, then load it with
+`textadventure.load_scenes_from_file` when constructing a custom engine:
+
+```python
+from textadventure import ScriptedStoryEngine, WorldState, load_scenes_from_file
+
+scenes = load_scenes_from_file("my_custom_adventure.json")
+engine = ScriptedStoryEngine(scenes=scenes)
+
+world = WorldState()
+print(engine.propose_event(world).narration)
+```
+
+Running the CLI with this engine lets designers iterate on adventures without
+changing the Python source.
 
 ## Testing and Quality Checks
 
