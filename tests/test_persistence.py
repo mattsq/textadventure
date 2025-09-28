@@ -36,7 +36,9 @@ def test_in_memory_session_store_round_trip(sample_snapshot: SessionSnapshot) ->
         store.load("session-1")
 
 
-def test_in_memory_session_store_validates_identifier(sample_snapshot: SessionSnapshot) -> None:
+def test_in_memory_session_store_validates_identifier(
+    sample_snapshot: SessionSnapshot,
+) -> None:
     store = InMemorySessionStore()
     with pytest.raises(ValueError):
         store.save("   ", sample_snapshot)
@@ -44,7 +46,9 @@ def test_in_memory_session_store_validates_identifier(sample_snapshot: SessionSn
         store.save(123, sample_snapshot)  # type: ignore[arg-type]
 
 
-def test_file_session_store_round_trip(tmp_path: Path, sample_snapshot: SessionSnapshot) -> None:
+def test_file_session_store_round_trip(
+    tmp_path: Path, sample_snapshot: SessionSnapshot
+) -> None:
     store = FileSessionStore(tmp_path)
     store.save("my-session", sample_snapshot)
 
@@ -62,7 +66,9 @@ def test_file_session_store_round_trip(tmp_path: Path, sample_snapshot: SessionS
         store.load("my-session")
 
 
-def test_file_session_store_persists_json(tmp_path: Path, sample_snapshot: SessionSnapshot) -> None:
+def test_file_session_store_persists_json(
+    tmp_path: Path, sample_snapshot: SessionSnapshot
+) -> None:
     store = FileSessionStore(tmp_path)
     store.save("persisted", sample_snapshot)
 

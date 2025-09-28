@@ -42,7 +42,9 @@ def test_response_immutability() -> None:
         response.metadata["model"] = "other"  # type: ignore[index]
 
 
-def test_complete_prompt_helper_constructs_user_message(mock_llm_client: "MockLLMClient") -> None:
+def test_complete_prompt_helper_constructs_user_message(
+    mock_llm_client: "MockLLMClient",
+) -> None:
     mock_llm_client.queue_response("Inspecting room")
 
     response = mock_llm_client.complete_prompt("Inspect room", temperature=0.1)
@@ -55,7 +57,9 @@ def test_complete_prompt_helper_constructs_user_message(mock_llm_client: "MockLL
     assert response.message.content == "Inspecting room"
 
 
-def test_mock_llm_client_requires_queued_response(mock_llm_client: "MockLLMClient") -> None:
+def test_mock_llm_client_requires_queued_response(
+    mock_llm_client: "MockLLMClient",
+) -> None:
     with pytest.raises(AssertionError, match="expected a queued response"):
         mock_llm_client.complete([LLMMessage(role="user", content="hello")])
 

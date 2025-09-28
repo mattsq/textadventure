@@ -111,7 +111,9 @@ class FileSessionStore(SessionStore):
 
     def save(self, session_id: str, snapshot: SessionSnapshot) -> None:
         session_file = self._session_path(session_id)
-        session_file.write_text(json.dumps(snapshot.to_payload(), indent=2), encoding="utf-8")
+        session_file.write_text(
+            json.dumps(snapshot.to_payload(), indent=2), encoding="utf-8"
+        )
 
     def load(self, session_id: str) -> SessionSnapshot:
         session_file = self._session_path(session_id)
