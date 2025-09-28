@@ -125,42 +125,69 @@ You can integrate custom scenes into the CLI by instantiating
 `MultiAgentCoordinator`. Designers can iterate quickly by editing the JSON file
 and restarting the CLI without touching the engine implementation itself.
 
-## Planned Narrative Expansion
+## Expanded Demo Reference
 
-To expand the bundled demo we will introduce a broader adventure that moves the
-player through three headline regions connected by transitional scenes. The map
-below groups the planned scenes by region and lists the intended connections:
+The JSON file now ships with the full expanded storyline. Use the following
+overview to orient yourself when authoring additional content or planning
+playtests.
 
-| Region | Purpose | Scenes & Connections |
-| --- | --- | --- |
-| Forest Approach | Tutorial area introducing movement, the lore guide, and the first inventory pickup. | `starting-area` → `old-gate` → `misty-courtyard`. Optional detours include `scavenger-camp` (yields the **weathered map**) and `ranger-lookout` (teaches the `signal` command to call distant allies). |
-| Sunken Bastion | Puzzle hub centred on unlocking sealed wings of the ruins. | `misty-courtyard` branches to `collapsed-hall` (requires **rusty key** from `old-gate`), `flooded-archives`, and the transitional `echoing-stair`. The archives hide the **sunstone lens** needed later, while the hall leads to `sealed-crypt` gated by the `signal` command. |
-| Aether Spire | Finale region showcasing multi-step objectives and memory recall hooks. | `echoing-stair` climbs to `aether-spire-base`, then `celestial-observatory`. Optional side rooms include `astral-workshop` (crafting the **resonant chime** from gathered items) and `chronicle-chamber` (lore-rich memory callbacks). The observatory contains the branching endings. |
+### Region Map
 
-### Key Items and Locks
+```
+Forest Approach
+  starting-area ─┬─> old-gate ──> misty-courtyard ─┬─> collapsed-hall ─┬─> sealed-crypt
+                 │                                 │                   └─> (loot + lore)
+                 ├─> scavenger-camp                ├─> flooded-archives
+                 └─> ranger-lookout                └─> echoing-stair ──> aether-spire-base
+                                                                       ├─> astral-workshop
+                                                                       ├─> chronicle-chamber
+                                                                       └─> celestial-observatory
+```
 
-- **Rusty Key** – Collected at `old-gate`; opens the `collapsed-hall` door in the
-  bastion.
-- **Weathered Map** – Optional pickup from `scavenger-camp`; unlocks extra lore
-  in the `chronicle-chamber` and hints at secret commands.
-- **Sunstone Lens** – Found in `flooded-archives`; required to activate the
-  observatory devices in `celestial-observatory`.
-- **Resonant Chime** – Crafted in `astral-workshop` using components found along
-  optional paths; used with the learned `signal` command to pacify guardians in
-  the finale.
+- **Forest Approach** introduces navigation, the lore `guide`, and optional
+  pickups that ease later puzzles. Both detours return to the trailhead so
+  players can collect the **rusty key**, **weathered map**, and **signal lesson**
+  in any order.
+- **Sunken Bastion** forms the mid-game hub. `misty-courtyard` branches toward
+  the `collapsed-hall` lock, the treasure-rich `flooded-archives`, and the
+  `echoing-stair` transition to the finale. The `sealed-crypt` rewards careful
+  preparation with the **ancient sigil**.
+- **Aether Spire** resolves the quest. The base connects optional side rooms to
+  gather crafting materials before the `celestial-observatory` ending.
 
-### Narrative Beats and Objectives
+### Quest Flow Summary
 
-1. **Orientation** – Establish the expedition goal at `starting-area`, introduce
-   the lore guide tool, and set up the mystery of the sealed bastion.
-2. **Reclaiming the Courtyard** – Encourage exploration to retrieve the key and
-   map, then unlock the bastion entrances. Memory recall scenes reinforce the
-   stakes after each milestone.
-3. **Diverging Paths** – Let players choose between archives or hall first,
-   learning that progress requires combining items and knowledge from both.
-4. **Ascending the Spire** – Trigger optional side objectives (crafting the
-   chime, uncovering lore) before converging at the observatory for branching
-   endings based on collected items and recalled memories.
+1. **Trailhead Orientation** – Establish the expedition objective at
+   `starting-area`, prompt players to try `guide`, and highlight the gate.
+2. **Courtyard Access** – Collect the **rusty key** and learn the ranger
+   `signal` so `collapsed-hall` and `sealed-crypt` become reachable. Optional
+   items like the **weathered map** enrich lore scenes but are not required to
+   progress.
+3. **Bastion Investigation** – Alternate between the `flooded-archives` (for the
+   **sunstone lens**) and hall/crypt chain (for the **echo shard** and **ancient
+   sigil**). Reinforce memory mechanics by encouraging use of `journal` and
+   `recall` between excursions.
+4. **Spire Preparation** – Use the `astral-workshop` to convert the **echo
+   shard** and **luminous filament** into the **resonant chime**, and visit the
+   `chronicle-chamber` for optional exposition when carrying the **weathered
+   map**.
+5. **Observatory Finale** – Combine the **sunstone lens** and **resonant chime**
+   at the `celestial-observatory` to trigger the closing narration. Players who
+   skipped optional objectives receive tailored failure narration nudging them
+   toward outstanding tasks.
 
-These notes will guide the upcoming JSON updates and test fixtures so the
-expanded storyline remains coherent and well-documented.
+### Authoring Tips for Further Expansion
+
+- **Add regional spokes** by following the established pattern: a hub scene with
+  multiple outward transitions, each returning the player to regroup before
+  advancing deeper.
+- **Layer optional rewards** that interact with existing mechanics. Lore items
+  (like the **weathered map**) can unlock new tool prompts or augment
+  `journal`/`recall` flavour without blocking core progress.
+- **Telegraph locks clearly** using `failure_narration` so players understand
+  which items or lessons they need and where to find them.
+- **Reuse crafted items** by combining `requires` and `consumes`. The workshop
+  chain demonstrates how to consume reagents yet leave the resulting tool
+  available for later checks.
+- **Document new branches** in this guide as you extend the map so playtesters
+  and fellow authors can follow the evolving structure at a glance.
