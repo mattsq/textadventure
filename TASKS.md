@@ -71,3 +71,17 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Provide a coordinator debug snapshot with visibility into queued messages.
   - [x] Surface the world/persistence details through a CLI `status` command and cover it with tests.
 - [x] Set up a continuous integration workflow (GitHub Actions) to run tests, type checks, and linting on each push. *(Added a GitHub Actions pipeline executing pytest, mypy, Ruff, and Black on pushes and pull requests.)*
+
+## Priority 8: LLM Framework Integrations
+- [ ] Expand the generic `LLMClient` abstraction so it can expose provider capabilities (streaming, function calling, tool APIs) in a uniform schema across integrations.
+  - [ ] Document the canonical interface in developer docs and surface configuration examples for advanced options like temperature, caching, and safety filters.
+  - [ ] Add unit tests covering capability negotiation to ensure providers gracefully degrade when a feature is unsupported.
+- [ ] Implement adapters for popular online providers (e.g., OpenAI, Anthropic, Cohere) that wrap their SDKs and map responses to the generic interface.
+  - [ ] Provide retry, rate limiting, and error classification helpers that can be reused across adapters.
+  - [ ] Add integration tests using recorded responses or fixtures to validate prompt/response translation and error handling.
+- [ ] Implement adapters for local runtimes (e.g., Hugging Face Text Generation Inference, llama.cpp servers) so self-hosted models can plug into the same flow.
+  - [ ] Document setup instructions and configuration flags required to target each local runtime.
+  - [ ] Add smoke tests or mocks verifying adapters handle streaming, chunked responses, and offline failure scenarios.
+- [ ] Create a provider registry that loads adapters dynamically based on configuration files or CLI options.
+  - [ ] Update the CLI and coordinator wiring so adventures can select LLM providers at runtime.
+  - [ ] Ensure registry lookups and adapter instantiation are covered by tests, including misconfiguration handling.
