@@ -12,8 +12,8 @@ This document captures recommended starting tasks for building out the text-adve
 - [x] Implement a `WorldState` object responsible for tracking locations, inventory, and history.
 - [x] Design an interface for a `StoryEngine` component that can propose narrative events based on the world state.
 - [x] Provide an abstraction around LLM calls (e.g., `LLMClient`) that can be mocked during tests.
-- [ ] Draft a simple command loop (CLI) that takes player input and routes it through the story engine.
-- [ ] Create an initial concrete `StoryEngine` implementation that returns scripted events for testing the loop.
+- [x] Draft a simple command loop (CLI) that takes player input and routes it through the story engine.
+- [x] Create an initial concrete `StoryEngine` implementation that returns scripted events for testing the loop.
 
 ## Priority 2: Persistence & Memory
 - [ ] Define how game sessions will be persisted (in-memory first, followed by optional file-based persistence).
@@ -23,7 +23,7 @@ This document captures recommended starting tasks for building out the text-adve
 - [x] Write unit tests covering the world state mutations and narrative branching logic.
 - [ ] Set up fixtures or mocks for LLM interactions to keep tests deterministic.
 - [ ] Consider integrating type checking (e.g., `mypy`) and continuous integration workflows (GitHub Actions).
-- [ ] Add smoke tests for the CLI once the interactive loop is implemented.
+- [ ] Add smoke tests for the CLI once the interactive loop is implemented. (The scripted engine now supports manual runs.)
 
 ## Priority 4: Stretch Goals
 - [ ] Explore integrating external tools (e.g., knowledge bases or calculators) the agent can invoke during gameplay.

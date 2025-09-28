@@ -52,14 +52,18 @@ class LLMResponse:
         object.__setattr__(self, "metadata", metadata_proxy)
 
 
-def _frozen_int_mapping(mapping: Mapping[str, int] | MutableMapping[str, int], *, field_name: str) -> Mapping[str, int]:
+def _frozen_int_mapping(
+    mapping: Mapping[str, int] | MutableMapping[str, int], *, field_name: str
+) -> Mapping[str, int]:
     """Validate that mapping values are integers and return an immutable view."""
 
     if mapping is None:
         data: Mapping[str, int] = {}
     else:
         data = {
-            _validate_text(str(key), field_name=f"{field_name} key"): _validate_int(value, field_name=f"{field_name} value")
+            _validate_text(str(key), field_name=f"{field_name} key"): _validate_int(
+                value, field_name=f"{field_name} value"
+            )
             for key, value in mapping.items()
         }
 
@@ -72,15 +76,18 @@ def _validate_int(value: int, *, field_name: str) -> int:
     return value
 
 
-def _frozen_str_mapping(mapping: Mapping[str, str] | MutableMapping[str, str], *, field_name: str) -> Mapping[str, str]:
+def _frozen_str_mapping(
+    mapping: Mapping[str, str] | MutableMapping[str, str], *, field_name: str
+) -> Mapping[str, str]:
     """Validate that mapping values are strings and return an immutable view."""
 
     if mapping is None:
         data: Mapping[str, str] = {}
     else:
         data = {
-            _validate_text(str(key), field_name=f"{field_name} key"):
-            _validate_text(str(value), field_name=f"{field_name} value")
+            _validate_text(str(key), field_name=f"{field_name} key"): _validate_text(
+                str(value), field_name=f"{field_name} value"
+            )
             for key, value in mapping.items()
         }
 
@@ -91,10 +98,14 @@ class LLMClient(ABC):
     """Abstract interface encapsulating calls to an LLM provider."""
 
     @abstractmethod
-    def complete(self, messages: Sequence[LLMMessage], *, temperature: float | None = None) -> LLMResponse:
+    def complete(
+        self, messages: Sequence[LLMMessage], *, temperature: float | None = None
+    ) -> LLMResponse:
         """Generate a completion from a set of chat-style messages."""
 
-    def complete_prompt(self, prompt: str, *, temperature: float | None = None) -> LLMResponse:
+    def complete_prompt(
+        self, prompt: str, *, temperature: float | None = None
+    ) -> LLMResponse:
         """Helper for providers that accept a single user prompt."""
 
         message = LLMMessage(role="user", content=prompt)
@@ -118,4 +129,3 @@ __all__ = [
     "LLMResponse",
     "iter_contents",
 ]
-
