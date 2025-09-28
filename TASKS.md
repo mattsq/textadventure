@@ -106,3 +106,15 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Document the workflow and add regression tests covering provider selection.
   - [x] Ensure registry lookups and adapter instantiation are covered by tests, including misconfiguration handling. *(Added coverage for dynamic import errors, invalid identifiers, and duplicate CLI options to assert descriptive failures.)*
   - [x] Support loading provider configuration from JSON files and exposing a matching CLI flag. *(Added `LLMProviderRegistry.create_from_config_file`, CLI wiring, tests, and documentation.)*
+
+## Priority 9: Scripted Demo Worldbuilding
+- [ ] Plan an expanded narrative arc that showcases branching paths, inventory gating, and optional side objectives.
+  - [ ] Sketch a location graph covering at least three distinct regions plus connecting transitional scenes.
+  - [ ] Identify key items, puzzle locks, and narrative beats that can be expressed purely through the JSON schema.
+- [ ] Extend `src/textadventure/data/scripted_scenes.json` with the new regions, ensuring consistent descriptions, commands, and transitions.
+  - [ ] Introduce multi-step objectives (e.g., fetch quests or combination puzzles) that require revisiting earlier locations.
+  - [ ] Add optional flavour interactions so the demo highlights lore lookups, journal entries, and memory recall hooks.
+- [ ] Update scripted-engine tests and fixtures to cover the expanded scene graph and any new command patterns.
+  - [ ] Add regression coverage validating transition targets, required items, and failure messages for gated actions.
+  - [ ] Refresh golden transcripts (if any) so the CLI demo walkthrough exercises the broader storyline.
+- [ ] Document the enhanced demo in `docs/data_driven_scenes.md`, including a high-level map, quest summaries, and authoring tips for further expansion.
