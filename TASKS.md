@@ -100,4 +100,4 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Add CLI flags for selecting an LLM provider and passing option key/value pairs.
     - [x] Instantiate LLM-backed agents via the provider registry when configured and integrate them with the coordinator.
     - [x] Document the workflow and add regression tests covering provider selection.
-  - [ ] Ensure registry lookups and adapter instantiation are covered by tests, including misconfiguration handling.
+  - [x] Ensure registry lookups and adapter instantiation are covered by tests, including misconfiguration handling. *(Added coverage for dynamic import errors, invalid identifiers, and duplicate CLI options to assert descriptive failures.)*
