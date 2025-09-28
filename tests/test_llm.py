@@ -1,28 +1,13 @@
 """Tests for the LLM abstraction layer."""
 
+from typing import TYPE_CHECKING
+
 import pytest
 
-from typing import Sequence
+from textadventure.llm import LLMMessage, LLMResponse, iter_contents
 
-from textadventure.llm import (
-    LLMClient,
-    LLMMessage,
-    LLMResponse,
-    iter_contents,
-)
-
-
-class DummyLLMClient(LLMClient):
-    """A simple client implementation for exercising the base helpers."""
-
-    def __init__(self) -> None:
-        self.calls: list[list[LLMMessage]] = []
-
-    def complete(
-        self, messages: Sequence[LLMMessage], *, temperature: float | None = None
-    ) -> LLMResponse:
-        self.calls.append(list(messages))
-        return LLMResponse(message=messages[-1])
+if TYPE_CHECKING:  # pragma: no cover - only used for static analysis
+    from tests.conftest import MockLLMClient
 
 
 def test_message_validation_and_normalisation() -> None:
@@ -57,15 +42,22 @@ def test_response_immutability() -> None:
         response.metadata["model"] = "other"  # type: ignore[index]
 
 
-def test_complete_prompt_helper_constructs_user_message() -> None:
-    client = DummyLLMClient()
-    client.complete_prompt("Inspect room", temperature=0.1)
+def test_complete_prompt_helper_constructs_user_message(mock_llm_client: "MockLLMClient") -> None:
+    mock_llm_client.queue_response("Inspecting room")
 
-    assert len(client.calls) == 1
-    call = client.calls[0]
+    response = mock_llm_client.complete_prompt("Inspect room", temperature=0.1)
+
+    assert len(mock_llm_client.calls) == 1
+    call = mock_llm_client.calls[0]
     assert len(call) == 1
     assert call[0].role == "user"
     assert call[0].content == "Inspect room"
+    assert response.message.content == "Inspecting room"
+
+
+def test_mock_llm_client_requires_queued_response(mock_llm_client: "MockLLMClient") -> None:
+    with pytest.raises(AssertionError, match="expected a queued response"):
+        mock_llm_client.complete([LLMMessage(role="user", content="hello")])
 
 
 def test_iter_contents_returns_message_text() -> None:
