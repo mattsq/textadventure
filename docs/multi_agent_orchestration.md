@@ -70,14 +70,52 @@ the world state consistent.
 - Store coordinator configuration alongside session persistence so that saved
   games reload the same agent roster and internal message queues.
 
+## Testing Strategy
+Ensuring deterministic behaviour across multiple agents requires layered
+coverage so we can quickly pinpoint regressions.
+
+### Unit Tests
+- **Coordinator sequencing** – Stub two or more agents with scripted outputs
+  and assert that the coordinator merges narrations and choices in the expected
+  order regardless of trigger permutations.
+- **Message queue flow** – Drive queued `AgentMessage` instances through the
+  coordinator and verify that fan-out honours subscription metadata and that
+  deferred messages surface on the following tick.
+- **World mutations** – Use fixtures to snapshot `WorldState` before and after
+  agent runs, confirming that concurrent mutations resolve predictably and
+  metadata attribution is preserved.
+
+### Integration Tests
+- **CLI smoke paths** – Exercise the text loop with a coordinator hosting the
+  scripted player agent plus at least one NPC agent. Validate the combined
+  narration, player choices, and termination semantics remain stable across
+  runs.
+- **Persistence round-trips** – Save a session mid-turn while queues contain
+  pending messages, reload it, and confirm the coordinator resumes with the same
+  ordering guarantees.
+- **Failure isolation** – Simulate an agent raising an exception and assert the
+  coordinator captures it, records diagnostics, and continues processing other
+  agents without duplicating output.
+
+### Tooling & Infrastructure
+- Provide pytest fixtures for constructing coordinators with configurable agent
+  line-ups and scripted triggers, allowing tests to focus on behaviour rather
+  than setup.
+- Capture golden transcripts for complex scenarios so snapshot tests can detect
+  unintended narration drift while still allowing intentional updates via
+  reviewable fixtures.
+
+Together these layers give us confidence that the orchestrator behaves
+predictably as new agent capabilities are introduced.
+
 ## Next Steps
 1. **Interface Prototyping** – Create `Agent`, `AgentTrigger`, and
    `MultiAgentCoordinator` classes with deterministic sequencing and simple
    merging rules. Wrap `ScriptedStoryEngine` in an adapter that implements the
    agent interface.
-2. **Testing Strategy** – Design unit tests that stub multiple agents and
-   assert deterministic ordering, ensuring metadata is preserved. Add CLI smoke
-   tests that exercise a coordinator with two scripted agents.
+2. **Test Harness Implementation** – Build out the fixtures and regression
+   suites described above so future agent experiments can rely on fast,
+   reproducible feedback.
 
 ## Open Questions
 - How should conflicting choices be resolved? (e.g., two agents suggesting the
