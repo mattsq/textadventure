@@ -9,36 +9,44 @@ coordination, tool use, LLM-backed storytellers, and session persistence.
 
 ## Key Components
 
-The `src/` directory contains the runtime code published as the
-`textadventure` package:
+The runtime code lives in `src/` and is published as the `textadventure`
+package. Highlights include:
 
-- **`main.py`** – CLI entry point that wires the world state, story engine,
-  multi-agent coordinator, transcript logging, and optional session
-  persistence together.
-- **`textadventure/world_state.py`** – data model representing locations,
-  actors, inventory, observations, and remembered player actions.
-- **`textadventure/memory.py`** – rolling log of agent memories and utilities
-  for replaying remembered observations/actions.
-- **`textadventure/story_engine.py`** – protocol defining how story events are
-  generated and formatted.
-- **`textadventure/scripted_story_engine.py`** – deterministic story engine
-  used by the demo adventure, including helpers for loading JSON scenes.
+- **`src/main.py`** – CLI entry point that wires the world state, story engine,
+  multi-agent coordinator, transcript logging, and optional persistence. It also
+  exposes flags for registering LLM co-narrators through the provider registry.
+- **`textadventure/world_state.py`** – data model describing locations, actors,
+  inventory, observations, and remembered player actions.
+- **`textadventure/memory.py`** – rolling log of agent memories plus utilities
+  for replaying observations/actions.
+- **`textadventure/story_engine.py`** – protocol defining how narrative beats
+  are generated and formatted.
+- **`textadventure/scripted_story_engine.py`** – deterministic story engine used
+  by the demo adventure, including helpers for loading JSON scenes from disk or
+  in-memory mappings.
 - **`textadventure/multi_agent.py`** – lightweight coordinator that lets
   multiple agents take turns responding to player input while exposing debug
   metadata.
 - **`textadventure/llm_story_agent.py`** – adapter that routes coordinator
   prompts through an LLM-backed decision-maker.
 - **`textadventure/llm.py`** – abstractions for integrating LLM providers when
-  experimenting with generative story engines.
-- **`textadventure/tools.py`** – base interfaces for tool-calling agents plus a
+  experimenting with generative story engines (shared message/response models
+  plus streaming helpers).
+- **`textadventure/llm_provider_registry.py`** – command-line friendly registry
+  that resolves provider identifiers, parses `--llm-option` flags, and builds
+  configured clients.
+- **`textadventure/llm_providers/`** – adapters for specific hosted and local
+  LLM providers (OpenAI, Anthropic, Cohere, Hugging Face Text Generation
+  Inference, and llama.cpp).
+- **`textadventure/tools.py`** – base interfaces for tool-calling agents and a
   simple knowledge-base lookup tool.
-- **`textadventure/persistence.py`** – session snapshot helpers and
-  filesystem-backed storage used by the CLI save/load commands.
+- **`textadventure/persistence.py`** – session snapshot helpers and storage
+  backends used by the CLI save/load commands.
 - **`textadventure/data/scripted_scenes.json`** – bundled demo adventure
   definition consumed by the scripted engine.
 
-Design notes and experiments live under `docs/`, and automated tests cover the
-package in `tests/`.
+Design notes and experiment write-ups live in `docs/`, and the automated test
+suite resides under `tests/`.
 
 ## Environment Setup
 

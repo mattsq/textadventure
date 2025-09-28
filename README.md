@@ -9,14 +9,15 @@ integration.
 ## Highlights
 
 - **Interactive CLI demo** – `src/main.py` wires the story engine, world state,
-  persistence, and optional transcript logging into a small playable loop.
+  persistence, optional transcript logging, and the LLM provider registry into a
+  small playable loop.
 - **Rich world modelling** – `WorldState` tracks locations, actors, inventory,
   remembered observations, and player actions.
 - **Story engines** – the `StoryEngine` protocol defines how narrative beats
   are proposed; `ScriptedStoryEngine` provides a deterministic storyline that
   is easy to extend or replace.
 - **Multi-agent orchestration** – `MultiAgentCoordinator` coordinates one or
-  more `Agent` implementations. The included `ScriptedStoryAgent` narrates the
+  more `Agent` implementations. The bundled `ScriptedStoryAgent` narrates the
   demo adventure, while `LLMStoryAgent` shows how to route decisions through an
   LLM-backed actor.
 - **Data-driven content** – the sample adventure reads its locations from
@@ -24,6 +25,9 @@ integration.
   touching Python code.
 - **Tooling hooks** – `Tool` and `KnowledgeBaseTool` illustrate how agents can
   extend their capabilities beyond pure text generation.
+- **Provider registry** – `LLMProviderRegistry` and the adapters in
+  `textadventure/llm_providers/` make it easy to register OpenAI, Anthropic,
+  Cohere, Hugging Face Text Generation Inference, or llama.cpp co-narrators.
 - **Session persistence** – `FileSessionStore` enables save/load checkpoints
   directly from the CLI demo.
 
@@ -35,15 +39,16 @@ src/
   textadventure/
     __init__.py            # Public package surface
     llm.py                 # LLM client abstractions + helpers
-    llm_providers/         # Adapters for hosted and local LLM providers
-    llm_story_agent.py     # Agent bridge between the coordinator and an LLM
-    memory.py              # Memory log utilities
-    multi_agent.py         # Agent coordination primitives
-    persistence.py         # Session snapshot + storage helpers
-    scripted_story_engine.py
-    story_engine.py        # Story event interfaces
-    tools.py               # Tool interface & knowledge base example
-    world_state.py         # Core world data model
+    llm_provider_registry.py # CLI-friendly registry for configuring providers
+    llm_providers/           # Adapters for hosted and local LLM providers
+    llm_story_agent.py       # Agent bridge between the coordinator and an LLM
+    memory.py                # Memory log utilities
+    multi_agent.py           # Agent coordination primitives
+    persistence.py           # Session snapshot + storage helpers
+    scripted_story_engine.py # Deterministic engine + JSON loaders
+    story_engine.py          # Story event interfaces
+    tools.py                 # Tool interface & knowledge base example
+    world_state.py           # Core world data model
     data/
       scripted_scenes.json # Bundled demo adventure definition
 
