@@ -11,7 +11,7 @@ This document captures recommended starting tasks for building out the text-adve
 ## Priority 1: Core Framework Skeleton
 - [x] Implement a `WorldState` object responsible for tracking locations, inventory, and history.
 - [x] Design an interface for a `StoryEngine` component that can propose narrative events based on the world state.
-- [ ] Provide an abstraction around LLM calls (e.g., `LLMClient`) that can be mocked during tests.
+- [x] Provide an abstraction around LLM calls (e.g., `LLMClient`) that can be mocked during tests.
 - [ ] Draft a simple command loop (CLI) that takes player input and routes it through the story engine.
 - [ ] Create an initial concrete `StoryEngine` implementation that returns scripted events for testing the loop.
 
