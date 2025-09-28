@@ -23,7 +23,7 @@ from .persistence import (
     SessionSnapshot,
     SessionStore,
 )
-from .memory import MemoryEntry, MemoryLog
+from .memory import MemoryEntry, MemoryLog, MemoryRequest
 from .tools import KnowledgeBaseTool, Tool, ToolResponse
 from .world_state import WorldState
 
@@ -48,6 +48,7 @@ __all__ = [
     "KnowledgeBaseTool",
     "MemoryEntry",
     "MemoryLog",
+    "MemoryRequest",
     "LLMClient",
     "LLMClientError",
     "LLMMessage",

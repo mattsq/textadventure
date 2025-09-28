@@ -107,8 +107,17 @@ class LLMStoryAgent(Agent):
     ) -> str:
         inventory = ", ".join(sorted(world_state.inventory)) or "(empty)"
         history = world_state.history[-self.history_limit :]
-        actions = world_state.recent_actions(limit=self.memory_limit)
-        observations = world_state.recent_observations(limit=self.memory_limit)
+        memory_request = trigger.memory_request
+        if memory_request is None:
+            action_limit = self.memory_limit
+            observation_limit = self.memory_limit
+        else:
+            action_limit = memory_request.resolve_action_limit(self.memory_limit)
+            observation_limit = memory_request.resolve_observation_limit(
+                self.memory_limit
+            )
+        actions = world_state.recent_actions(limit=action_limit)
+        observations = world_state.recent_observations(limit=observation_limit)
 
         sections = [
             f"Trigger kind: {trigger.kind}",

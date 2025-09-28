@@ -6,6 +6,18 @@ from dataclasses import dataclass, field
 from typing import Iterable, Iterator, List, Sequence, Tuple
 
 
+def _validate_limit(value: int | None, *, field_name: str) -> int | None:
+    """Ensure optional numeric limits are non-negative integers."""
+
+    if value is None:
+        return None
+    if not isinstance(value, int):
+        raise TypeError(f"{field_name} must be an int or None, got {type(value)!r}")
+    if value < 0:
+        raise ValueError(f"{field_name} must be zero or a positive integer")
+    return value
+
+
 def _validate_text(value: str, *, field_name: str) -> str:
     """Normalise and validate free-form text fields."""
 
@@ -25,6 +37,38 @@ class MemoryEntry:
     kind: str
     content: str
     tags: Tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class MemoryRequest:
+    """Describe how much recent memory should be surfaced to an agent."""
+
+    action_limit: int | None = None
+    observation_limit: int | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "action_limit",
+            _validate_limit(self.action_limit, field_name="action_limit"),
+        )
+        object.__setattr__(
+            self,
+            "observation_limit",
+            _validate_limit(
+                self.observation_limit, field_name="observation_limit"
+            ),
+        )
+
+    def resolve_action_limit(self, default: int) -> int:
+        """Return the requested action limit or fall back to ``default``."""
+
+        return default if self.action_limit is None else self.action_limit
+
+    def resolve_observation_limit(self, default: int) -> int:
+        """Return the requested observation limit or fall back to ``default``."""
+
+        return default if self.observation_limit is None else self.observation_limit
 
 
 class MemoryLog:
@@ -99,4 +143,4 @@ class MemoryLog:
         return iter(self._entries)
 
 
-__all__ = ["MemoryEntry", "MemoryLog"]
+__all__ = ["MemoryEntry", "MemoryLog", "MemoryRequest"]
