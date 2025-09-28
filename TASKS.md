@@ -55,7 +55,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Document the data format and authoring workflow in `docs/` and update the README so contributors can build new adventures quickly. *(Added `docs/data_driven_scenes.md` and linked guidance from the README.)*
 
 ## Priority 6: Generative Agent Integration
-- [ ] Implement an `LLMStoryAgent` that wraps `LLMClient`, assembles prompts from the world state, and can participate in the `MultiAgentCoordinator` turn loop.
+- [x] Implement an `LLMStoryAgent` that wraps `LLMClient`, assembles prompts from the world state, and can participate in the `MultiAgentCoordinator` turn loop.
+  - [x] Build a structured prompt generator that summarises the world state and trigger context for the LLM.
+  - [x] Parse JSON responses from the LLM into `StoryEvent` instances with validation.
+  - [x] Cover the agent with unit tests demonstrating prompt construction and error handling.
 - [ ] Extend the memory system so agents can request recent observations/actions as part of their prompts, with configuration for how much history to include.
 - [ ] Provide integration tests (or golden transcripts) that exercise a hybrid scripted + LLM-backed coordinator using deterministic fixtures.
 
