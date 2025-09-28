@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, TextIO
 
 from textadventure import (
     FileSessionStore,
@@ -13,9 +13,55 @@ from textadventure import (
     SessionSnapshot,
     SessionStore,
     StoryEngine,
+    StoryEvent,
     WorldState,
 )
 from textadventure.scripted_story_engine import ScriptedStoryEngine
+
+
+class TranscriptLogger:
+    """Structured writer that records CLI transcripts for debugging."""
+
+    def __init__(self, stream: TextIO) -> None:
+        self._stream = stream
+        self._turn = 0
+
+    def log_player_input(self, text: str) -> None:
+        """Record the player's latest command."""
+
+        formatted = text if text else "(empty)"
+        self._write(f"Player input: {formatted}")
+        self._stream.flush()
+
+    def log_event(self, event: StoryEvent) -> None:
+        """Record a story event's narration, choices, and metadata."""
+
+        self._turn += 1
+        self._write("")
+        self._write(f"=== Turn {self._turn} ===")
+        self._write("Narration:")
+        for line in event.narration.splitlines() or ("",):
+            self._write(f"  {line}")
+
+        metadata = event.metadata
+        if metadata:
+            self._write("Metadata:")
+            for key, value in sorted(metadata.items()):
+                self._write(f"  {key}: {value}")
+        else:
+            self._write("Metadata: (none)")
+
+        if event.choices:
+            self._write("Choices:")
+            for choice in event.choices:
+                self._write(f"  [{choice.command}] {choice.description}")
+        else:
+            self._write("Choices: (none)")
+
+        self._stream.flush()
+
+    def _write(self, text: str) -> None:
+        self._stream.write(f"{text}\n")
 
 
 def run_cli(
@@ -24,6 +70,7 @@ def run_cli(
     *,
     session_store: SessionStore | None = None,
     autoload_session: str | None = None,
+    transcript_logger: TranscriptLogger | None = None,
 ) -> None:
     """Drive a very small interactive loop using ``input``/``print``."""
 
@@ -34,7 +81,13 @@ def run_cli(
     else:
         print()
 
-    event = None
+    def _capture_event(new_event: StoryEvent) -> StoryEvent:
+        world.remember_observation(new_event.narration)
+        if transcript_logger is not None:
+            transcript_logger.log_event(new_event)
+        return new_event
+
+    event: StoryEvent | None = None
     if session_store is not None and autoload_session:
         try:
             snapshot = session_store.load(autoload_session)
@@ -46,12 +99,10 @@ def run_cli(
         else:
             snapshot.apply_to_world(world)
             print(f"Loaded session '{autoload_session}'.\n")
-            event = engine.propose_event(world)
-            world.remember_observation(event.narration)
+            event = _capture_event(engine.propose_event(world))
 
     if event is None:
-        event = engine.propose_event(world)
-        world.remember_observation(event.narration)
+        event = _capture_event(engine.propose_event(world))
 
     while True:
         print(engine.format_event(event))
@@ -69,8 +120,10 @@ def run_cli(
             break
 
         player_input = raw_input.strip()
+        if transcript_logger is not None:
+            transcript_logger.log_player_input(player_input)
         if not player_input:
-            event = engine.propose_event(world)
+            event = _capture_event(engine.propose_event(world))
             continue
 
         command, _, argument = player_input.partition(" ")
@@ -107,8 +160,7 @@ def run_cli(
                     else:
                         snapshot.apply_to_world(world)
                         print(f"\nLoaded session '{session_id}'.")
-                        event = engine.propose_event(world)
-                        world.remember_observation(event.narration)
+                        event = _capture_event(engine.propose_event(world))
             continue
 
         if command_lower == "status":
@@ -155,8 +207,9 @@ def run_cli(
             continue
 
         world.remember_action(player_input)
-        event = engine.propose_event(world, player_input=player_input)
-        world.remember_observation(event.narration)
+        event = _capture_event(
+            engine.propose_event(world, player_input=player_input)
+        )
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -176,6 +229,13 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--no-persistence",
         action="store_true",
         help="Disable session persistence commands for this run.",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        help=(
+            "Path to a transcript log capturing narration, metadata, and player input."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -202,7 +262,24 @@ def main(argv: Sequence[str] | None = None) -> None:
             "The adventure will start fresh."
         )
 
-    run_cli(engine, world, session_store=session_store, autoload_session=autoload_session)
+    transcript_logger: TranscriptLogger | None = None
+    log_handle: TextIO | None = None
+    try:
+        if args.log_file is not None:
+            args.log_file.parent.mkdir(parents=True, exist_ok=True)
+            log_handle = args.log_file.open("a", encoding="utf-8")
+            transcript_logger = TranscriptLogger(log_handle)
+
+        run_cli(
+            engine,
+            world,
+            session_store=session_store,
+            autoload_session=autoload_session,
+            transcript_logger=transcript_logger,
+        )
+    finally:
+        if log_handle is not None:
+            log_handle.close()
 
 
 if __name__ == "__main__":
