@@ -106,6 +106,42 @@ def build_client(**options):
         sys.modules.pop("external_provider", None)
 
 
+def test_dynamic_import_missing_module(registry: LLMProviderRegistry) -> None:
+    with pytest.raises(LookupError) as excinfo:
+        registry.create("nonexistent.module:build")
+    assert "nonexistent.module" in str(excinfo.value)
+
+
+def test_dynamic_import_missing_factory(
+    tmp_path: Path, registry: LLMProviderRegistry
+) -> None:
+    module_path = tmp_path / "empty_provider.py"
+    module_path.write_text("""value = 42""")
+    sys.path.insert(0, str(tmp_path))
+    try:
+        with pytest.raises(LookupError) as excinfo:
+            registry.create("empty_provider:build")
+        assert "build" in str(excinfo.value)
+    finally:
+        sys.path.remove(str(tmp_path))
+        sys.modules.pop("empty_provider", None)
+
+
+def test_dynamic_import_non_callable_factory(
+    tmp_path: Path, registry: LLMProviderRegistry
+) -> None:
+    module_path = tmp_path / "invalid_provider.py"
+    module_path.write_text("""builder = 123""")
+    sys.path.insert(0, str(tmp_path))
+    try:
+        with pytest.raises(TypeError) as excinfo:
+            registry.create("invalid_provider:builder")
+        assert "not callable" in str(excinfo.value)
+    finally:
+        sys.path.remove(str(tmp_path))
+        sys.modules.pop("invalid_provider", None)
+
+
 def test_factory_must_return_llm_client(registry: LLMProviderRegistry) -> None:
     def build_non_client(**_: Any) -> object:
         return object()
@@ -118,6 +154,16 @@ def test_factory_must_return_llm_client(registry: LLMProviderRegistry) -> None:
 def test_cli_parser_handles_empty_value() -> None:
     options = parse_cli_options(["note="])
     assert options == {"note": ""}
+
+
+def test_parse_cli_options_rejects_duplicate_keys() -> None:
+    with pytest.raises(ValueError):
+        parse_cli_options(["key=1", "key=2"])
+
+
+def test_create_rejects_blank_identifier(registry: LLMProviderRegistry) -> None:
+    with pytest.raises(ValueError):
+        registry.create("   ")
 
 
 def test_config_requires_provider_key(registry: LLMProviderRegistry) -> None:
