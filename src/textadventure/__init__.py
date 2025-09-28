@@ -3,6 +3,12 @@
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
 from .scripted_story_engine import ScriptedStoryEngine
+from .persistence import (
+    FileSessionStore,
+    InMemorySessionStore,
+    SessionSnapshot,
+    SessionStore,
+)
 from .world_state import WorldState
 
 __all__ = [
@@ -16,4 +22,8 @@ __all__ = [
     "LLMMessage",
     "LLMResponse",
     "iter_contents",
+    "SessionSnapshot",
+    "SessionStore",
+    "InMemorySessionStore",
+    "FileSessionStore",
 ]
