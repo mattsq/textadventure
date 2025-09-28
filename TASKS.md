@@ -80,7 +80,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Add unit tests covering capability negotiation to ensure providers gracefully degrade when a feature is unsupported.
   - [x] Document the canonical interface in developer docs and surface configuration examples for advanced options like temperature, caching, and safety filters.
 - [ ] Implement adapters for popular online providers (e.g., OpenAI, Anthropic, Cohere) that wrap their SDKs and map responses to the generic interface.
-  - [ ] Provide retry, rate limiting, and error classification helpers that can be reused across adapters.
+- [x] Provide retry, rate limiting, and error classification helpers that can be reused across adapters.
+  - [x] Define reusable error categories and a classifier utility for mapping provider exceptions.
+  - [x] Implement a configurable retry policy with exponential backoff and optional jitter.
+  - [x] Add a shared fixed-interval rate limiter that adapters can reuse to throttle requests.
+  - [x] Cover the new helpers with deterministic unit tests.
   - [ ] Add integration tests using recorded responses or fixtures to validate prompt/response translation and error handling.
 - [ ] Implement adapters for local runtimes (e.g., Hugging Face Text Generation Inference, llama.cpp servers) so self-hosted models can plug into the same flow.
   - [ ] Document setup instructions and configuration flags required to target each local runtime.
