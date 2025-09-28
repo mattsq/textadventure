@@ -1,6 +1,12 @@
 """Core package for the text adventure framework."""
 
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
+from .llm_providers import (
+    AnthropicMessagesClient,
+    CohereChatClient,
+    OpenAIChatClient,
+    register_builtin_providers,
+)
 from .llm_provider_registry import LLMProviderRegistry, parse_cli_options
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
 from .scripted_story_engine import (
@@ -54,6 +60,10 @@ __all__ = [
     "LLMClientError",
     "LLMMessage",
     "LLMResponse",
+    "AnthropicMessagesClient",
+    "CohereChatClient",
+    "OpenAIChatClient",
+    "register_builtin_providers",
     "LLMProviderRegistry",
     "parse_cli_options",
     "iter_contents",

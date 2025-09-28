@@ -18,6 +18,7 @@ from textadventure import (
     StoryEvent,
     WorldState,
 )
+from textadventure.llm_providers import register_builtin_providers
 from textadventure.scripted_story_engine import ScriptedStoryEngine
 
 
@@ -278,6 +279,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     secondary_agents: list[LLMStoryAgent] = []
     if args.llm_provider:
         registry = LLMProviderRegistry()
+        register_builtin_providers(registry)
         option_strings: Sequence[str] | None
         if args.llm_options is None:
             option_strings = None
