@@ -92,7 +92,9 @@ changing the Python source. See
 of the JSON schema, validation rules, and tips for wiring custom files into the
 demo. [`docs/multi_agent_orchestration.md`](docs/multi_agent_orchestration.md)
 describes how the coordinator hands off turns between scripted and LLM-backed
-agents.
+agents. [`docs/llm_capabilities.md`](docs/llm_capabilities.md) documents the
+capability schema that LLM adapters use to advertise streaming, function
+calling, and tool support.
 
 ## Testing and Quality Checks
 

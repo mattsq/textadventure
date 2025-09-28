@@ -1,10 +1,17 @@
 """Tests for the LLM abstraction layer."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from textadventure.llm import LLMMessage, LLMResponse, iter_contents
+from textadventure.llm import (
+    LLMCapabilities,
+    LLMCapability,
+    LLMMessage,
+    LLMResponse,
+    LLMToolDescription,
+    iter_contents,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - only used for static analysis
     from tests.conftest import MockLLMClient
@@ -71,3 +78,70 @@ def test_iter_contents_returns_message_text() -> None:
     ]
 
     assert iter_contents(messages) == ["Rules", "Go north"]
+
+
+def test_capability_metadata_is_immutable() -> None:
+    capability = LLMCapability(supported=True, metadata={"mode": "chunks"})
+
+    assert capability.supported is True
+    assert capability.metadata["mode"] == "chunks"
+
+    with pytest.raises(TypeError):
+        capability.metadata["mode"] = "other"  # type: ignore[index]
+
+
+def test_tool_description_normalises_input() -> None:
+    tool = LLMToolDescription(
+        name=" Lore Lookup ",
+        description="   Fetch lore snippets   ",
+        parameters_schema={"type": "object"},
+    )
+
+    assert tool.name == "Lore Lookup"
+    assert tool.description == "Fetch lore snippets"
+    assert tool.parameters_schema["type"] == "object"
+
+    with pytest.raises(TypeError):
+        tool.parameters_schema["type"] = "string"  # type: ignore[index]
+
+
+def test_capabilities_accessors_and_tool_lookup() -> None:
+    tool = LLMToolDescription(
+        name="knowledge_base",
+        description="Knowledge base lookup",
+        parameters_schema={"type": "object"},
+    )
+    capabilities = LLMCapabilities(
+        streaming=LLMCapability(supported=True, metadata={"mode": "delta"}),
+        function_calling=LLMCapability(supported=False),
+        tools={"Knowledge_Base": tool},
+    )
+
+    assert capabilities.supports_streaming()
+    assert not capabilities.supports_function_calling()
+    assert capabilities.has_tools()
+    assert capabilities.describe_tool("knowledge_base") is tool
+    assert capabilities.describe_tool("KNOWLEDGE_BASE") is tool
+    assert capabilities.describe_tool("nonexistent") is None
+
+
+def test_mock_llm_client_reports_capabilities(
+    make_mock_llm_client: Any,
+) -> None:
+    capabilities = LLMCapabilities(
+        streaming=LLMCapability(supported=True),
+        function_calling=LLMCapability(supported=True, metadata={"format": "json"}),
+    )
+    client = make_mock_llm_client(capabilities=capabilities)
+
+    assert client.capabilities() is capabilities
+
+
+def test_default_mock_capabilities_indicate_no_optional_support(
+    mock_llm_client: "MockLLMClient",
+) -> None:
+    capabilities = mock_llm_client.capabilities()
+
+    assert not capabilities.supports_streaming()
+    assert not capabilities.supports_function_calling()
+    assert not capabilities.has_tools()

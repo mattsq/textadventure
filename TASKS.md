@@ -74,9 +74,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Set up a continuous integration workflow (GitHub Actions) to run tests, type checks, and linting on each push. *(Added a GitHub Actions pipeline executing pytest, mypy, Ruff, and Black on pushes and pull requests.)*
 
 ## Priority 8: LLM Framework Integrations
-- [ ] Expand the generic `LLMClient` abstraction so it can expose provider capabilities (streaming, function calling, tool APIs) in a uniform schema across integrations.
-  - [ ] Document the canonical interface in developer docs and surface configuration examples for advanced options like temperature, caching, and safety filters.
-  - [ ] Add unit tests covering capability negotiation to ensure providers gracefully degrade when a feature is unsupported.
+- [x] Expand the generic `LLMClient` abstraction so it can expose provider capabilities (streaming, function calling, tool APIs) in a uniform schema across integrations.
+  - [x] Define capability data structures capturing streaming, function-calling, and tool invocation metadata in a reusable format.
+  - [x] Extend the `LLMClient` interface to surface capabilities and update existing implementations/mocks to advertise their support levels.
+  - [x] Add unit tests covering capability negotiation to ensure providers gracefully degrade when a feature is unsupported.
+  - [x] Document the canonical interface in developer docs and surface configuration examples for advanced options like temperature, caching, and safety filters.
 - [ ] Implement adapters for popular online providers (e.g., OpenAI, Anthropic, Cohere) that wrap their SDKs and map responses to the generic interface.
   - [ ] Provide retry, rate limiting, and error classification helpers that can be reused across adapters.
   - [ ] Add integration tests using recorded responses or fixtures to validate prompt/response translation and error handling.
