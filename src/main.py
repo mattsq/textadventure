@@ -111,6 +111,49 @@ def run_cli(
                         world.remember_observation(event.narration)
             continue
 
+        if command_lower == "status":
+            print("\n=== Adventure Status ===")
+            print(f"Location: {world.location}")
+            inventory = sorted(world.inventory)
+            if inventory:
+                print("Inventory: " + ", ".join(inventory))
+            else:
+                print("Inventory: (empty)")
+
+            debug_snapshot_fn = getattr(engine, "debug_snapshot", None)
+            print("Queued agent messages:")
+            if callable(debug_snapshot_fn):
+                snapshot = debug_snapshot_fn()
+                if snapshot.queued_messages:
+                    for message in snapshot.queued_messages:
+                        details: list[str] = [f"kind={message.trigger_kind}"]
+                        if message.player_input:
+                            details.append(f"player_input={message.player_input}")
+                        if message.metadata:
+                            metadata_text = ", ".join(
+                                f"{key}={value}"
+                                for key, value in sorted(message.metadata.items())
+                            )
+                            details.append(f"metadata={{{metadata_text}}}")
+                        joined = ", ".join(details)
+                        print(f"  - from {message.origin_agent} ({joined})")
+                else:
+                    print("  (none)")
+            else:
+                print("  (unavailable)")
+
+            if session_store is None:
+                print("Pending saves: (persistence disabled)")
+            else:
+                sessions = sorted(session_store.list_sessions())
+                if sessions:
+                    print("Pending saves: " + ", ".join(sessions))
+                else:
+                    print("Pending saves: (none)")
+
+            print()
+            continue
+
         world.remember_action(player_input)
         event = engine.propose_event(world, player_input=player_input)
         world.remember_observation(event.narration)

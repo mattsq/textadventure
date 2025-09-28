@@ -61,5 +61,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 
 ## Priority 7: Observability & Tooling
 - [ ] Add transcript logging options to the CLI (e.g., `--log-file`) that capture narration, player input, and agent metadata for debugging sessions.
-- [ ] Introduce a debug command (such as `status`) that prints the active location, inventory summary, queued agent messages, and pending saves.
+- [x] Introduce a debug command (such as `status`) that prints the active location, inventory summary, queued agent messages, and pending saves.
+  - [x] Provide a coordinator debug snapshot with visibility into queued messages.
+  - [x] Surface the world/persistence details through a CLI `status` command and cover it with tests.
 - [ ] Set up a continuous integration workflow (GitHub Actions) to run tests, type checks, and linting on each push.

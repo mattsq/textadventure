@@ -11,7 +11,9 @@ from .multi_agent import (
     Agent,
     AgentTrigger,
     AgentTurnResult,
+    CoordinatorDebugState,
     MultiAgentCoordinator,
+    QueuedAgentMessage,
     ScriptedStoryAgent,
 )
 from .persistence import (
@@ -37,6 +39,8 @@ __all__ = [
     "AgentTurnResult",
     "ScriptedStoryAgent",
     "MultiAgentCoordinator",
+    "CoordinatorDebugState",
+    "QueuedAgentMessage",
     "Tool",
     "ToolResponse",
     "KnowledgeBaseTool",

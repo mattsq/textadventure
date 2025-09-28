@@ -65,6 +65,51 @@ class AgentTurnResult:
         object.__setattr__(self, "messages", tuple(self.messages))
 
 
+@dataclass(frozen=True)
+class QueuedAgentMessage:
+    """Lightweight view of a queued message awaiting delivery."""
+
+    origin_agent: str
+    trigger_kind: str
+    player_input: str | None
+    metadata: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        origin = str(self.origin_agent).strip()
+        if not origin:
+            raise ValueError("origin_agent must be a non-empty string")
+        object.__setattr__(self, "origin_agent", origin)
+
+        kind = str(self.trigger_kind).strip()
+        if not kind:
+            raise ValueError("trigger_kind must be a non-empty string")
+        object.__setattr__(self, "trigger_kind", kind)
+
+        if self.player_input is not None and not isinstance(self.player_input, str):
+            raise TypeError("player_input must be a string when provided")
+
+        normalised: dict[str, str] = {}
+        for key, value in (self.metadata or {}).items():
+            key_text = str(key).strip()
+            value_text = str(value).strip()
+            if not key_text:
+                raise ValueError("metadata keys must be non-empty strings")
+            if not value_text:
+                raise ValueError("metadata values must be non-empty strings")
+            normalised[key_text] = value_text
+        object.__setattr__(self, "metadata", MappingProxyType(normalised))
+
+
+@dataclass(frozen=True)
+class CoordinatorDebugState:
+    """Introspective snapshot of the coordinator for debugging."""
+
+    queued_messages: Sequence[QueuedAgentMessage] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "queued_messages", tuple(self.queued_messages))
+
+
 class Agent(Protocol):
     """Protocol describing participants managed by the coordinator."""
 
@@ -190,6 +235,20 @@ class MultiAgentCoordinator(StoryEngine):
         self._queued_messages.extend(next_turn_messages)
         return accumulator.build_event()
 
+    def debug_snapshot(self) -> CoordinatorDebugState:
+        """Return a snapshot describing the coordinator's queued messages."""
+
+        messages = tuple(
+            QueuedAgentMessage(
+                origin_agent=message.origin_agent,
+                trigger_kind=message.trigger.kind,
+                player_input=message.trigger.player_input,
+                metadata=dict(message.trigger.metadata),
+            )
+            for message in self._queued_messages
+        )
+        return CoordinatorDebugState(queued_messages=messages)
+
     def _iter_agents(self) -> Iterable[Agent]:
         yield self._primary
         yield from self._secondary_agents
@@ -283,6 +342,8 @@ __all__ = [
     "Agent",
     "AgentTrigger",
     "AgentTurnResult",
+    "CoordinatorDebugState",
     "MultiAgentCoordinator",
+    "QueuedAgentMessage",
     "ScriptedStoryAgent",
 ]

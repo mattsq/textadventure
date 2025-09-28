@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import builtins
 
 from main import run_cli
 from textadventure import InMemorySessionStore, SessionSnapshot, WorldState
+from textadventure.multi_agent import (
+    Agent,
+    AgentTrigger,
+    AgentTurnResult,
+    MultiAgentCoordinator,
+)
 from textadventure.scripted_story_engine import ScriptedStoryEngine
-from textadventure.story_engine import StoryEngine, StoryEvent
+from textadventure.story_engine import StoryChoice, StoryEngine, StoryEvent
 
 import pytest
 
@@ -39,6 +45,25 @@ class _EndingEngine(StoryEngine):
     ) -> StoryEvent:
         self.calls.append((player_input, world_state.location))
         return StoryEvent(narration="The adventure ends before it begins.")
+
+
+class _SequencedAgent(Agent):
+    """Agent that replays a scripted sequence of turn results."""
+
+    def __init__(self, name: str, results: Sequence[AgentTurnResult]) -> None:
+        self.name = name
+        self._results = list(results)
+
+    def propose_event(
+        self,
+        world_state: WorldState,
+        *,
+        trigger: AgentTrigger,
+    ) -> AgentTurnResult:
+        del world_state, trigger
+        if not self._results:
+            raise AssertionError(f"no scripted result available for agent {self.name!r}")
+        return self._results.pop(0)
 
 
 def test_run_cli_handles_basic_command_sequence(monkeypatch, capsys) -> None:
@@ -148,3 +173,57 @@ def test_run_cli_autoloads_session(monkeypatch, capsys) -> None:
     assert "Loaded session 'resume'." in captured
     assert world.location == "old-gate"
     assert world.recent_actions() == ("explore",)
+
+
+def test_status_command_reports_world_and_queue_details(monkeypatch, capsys) -> None:
+    """The debug status command should expose inventory, queue, and saves."""
+
+    world = WorldState()
+    world.add_item("lantern")
+
+    store = InMemorySessionStore()
+    store.save("checkpoint", SessionSnapshot.capture(world))
+
+    primary_results = (
+        AgentTurnResult(
+            event=StoryEvent(
+                narration="Primary opens the scene.",
+                choices=(StoryChoice("wait", "Wait for a moment."),),
+            ),
+            messages=(
+                AgentTrigger(
+                    kind="alert",
+                    metadata={"target": "scout", "note": "prepare"},
+                ),
+            ),
+        ),
+        AgentTurnResult(
+            event=StoryEvent(
+                narration="Primary continues the tale.",
+                choices=(StoryChoice("wait", "Wait for a moment."),),
+            ),
+        ),
+    )
+
+    scout_results = (
+        AgentTurnResult(event=StoryEvent("Scout echoes the call.")),
+        AgentTurnResult(event=StoryEvent("Scout follows up.")),
+    )
+
+    coordinator = MultiAgentCoordinator(
+        _SequencedAgent("narrator", primary_results),
+        secondary_agents=[_SequencedAgent("scout", scout_results)],
+    )
+
+    inputs = iter(["status", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(coordinator, world, session_store=store)
+
+    captured = capsys.readouterr().out
+    assert "=== Adventure Status ===" in captured
+    assert "Location: starting-area" in captured
+    assert "Inventory: lantern" in captured
+    assert "Queued agent messages:" in captured
+    assert "from narrator (kind=alert, metadata={note=prepare, target=scout})" in captured
+    assert "Pending saves: checkpoint" in captured
