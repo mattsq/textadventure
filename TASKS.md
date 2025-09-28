@@ -108,9 +108,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Support loading provider configuration from JSON files and exposing a matching CLI flag. *(Added `LLMProviderRegistry.create_from_config_file`, CLI wiring, tests, and documentation.)*
 
 ## Priority 9: Scripted Demo Worldbuilding
-- [ ] Plan an expanded narrative arc that showcases branching paths, inventory gating, and optional side objectives.
-  - [ ] Sketch a location graph covering at least three distinct regions plus connecting transitional scenes.
-  - [ ] Identify key items, puzzle locks, and narrative beats that can be expressed purely through the JSON schema.
+- [x] Plan an expanded narrative arc that showcases branching paths, inventory gating, and optional side objectives. *(Documented in the "Planned Narrative Expansion" section of `docs/data_driven_scenes.md`.)*
+  - [x] Sketch a location graph covering at least three distinct regions plus connecting transitional scenes.
+  - [x] Identify key items, puzzle locks, and narrative beats that can be expressed purely through the JSON schema.
 - [ ] Extend `src/textadventure/data/scripted_scenes.json` with the new regions, ensuring consistent descriptions, commands, and transitions.
   - [ ] Introduce multi-step objectives (e.g., fetch quests or combination puzzles) that require revisiting earlier locations.
   - [ ] Add optional flavour interactions so the demo highlights lore lookups, journal entries, and memory recall hooks.
