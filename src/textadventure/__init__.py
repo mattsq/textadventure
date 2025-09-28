@@ -1,6 +1,7 @@
 """Core package for the text adventure framework."""
 
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
+from .llm_provider_registry import LLMProviderRegistry, parse_cli_options
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
 from .scripted_story_engine import (
     ScriptedStoryEngine,
@@ -53,6 +54,8 @@ __all__ = [
     "LLMClientError",
     "LLMMessage",
     "LLMResponse",
+    "LLMProviderRegistry",
+    "parse_cli_options",
     "iter_contents",
     "SessionSnapshot",
     "SessionStore",

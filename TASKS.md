@@ -86,5 +86,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] Document setup instructions and configuration flags required to target each local runtime.
   - [ ] Add smoke tests or mocks verifying adapters handle streaming, chunked responses, and offline failure scenarios.
 - [ ] Create a provider registry that loads adapters dynamically based on configuration files or CLI options.
+  - [x] Define an `LLMProviderRegistry` that handles registering and resolving provider factories.
+  - [x] Support instantiating providers from configuration mappings (e.g., parsed config files).
+  - [x] Support instantiating providers from CLI-style option strings for manual selection.
+  - [x] Cover the registry behaviour with automated tests, including dynamic import and error handling.
   - [ ] Update the CLI and coordinator wiring so adventures can select LLM providers at runtime.
   - [ ] Ensure registry lookups and adapter instantiation are covered by tests, including misconfiguration handling.
