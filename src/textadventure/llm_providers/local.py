@@ -209,7 +209,18 @@ class LlamaCppClient(LLMClient):
         default_options: Mapping[str, Any] | MutableMapping[str, Any] | None = None,
         **client_options: Any,
     ) -> None:
-        self._default_options = _coerce_mapping(default_options)
+        # Optimized defaults for narrative generation
+        optimized_defaults = {
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "repeat_penalty": 1.1,
+            "max_tokens": 150,  # Reasonable limit for narration
+        }
+
+        if default_options:
+            optimized_defaults.update(default_options)
+
+        self._default_options = optimized_defaults
 
         if client is None:
             if model_path is None:
@@ -251,14 +262,35 @@ class LlamaCppClient(LLMClient):
             {"role": message.role, "content": message.content} for message in messages
         ]
 
-        request_kwargs = dict(self._default_options)
+        # Build parameters for the API call
+        params = dict(self._default_options)
         if temperature is not None:
-            request_kwargs["temperature"] = temperature
+            params["temperature"] = temperature
+
+        # Create kwargs for create_chat_completion, translating parameter names as needed
+        call_kwargs = {}
+
+        # Handle n_predict -> max_tokens mapping for legacy compatibility
+        # n_predict takes precedence over max_tokens if both are present
+        if "n_predict" in params:
+            call_kwargs["max_tokens"] = params["n_predict"]
+        elif "max_tokens" in params:
+            call_kwargs["max_tokens"] = params["max_tokens"]
+
+        # Add other supported parameters
+        for param in [
+            "temperature",
+            "top_p",
+            "repeat_penalty",
+            "stream",
+            "stop",
+            "seed",
+        ]:
+            if param in params:
+                call_kwargs[param] = params[param]
 
         try:
-            response = self._client.create_chat_completion(
-                messages=payload, **request_kwargs
-            )
+            response = self._client.create_chat_completion(messages=payload, **call_kwargs)  # type: ignore
         except Exception as exc:  # pragma: no cover - delegated error path
             raise LLMClientError("llama.cpp completion failed") from exc
 
@@ -285,8 +317,10 @@ class LlamaCppClient(LLMClient):
         usage_payload = response.get("usage")
         usage: dict[str, int] = {}
         if isinstance(usage_payload, Mapping):
-            for key, value in usage_payload.items():
-                if isinstance(value, (int, float)):
+            for key, value in usage_payload.items():  # type: ignore[assignment]
+                if isinstance(value, int):
+                    usage[str(key)] = value
+                elif isinstance(value, float):
                     usage[str(key)] = int(value)
 
         metadata: dict[str, str] = {}

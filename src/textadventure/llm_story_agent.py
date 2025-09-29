@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import time
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence
 
@@ -37,8 +39,16 @@ class LLMStoryAgent(Agent):
     name: str
     llm_client: LLMClient
     system_prompt: str = (
-        "You narrate interactive fiction scenes. Respond with JSON containing "
-        "'narration', and optional 'choices' and 'metadata'."
+        "You are an expert interactive fiction narrator. Your role is to enhance and expand "
+        "story scenes with vivid, immersive descriptions while maintaining narrative consistency.\n\n"
+        "Rules:\n"
+        "- Always respond with valid JSON containing 'narration' (required)\n"
+        "- 'narration' should be 2-4 sentences of rich, atmospheric description\n"
+        "- Add sensory details (sights, sounds, smells, atmosphere) to enhance immersion\n"
+        "- Maintain the mood and tone established by the existing story\n"
+        "- Never contradict existing world state or previous narration\n"
+        "- Optional: include 'choices' array and 'metadata' object if relevant\n\n"
+        'Example format: {"narration": "Your enhanced description here"}'
     )
     temperature: float | None = None
     history_limit: int = 5
@@ -76,10 +86,27 @@ class LLMStoryAgent(Agent):
         *,
         trigger: AgentTrigger,
     ) -> AgentTurnResult:
+        start_time = time.time()
+
         messages = self._build_messages(world_state, trigger)
         response = self.llm_client.complete(messages, temperature=self.temperature)
+
+        generation_time = time.time() - start_time
+
         event = self._parse_response(response.message.content)
         metadata = self._merge_metadata(event.metadata, response.metadata)
+
+        # Add performance metrics to metadata
+        if metadata is None:
+            metadata = {}
+        else:
+            metadata = dict(metadata)
+
+        metadata["generation_time"] = f"{generation_time:.2f}s"
+        metadata["model_used"] = response.metadata.get("model", "unknown")
+        if response.usage:
+            metadata["tokens_used"] = str(response.usage.get("total_tokens", "unknown"))
+
         event_with_metadata = StoryEvent(
             narration=event.narration,
             choices=event.choices,
@@ -149,11 +176,19 @@ class LLMStoryAgent(Agent):
         if not text:
             raise ValueError("LLMStoryAgent received an empty response")
 
+        # Try to extract JSON if wrapped in markdown or other text
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if json_match:
+            text = json_match.group()
+
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
+            # Provide more helpful error context
+            preview = text[:200] + "..." if len(text) > 200 else text
             raise ValueError(
-                "LLMStoryAgent expected JSON content from the LLM"
+                f"LLMStoryAgent expected JSON content from the LLM. "
+                f"Received: {preview}"
             ) from exc
 
         if not isinstance(data, Mapping):

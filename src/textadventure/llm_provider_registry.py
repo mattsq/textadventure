@@ -18,7 +18,7 @@ class ProviderFactory(Protocol):
         """Create a new ``LLMClient`` using keyword arguments as configuration."""
 
 
-@dataclass(slots=True)
+@dataclass
 class _ImportedFactory:
     """Lightweight wrapper storing dynamically imported factories."""
 

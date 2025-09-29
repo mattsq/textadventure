@@ -82,7 +82,7 @@ def test_hybrid_coordinator_merges_scripted_and_llm_agents(
 
     first_system, first_user = llm_client.calls[0]
     assert first_system.role == "system"
-    assert "Respond with JSON" in first_system.content
+    assert "Always respond with valid JSON" in first_system.content
     assert "Trigger kind: story-event" in first_user.content
     assert "Current location: starting-area" in first_user.content
     assert "Inventory: compass" in first_user.content

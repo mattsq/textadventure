@@ -74,7 +74,11 @@ def test_llm_story_agent_replays_recorded_transcript(
         assert [choice.command for choice in event.choices] == turn["expected_choices"]
 
         metadata = dict(event.metadata or {})
-        assert metadata == turn["expected_metadata"]
+        expected_metadata = turn["expected_metadata"]
+
+        # Check that all expected metadata is present (but allow additional performance metrics)
+        for key, value in expected_metadata.items():
+            assert metadata.get(key) == value
 
         system_message, user_message = mock_llm_client.calls[index]
         assert system_message.role == "system"

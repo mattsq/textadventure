@@ -70,7 +70,7 @@ def test_llm_story_agent_builds_prompt_and_parses_response(
     assert len(mock_llm_client.calls) == 1
     system_message, user_message = mock_llm_client.calls[0]
     assert system_message.role == "system"
-    assert "Respond with JSON" in system_message.content
+    assert "Always respond with valid JSON" in system_message.content
     assert "Trigger kind: story-event" in user_message.content
     assert "Player input: inspect statue" in user_message.content
     assert "touch: Touch the statue" in user_message.content
