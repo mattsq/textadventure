@@ -278,7 +278,14 @@ class LlamaCppClient(LLMClient):
             call_kwargs["max_tokens"] = params["max_tokens"]
 
         # Add other supported parameters
-        for param in ["temperature", "top_p", "repeat_penalty", "stream", "stop", "seed"]:
+        for param in [
+            "temperature",
+            "top_p",
+            "repeat_penalty",
+            "stream",
+            "stop",
+            "seed",
+        ]:
             if param in params:
                 call_kwargs[param] = params[param]
 
