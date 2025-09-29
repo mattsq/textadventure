@@ -306,7 +306,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Best practices guide
       - [ ] Troubleshooting documentation
     - [ ] Implement data analytics:
-      - [ ] Adventure complexity metrics
+      - [x] Adventure complexity metrics
+        - [x] Define core metrics to compute for scripted scene collections.
+        - [x] Implement metrics utilities with automated tests.
+        - [x] Provide a CLI/report helper for summarising the results.
       - [ ] Reachability statistics
       - [ ] Content distribution analysis
       - [ ] Quality assessment tools

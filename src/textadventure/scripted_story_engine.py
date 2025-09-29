@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping, MutableMapping
 
 from .story_engine import StoryChoice, StoryEngine, StoryEvent
@@ -427,6 +428,12 @@ class ScriptedStoryEngine(StoryEngine):
             tools = _DEFAULT_TOOLS
         self._scenes: Mapping[str, _Scene] = scenes
         self._tools: Mapping[str, Tool] = tools
+
+    @property
+    def scenes(self) -> Mapping[str, _Scene]:
+        """Return a read-only view of the configured scenes."""
+
+        return MappingProxyType(self._scenes)
 
     def propose_event(
         self,
