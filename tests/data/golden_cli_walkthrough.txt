@@ -325,13 +325,35 @@ The observatory dome opens to the stars. Arrays of lenses hang above a central d
 [guide] Consult the field guide for lore (e.g. 'guide observatory').
 You set the sunstone lens within the dais and ring the resonant chime. The pylons answer, harmonising with the night sky as pathways of light unfurl before you.
 
-[look] Gaze at the constellations.
-[activate] Channel the spire's energies.
-[reflect] Contemplate your journey.
-[return] Descend to the spire base.
+A ribbon of light arches from the observatory into the night, each step echoing with soft chimes that react to the sigil at your side.
+
+[look] Study the flowing constellations.
+[advance] Follow the luminous path toward the distant sanctum.
+[linger] Pause to absorb the surrounding harmony.
+[return] Ease back toward the observatory dais.
 [inventory] Check your belongings.
 [journal] Look over your recorded memories.
 [recall] Reflect on your recent decisions.
-[guide] Consult the field guide for lore (e.g. 'guide observatory').
+[guide] Consult the field guide for lore (e.g. 'guide bridge').
+The sigil glows in resonance, solidifying the path ahead as it carries you toward the sanctum suspended among the clouds.
+
+An airy chamber of starlit currents drifts above the spire. Crystalline pillars pulse with potential, awaiting a conductor to stabilise their harmony.
+
+[look] Observe the swirling resonance.
+[stabilize] Tune the sanctum's heart with your gathered relics.
+[return] Glide back toward the resonant bridge.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide sanctum').
+You strike the resonant chime while presenting the ancient sigil. The currents align around you, locking the sanctum into a steady, radiant harmony.
+
+[look] Observe the swirling resonance.
+[stabilize] Tune the sanctum's heart with your gathered relics.
+[return] Glide back toward the resonant bridge.
+[inventory] Check your belongings.
+[journal] Look over your recorded memories.
+[recall] Reflect on your recent decisions.
+[guide] Consult the field guide for lore (e.g. 'guide sanctum').
 
 Thanks for playing!

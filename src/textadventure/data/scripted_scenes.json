@@ -425,8 +425,10 @@
       },
       "activate": {
         "narration": "You set the sunstone lens within the dais and ring the resonant chime. The pylons answer, harmonising with the night sky as pathways of light unfurl before you.",
+        "target": "resonant-bridge",
         "requires": ["sunstone lens", "resonant chime"],
-        "failure_narration": "The machinery sputters—the observatory clearly expects both the sunstone lens and resonant chime."
+        "failure_narration": "The machinery sputters—the observatory clearly expects both the sunstone lens and resonant chime.",
+        "records": ["Opened the resonant bridge"]
       },
       "reflect": {
         "narration": "Memories of the journey ripple through the dome, painting constellations that echo your choices."
@@ -434,6 +436,69 @@
       "return": {
         "narration": "You descend the lattice back toward the spire base.",
         "target": "aether-spire-base"
+      }
+    }
+  },
+  "resonant-bridge": {
+    "description": "A ribbon of light arches from the observatory into the night, each step echoing with soft chimes that react to the sigil at your side.",
+    "choices": [
+      {"command": "look", "description": "Study the flowing constellations."},
+      {"command": "advance", "description": "Follow the luminous path toward the distant sanctum."},
+      {"command": "linger", "description": "Pause to absorb the surrounding harmony."},
+      {"command": "return", "description": "Ease back toward the observatory dais."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide bridge')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Stars stream past like notes on a staff, adjusting their rhythm as you breathe."
+      },
+      "advance": {
+        "narration": "The sigil glows in resonance, solidifying the path ahead as it carries you toward the sanctum suspended among the clouds.",
+        "target": "sky-sanctum",
+        "requires": ["ancient sigil"],
+        "failure_narration": "Without the ancient sigil, the bridge frays into starlight and refuses to bear your weight."
+      },
+      "linger": {
+        "narration": "You listen for the subtle harmonies woven through the bridge, letting the cadence settle in your bones.",
+        "records": ["Lingering on the resonant bridge"]
+      },
+      "return": {
+        "narration": "You retreat along the glowing span, arriving once more at the observatory's dais.",
+        "target": "celestial-observatory"
+      }
+    }
+  },
+  "sky-sanctum": {
+    "description": "An airy chamber of starlit currents drifts above the spire. Crystalline pillars pulse with potential, awaiting a conductor to stabilise their harmony.",
+    "choices": [
+      {"command": "look", "description": "Observe the swirling resonance."},
+      {"command": "stabilize", "description": "Tune the sanctum's heart with your gathered relics."},
+      {"command": "return", "description": "Glide back toward the resonant bridge."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Look over your recorded memories."},
+      {"command": "recall", "description": "Reflect on your recent decisions."},
+      {
+        "command": "guide",
+        "description": "Consult the field guide for lore (e.g. 'guide sanctum')."
+      }
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Nebulous figures of past explorers shimmer at the chamber's edge, nodding encouragement as you arrive."
+      },
+      "stabilize": {
+        "narration": "You strike the resonant chime while presenting the ancient sigil. The currents align around you, locking the sanctum into a steady, radiant harmony.",
+        "records": ["Stabilised the sky sanctum"]
+      },
+      "return": {
+        "narration": "You drift back across the light bridge, the sanctum's glow lingering at your heels.",
+        "target": "resonant-bridge"
       }
     }
   }

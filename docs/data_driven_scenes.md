@@ -183,7 +183,7 @@ Forest Approach
                  └─> ranger-lookout                └─> echoing-stair ──> aether-spire-base
                                                                        ├─> astral-workshop
                                                                        ├─> chronicle-chamber
-                                                                       └─> celestial-observatory
+                                                                       └─> celestial-observatory ──> resonant-bridge ──> sky-sanctum
 ```
 
 - **Forest Approach** introduces navigation, the lore `guide`, and optional
@@ -214,9 +214,12 @@ Forest Approach
    `chronicle-chamber` for optional exposition when carrying the **weathered
    map**.
 5. **Observatory Finale** – Combine the **sunstone lens** and **resonant chime**
-   at the `celestial-observatory` to trigger the closing narration. Players who
-   skipped optional objectives receive tailored failure narration nudging them
-   toward outstanding tasks.
+   at the `celestial-observatory` to open the resonant bridge toward the
+   sanctum. Players who skipped optional objectives receive tailored failure
+   narration nudging them toward outstanding tasks.
+6. **Sanctum Resolution** – Cross the `resonant-bridge` with the **ancient
+   sigil** and stabilise the `sky-sanctum` using the crafted chime to conclude
+   the storyline and record the final history beat.
 
 ### Authoring Tips for Further Expansion
 
