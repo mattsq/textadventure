@@ -14,6 +14,54 @@ from .world_state import WorldState
 
 
 @dataclass(frozen=True)
+class _ConditionalNarration:
+    """Narration override that activates when conditions are satisfied."""
+
+    narration: str
+    requires_history_all: tuple[str, ...] = ()
+    requires_history_any: tuple[str, ...] = ()
+    forbids_history_any: tuple[str, ...] = ()
+    requires_inventory_all: tuple[str, ...] = ()
+    requires_inventory_any: tuple[str, ...] = ()
+    forbids_inventory_any: tuple[str, ...] = ()
+    records: tuple[str, ...] = ()
+
+    def matches(self, world_state: WorldState) -> bool:
+        """Return ``True`` when the world state satisfies all constraints."""
+
+        history_entries = set(world_state.history)
+        inventory_entries = world_state.inventory
+
+        if self.requires_history_all and not all(
+            entry in history_entries for entry in self.requires_history_all
+        ):
+            return False
+        if self.requires_history_any and not any(
+            entry in history_entries for entry in self.requires_history_any
+        ):
+            return False
+        if self.forbids_history_any and any(
+            entry in history_entries for entry in self.forbids_history_any
+        ):
+            return False
+
+        if self.requires_inventory_all and not all(
+            item in inventory_entries for item in self.requires_inventory_all
+        ):
+            return False
+        if self.requires_inventory_any and not any(
+            item in inventory_entries for item in self.requires_inventory_any
+        ):
+            return False
+        if self.forbids_inventory_any and any(
+            item in inventory_entries for item in self.forbids_inventory_any
+        ):
+            return False
+
+        return True
+
+
+@dataclass(frozen=True)
 class _Transition:
     """Description of how a command updates the world and narrative."""
 
@@ -23,6 +71,8 @@ class _Transition:
     requires: tuple[str, ...] = ()
     failure_narration: str | None = None
     consumes: tuple[str, ...] = ()
+    records: tuple[str, ...] = ()
+    narration_overrides: tuple[_ConditionalNarration, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -60,6 +110,21 @@ def _memory_summary(world_state: WorldState) -> str:
 
     entries = "\n".join(f"- {action}" for action in recent_actions)
     return f"You reflect on your recent decisions:\n{entries}"
+
+
+def _coerce_string_list(value: Any, *, error_message: str) -> tuple[str, ...]:
+    """Normalize optional string sequences into tuples.
+
+    Args:
+        value: The raw value extracted from a JSON definition.
+        error_message: Error to raise when the value is not a list of strings.
+    """
+
+    if value is None:
+        return ()
+    if isinstance(value, list) and all(isinstance(entry, str) for entry in value):
+        return tuple(entry for entry in value)
+    raise ValueError(error_message)
 
 
 def load_scenes_from_mapping(
@@ -180,6 +245,106 @@ def load_scenes_from_mapping(
                     f"Transition '{command}' in scene '{location}' must define 'consumes' as a list of strings."
                 )
 
+            records = _coerce_string_list(
+                transition_payload.get("records"),
+                error_message=(
+                    f"Transition '{command}' in scene '{location}' must define 'records' as a list of strings."
+                ),
+            )
+
+            raw_overrides = transition_payload.get("narration_overrides")
+            overrides: list[_ConditionalNarration] = []
+            if raw_overrides is not None:
+                if not isinstance(raw_overrides, list):
+                    raise ValueError(
+                        f"Transition '{command}' in scene '{location}' must define 'narration_overrides' as a list."
+                    )
+                for index, override_payload in enumerate(raw_overrides):
+                    if not isinstance(override_payload, Mapping):
+                        raise ValueError(
+                            "Transition '{}' in scene '{}' narration override #{} must be an object definition.".format(
+                                command, location, index
+                            )
+                        )
+
+                    override_narration = override_payload.get("narration")
+                    if not isinstance(override_narration, str):
+                        raise ValueError(
+                            "Transition '{}' in scene '{}' narration override #{} must provide a narration string.".format(
+                                command, location, index
+                            )
+                        )
+
+                    requires_history_all = _coerce_string_list(
+                        override_payload.get("requires_history_all"),
+                        error_message=(
+                            "Transition '{}' in scene '{}' narration override #{} must define 'requires_history_all' as a list of strings.".format(
+                                command, location, index
+                            )
+                        ),
+                    )
+                    requires_history_any = _coerce_string_list(
+                        override_payload.get("requires_history_any"),
+                        error_message=(
+                            "Transition '{}' in scene '{}' narration override #{} must define 'requires_history_any' as a list of strings.".format(
+                                command, location, index
+                            )
+                        ),
+                    )
+                    forbids_history_any = _coerce_string_list(
+                        override_payload.get("forbids_history_any"),
+                        error_message=(
+                            "Transition '{}' in scene '{}' narration override #{} must define 'forbids_history_any' as a list of strings.".format(
+                                command, location, index
+                            )
+                        ),
+                    )
+                    requires_inventory_all = _coerce_string_list(
+                        override_payload.get("requires_inventory_all"),
+                        error_message=(
+                            "Transition '{}' in scene '{}' narration override #{} must define 'requires_inventory_all' as a list of strings.".format(
+                                command, location, index
+                            )
+                        ),
+                    )
+                    requires_inventory_any = _coerce_string_list(
+                        override_payload.get("requires_inventory_any"),
+                        error_message=(
+                            "Transition '{}' in scene '{}' narration override #{} must define 'requires_inventory_any' as a list of strings.".format(
+                                command, location, index
+                            )
+                        ),
+                    )
+                    forbids_inventory_any = _coerce_string_list(
+                        override_payload.get("forbids_inventory_any"),
+                        error_message=(
+                            "Transition '{}' in scene '{}' narration override #{} must define 'forbids_inventory_any' as a list of strings.".format(
+                                command, location, index
+                            )
+                        ),
+                    )
+                    override_records = _coerce_string_list(
+                        override_payload.get("records"),
+                        error_message=(
+                            "Transition '{}' in scene '{}' narration override #{} must define 'records' as a list of strings.".format(
+                                command, location, index
+                            )
+                        ),
+                    )
+
+                    overrides.append(
+                        _ConditionalNarration(
+                            narration=override_narration,
+                            requires_history_all=requires_history_all,
+                            requires_history_any=requires_history_any,
+                            forbids_history_any=forbids_history_any,
+                            requires_inventory_all=requires_inventory_all,
+                            requires_inventory_any=requires_inventory_any,
+                            forbids_inventory_any=forbids_inventory_any,
+                            records=override_records,
+                        )
+                    )
+
             transitions[command] = _Transition(
                 narration=narration,
                 target=target,
@@ -187,6 +352,8 @@ def load_scenes_from_mapping(
                 requires=requires,
                 failure_narration=failure_narration,
                 consumes=consumes,
+                records=records,
+                narration_overrides=tuple(overrides),
             )
 
         scenes[location] = _Scene(
@@ -336,6 +503,13 @@ class ScriptedStoryEngine(StoryEngine):
             return StoryEvent(narration=narration, choices=scene.choices)
 
         narration = transition.narration
+        records_to_apply: list[str] = list(transition.records)
+        for override in transition.narration_overrides:
+            if override.matches(world_state):
+                narration = override.narration
+                if override.records:
+                    records_to_apply.extend(override.records)
+                break
 
         if transition.item:
             newly_added = world_state.add_item(transition.item)
@@ -357,6 +531,9 @@ class ScriptedStoryEngine(StoryEngine):
                 choices = ()
         else:
             choices = scene.choices
+
+        if records_to_apply:
+            world_state.extend_history(records_to_apply)
 
         return StoryEvent(narration=narration, choices=choices)
 

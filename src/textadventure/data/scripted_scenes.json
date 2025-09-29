@@ -121,7 +121,14 @@
         "item": "signal lesson"
       },
       "signal": {
-        "narration": "You practice the cadence until the surrounding woods echo the final note back to you."
+        "narration": "You attempt to recall the ranger's cadence, but without proper guidance the notes unravel before the finale.",
+        "narration_overrides": [
+          {
+            "requires_history_any": ["Picked up signal lesson"],
+            "narration": "You practice the cadence until the surrounding woods echo the final note back to you.",
+            "records": ["Practiced the ranger signal"]
+          }
+        ]
       },
       "return": {
         "narration": "You descend the ridge and return to the trailhead.",
