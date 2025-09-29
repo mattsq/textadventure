@@ -2,10 +2,15 @@
 
 from .analytics import (
     AdventureComplexityMetrics,
+    AdventureReachabilityReport,
     compute_adventure_complexity,
     compute_adventure_complexity_from_definitions,
     compute_adventure_complexity_from_file,
+    compute_scene_reachability,
+    compute_scene_reachability_from_definitions,
+    compute_scene_reachability_from_file,
     format_complexity_report,
+    format_reachability_report,
 )
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
 from .llm_providers import (
@@ -47,10 +52,15 @@ __all__ = [
     "StoryEvent",
     "StoryEngine",
     "AdventureComplexityMetrics",
+    "AdventureReachabilityReport",
     "compute_adventure_complexity",
     "compute_adventure_complexity_from_definitions",
     "compute_adventure_complexity_from_file",
+    "compute_scene_reachability",
+    "compute_scene_reachability_from_definitions",
+    "compute_scene_reachability_from_file",
     "format_complexity_report",
+    "format_reachability_report",
     "ScriptedStoryEngine",
     "load_scenes_from_file",
     "load_scenes_from_mapping",
