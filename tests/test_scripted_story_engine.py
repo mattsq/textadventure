@@ -286,6 +286,35 @@ def test_observatory_activation_requires_items() -> None:
     success_event = engine.propose_event(world, player_input="activate")
 
     assert "pathways of light" in success_event.narration.lower()
+    assert world.location == "resonant-bridge"
+    assert "ribbon of light arches" in success_event.narration.lower()
+
+
+def test_resonant_bridge_requires_sigil() -> None:
+    world = WorldState(location="resonant-bridge")
+    engine = ScriptedStoryEngine()
+
+    failure_event = engine.propose_event(world, player_input="advance")
+
+    assert "bridge frays" in failure_event.narration.lower()
+    assert world.location == "resonant-bridge"
+
+    world.add_item("ancient sigil")
+
+    success_event = engine.propose_event(world, player_input="advance")
+
+    assert world.location == "sky-sanctum"
+    assert "sigil glows" in success_event.narration.lower()
+
+
+def test_sky_sanctum_stabilize_records_history() -> None:
+    world = WorldState(location="sky-sanctum")
+    engine = ScriptedStoryEngine()
+
+    event = engine.propose_event(world, player_input="stabilize")
+
+    assert "currents align" in event.narration.lower()
+    assert "stabilised the sky sanctum" in "\n".join(world.history).lower()
 
 
 def test_archives_study_requires_map() -> None:

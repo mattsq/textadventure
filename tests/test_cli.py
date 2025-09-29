@@ -292,6 +292,8 @@ def test_cli_walkthrough_matches_golden(monkeypatch, capsys) -> None:
             "return",
             "observatory",
             "activate",
+            "advance",
+            "stabilize",
             "quit",
         ]
     )

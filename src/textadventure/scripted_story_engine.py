@@ -612,6 +612,18 @@ _DEFAULT_TOOLS: Mapping[str, Tool] = {
                 " suspended lenses. Only those who complete the bastion's"
                 " resonant trials can align its arrays."
             ),
+            "bridge": (
+                "The resonant bridge manifests only when the observatory's"
+                " pylons align. Ancient sigils stabilise the path, allowing"
+                " travellers to cross the starlit span without dissolving"
+                " into the night."
+            ),
+            "sanctum": (
+                "Legends speak of a sanctum above the spire where resonance"
+                " settles into harmony. Stabilising it requires both the"
+                " ancient sigil's authority and a chime tuned to the"
+                " bastion's heart."
+            ),
         },
     ),
 }

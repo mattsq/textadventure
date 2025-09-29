@@ -111,7 +111,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Plan an expanded narrative arc that showcases branching paths, inventory gating, and optional side objectives. *(Documented in the "Planned Narrative Expansion" section of `docs/data_driven_scenes.md`.)*
   - [x] Sketch a location graph covering at least three distinct regions plus connecting transitional scenes.
   - [x] Identify key items, puzzle locks, and narrative beats that can be expressed purely through the JSON schema.
-- [ ] Extend `src/textadventure/data/scripted_scenes.json` with the new regions, ensuring consistent descriptions, commands, and transitions.
+  - [x] Extend `src/textadventure/data/scripted_scenes.json` with the new regions, ensuring consistent descriptions, commands, and transitions. *(Introduced a post-observatory resonant bridge and sky sanctum finale to round out the storyline.)*
   - [x] Add region hubs for the Sunken Bastion and Aether Spire that connect the planned scene graph.
   - [x] Populate optional detours (`scavenger-camp`, `ranger-lookout`, side rooms) with unique interactions and returns.
   - [x] Gate at least one transition on collected items to set up later objectives.
