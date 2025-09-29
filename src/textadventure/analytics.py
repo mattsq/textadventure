@@ -68,6 +68,39 @@ class AdventureComplexityMetrics:
         return len(self.unique_history_records)
 
 
+@dataclass(frozen=True)
+class AdventureReachabilityReport:
+    """Summary of which scenes can be visited from a starting location."""
+
+    start_scene: str
+    reachable_scenes: tuple[str, ...]
+    unreachable_scenes: tuple[str, ...]
+
+    @property
+    def reachable_count(self) -> int:
+        """Return the number of reachable scenes including the start."""
+
+        return len(self.reachable_scenes)
+
+    @property
+    def unreachable_count(self) -> int:
+        """Return the number of unreachable scenes."""
+
+        return len(self.unreachable_scenes)
+
+    @property
+    def total_scene_count(self) -> int:
+        """Return the total number of scenes considered."""
+
+        return self.reachable_count + self.unreachable_count
+
+    @property
+    def fully_reachable(self) -> bool:
+        """Return ``True`` if every scene can be visited."""
+
+        return self.unreachable_count == 0
+
+
 def _safe_average(total: int, count: int) -> float:
     if count == 0:
         return 0.0
@@ -190,6 +223,78 @@ def compute_adventure_complexity_from_file(
     return compute_adventure_complexity(cast(Mapping[str, _SceneLike], scenes))
 
 
+def compute_scene_reachability(
+    scenes: Mapping[str, _SceneLike],
+    *,
+    start_scene: str = "starting-area",
+) -> AdventureReachabilityReport:
+    """Determine which scenes are reachable from ``start_scene``.
+
+    The analysis walks the directed graph formed by transition targets while
+    ignoring inventory/history requirements. This approximates structural
+    reachability and is sufficient for spotting orphaned scenes.
+    """
+
+    if start_scene not in scenes:
+        raise ValueError(f"Start scene '{start_scene}' is not defined.")
+
+    visited: set[str] = set()
+    frontier = [start_scene]
+
+    while frontier:
+        current = frontier.pop()
+        if current in visited:
+            continue
+
+        visited.add(current)
+        transitions = scenes[current].transitions
+        for transition in transitions.values():
+            target = transition.target
+            if target is None or target in visited:
+                continue
+            if target in scenes:
+                frontier.append(target)
+
+    reachable = tuple(sorted(visited))
+    unreachable = tuple(sorted(scene for scene in scenes if scene not in visited))
+
+    return AdventureReachabilityReport(
+        start_scene=start_scene,
+        reachable_scenes=reachable,
+        unreachable_scenes=unreachable,
+    )
+
+
+def compute_scene_reachability_from_definitions(
+    definitions: Mapping[str, Any],
+    *,
+    start_scene: str = "starting-area",
+) -> AdventureReachabilityReport:
+    """Parse a scene definition mapping and compute reachability statistics."""
+
+    from .scripted_story_engine import load_scenes_from_mapping
+
+    scenes = load_scenes_from_mapping(definitions)
+    return compute_scene_reachability(
+        cast(Mapping[str, _SceneLike], scenes), start_scene=start_scene
+    )
+
+
+def compute_scene_reachability_from_file(
+    path: str | Path,
+    *,
+    start_scene: str = "starting-area",
+) -> AdventureReachabilityReport:
+    """Load scene definitions from ``path`` and compute reachability statistics."""
+
+    from .scripted_story_engine import load_scenes_from_file
+
+    scenes = load_scenes_from_file(path)
+    return compute_scene_reachability(
+        cast(Mapping[str, _SceneLike], scenes), start_scene=start_scene
+    )
+
+
 def format_complexity_report(metrics: AdventureComplexityMetrics) -> str:
     """Return a human-friendly report describing the complexity metrics."""
 
@@ -232,6 +337,30 @@ def format_complexity_report(metrics: AdventureComplexityMetrics) -> str:
     return "\n".join(lines)
 
 
+def format_reachability_report(report: AdventureReachabilityReport) -> str:
+    """Return a human-friendly report describing scene reachability."""
+
+    lines = [
+        "Adventure Reachability",
+        "======================",
+        f"Start scene: {report.start_scene}",
+        ("Reachable scenes: " f"{report.reachable_count} / {report.total_scene_count}"),
+    ]
+
+    if report.reachable_scenes:
+        lines.append(
+            "Reachable scene list: " + (", ".join(report.reachable_scenes) or "(none)")
+        )
+
+    if report.unreachable_scenes:
+        lines.append("Unreachable scenes detected:")
+        lines.extend(f"- {scene}" for scene in report.unreachable_scenes)
+    else:
+        lines.append("All scenes are reachable from the starting location.")
+
+    return "\n".join(lines)
+
+
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -246,6 +375,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "Path to a JSON scene definition. Defaults to the bundled demo adventure."
         ),
     )
+    parser.add_argument(
+        "--start-scene",
+        default="starting-area",
+        help=(
+            "Scene identifier to treat as the starting point when computing "
+            "reachability."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -257,12 +394,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .scripted_story_engine import ScriptedStoryEngine
 
         scenes = ScriptedStoryEngine().scenes
-        metrics = compute_adventure_complexity(cast(Mapping[str, _SceneLike], scenes))
     else:
-        metrics = compute_adventure_complexity_from_file(args.scene_file)
+        from .scripted_story_engine import load_scenes_from_file
+
+        scenes = load_scenes_from_file(args.scene_file)
+
+    scene_mapping = cast(Mapping[str, _SceneLike], scenes)
+    metrics = compute_adventure_complexity(scene_mapping)
+    reachability = compute_scene_reachability(
+        scene_mapping, start_scene=args.start_scene
+    )
 
     report = format_complexity_report(metrics)
+    reachability_report = format_reachability_report(reachability)
     print(report)
+    print()
+    print(reachability_report)
     return 0
 
 
