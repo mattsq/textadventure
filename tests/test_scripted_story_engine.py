@@ -174,6 +174,21 @@ def test_ranger_training_grants_signal_lesson() -> None:
     assert "signal lesson" in world.inventory
 
 
+def test_signal_practice_uses_conditional_narration() -> None:
+    world = WorldState(location="ranger-lookout")
+    engine = ScriptedStoryEngine()
+
+    before_training = engine.propose_event(world, player_input="signal")
+    assert "without proper guidance" in before_training.narration
+    assert "Practiced the ranger signal" not in world.history
+
+    engine.propose_event(world, player_input="train")
+
+    after_training = engine.propose_event(world, player_input="signal")
+    assert "echo the final note" in after_training.narration
+    assert "Practiced the ranger signal" in world.history
+
+
 def test_crypt_requires_signal_lesson() -> None:
     world = WorldState(location="collapsed-hall")
     engine = ScriptedStoryEngine()

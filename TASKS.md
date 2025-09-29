@@ -119,7 +119,12 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Update automated tests so expectations match the broadened content.
   - [x] Update documentation if new commands, items, or mechanics are introduced.
   - [x] Capture notes about additional engine support needed for future iterations.
-    - [ ] Follow-up: Explore conditional narration hooks (beyond inventory checks) for future scripted-engine enhancements.
+    - [x] Follow-up: Explore conditional narration hooks (beyond inventory checks) for future scripted-engine enhancements.
+      - [x] Define JSON schema and engine support for conditional narration triggers.
+      - [x] Update the scripted engine to evaluate the new conditions and record custom events when triggered.
+      - [x] Extend the bundled scene data with at least one conditional narration example.
+      - [x] Cover the new behaviour with automated tests.
+      - [x] Document the data format updates for adventure authors.
   - [x] Flesh out the `starting-area` branches leading to the scavenger camp and lookout tutorials.
   - [x] Author narrative beats for the Sunken Bastion hub scenes.
   - [x] Define the Aether Spire ascent and finale scaffolding.

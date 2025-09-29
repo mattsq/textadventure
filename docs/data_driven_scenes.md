@@ -52,6 +52,25 @@ Each scene definition must provide the following keys:
   - `consumes` (array of strings, optional) – Items to remove from the
     inventory when the transition succeeds. This is useful for crafting steps
     where reagents combine into a new item granted via `item`.
+  - `records` (array of strings, optional) – Extra journal entries to append
+    to the `WorldState` history after the transition succeeds. Use this to log
+    achievements or milestones that future scenes can reference.
+  - `narration_overrides` (array of objects, optional) – Ordered list of
+    conditional narration hooks. Each override must provide a replacement
+    `narration` string plus any combination of the following filters:
+    - `requires_history_all` / `requires_history_any` – History entries that
+      must already exist before the override can trigger.
+    - `forbids_history_any` – History entries that must not be present.
+    - `requires_inventory_all` / `requires_inventory_any` – Inventory checks
+      that mirror the semantics of `requires` but without blocking the
+      transition.
+    - `forbids_inventory_any` – Inventory items that prevent the override from
+      activating when held.
+    - `records` – Additional history entries written only when the override is
+      selected.
+    The first override whose filters match the current world state will be
+    used; remaining overrides are ignored. When no overrides match the engine
+    falls back to the base `narration` text.
 
 Commands listed in `choices` should have matching entries in `transitions`
 unless the command is handled by the story engine directly (see the "Built-in
@@ -63,6 +82,29 @@ reference unknown targets.
 When using `requires`, remember that item names are compared literally against
 the player's inventory. For readability, keep item names consistent between
 the `item`, `requires`, and `consumes` fields.
+
+### Conditional Narration Example
+
+The ranger lookout scene demonstrates how overrides can tailor narration based
+on prior events:
+
+```json
+"signal": {
+  "narration": "You attempt to recall the ranger's cadence, but without proper guidance the notes unravel before the finale.",
+  "narration_overrides": [
+    {
+      "requires_history_any": ["Picked up signal lesson"],
+      "narration": "You practice the cadence until the surrounding woods echo the final note back to you.",
+      "records": ["Practiced the ranger signal"]
+    }
+  ]
+}
+```
+
+Before the player completes the `train` command the base narration communicates
+that they still need guidance. Once the history contains `Picked up signal
+lesson` the override fires, swapping in the celebratory narration and logging a
+`Practiced the ranger signal` milestone for later scenes to reference.
 
 ## Built-in Commands and Tools
 
