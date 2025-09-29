@@ -129,6 +129,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Author narrative beats for the Sunken Bastion hub scenes.
   - [x] Define the Aether Spire ascent and finale scaffolding.
   - [x] Review lore flavour interactions to highlight journal and memory hooks.
+  - [x] Validate the expanded scene data for structural errors and fix any inconsistencies discovered.
+    - [x] Correct the malformed `look` transition formatting in the `collapsed-hall` scene.
   - [ ] Mark the original checklist item complete once all subtasks pass review.
 - [x] Update scripted-engine tests and fixtures to cover the expanded scene graph and any new command patterns.
   - [x] Add regression coverage validating transition targets, required items, and failure messages for gated actions. *(Added targeted tests for the ranger signal gate, flooded archives study requirement, and related success flows.)*
