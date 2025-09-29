@@ -262,19 +262,28 @@ class LlamaCppClient(LLMClient):
             {"role": message.role, "content": message.content} for message in messages
         ]
 
-        request_kwargs = dict(self._default_options)
+        # Build parameters for the API call
+        params = dict(self._default_options)
         if temperature is not None:
-            request_kwargs["temperature"] = temperature
+            params["temperature"] = temperature
 
-        # Extract only valid parameters for create_chat_completion
-        valid_params = {}
-        for key, value in request_kwargs.items():
-            if key in {"temperature", "top_p", "max_tokens", "stream", "stop", "seed", "n_predict", "repeat_penalty"}:
-                valid_params[key] = value
+        # Create kwargs for create_chat_completion, translating parameter names as needed
+        call_kwargs = {}
+
+        # Handle n_predict -> max_tokens mapping for legacy compatibility
+        # n_predict takes precedence over max_tokens if both are present
+        if "n_predict" in params:
+            call_kwargs["max_tokens"] = params["n_predict"]
+        elif "max_tokens" in params:
+            call_kwargs["max_tokens"] = params["max_tokens"]
+
+        # Add other supported parameters
+        for param in ["temperature", "top_p", "repeat_penalty", "stream", "stop", "seed"]:
+            if param in params:
+                call_kwargs[param] = params[param]
 
         try:
-            # Type ignore due to strict typing in llama-cpp-python - works correctly at runtime
-            response = self._client.create_chat_completion(messages=payload, **valid_params)  # type: ignore
+            response = self._client.create_chat_completion(messages=payload, **call_kwargs)  # type: ignore
         except Exception as exc:  # pragma: no cover - delegated error path
             raise LLMClientError("llama.cpp completion failed") from exc
 

@@ -122,7 +122,7 @@ def test_llama_cpp_client_wraps_create_chat_completion() -> None:
     assert len(llama.calls) == 1
     call = llama.calls[0]
     assert call["messages"] == [{"role": "user", "content": "Hello?"}]
-    assert call["n_predict"] == 64
+    assert call["max_tokens"] == 64  # n_predict is mapped to max_tokens
     assert call["temperature"] == 0.4
     # Allow additional optimization parameters to be present
     assert response.message.content == "Hello there"
