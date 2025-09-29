@@ -193,8 +193,8 @@
     ],
     "transitions": {
       "look": {
-        "narration": "Echoes linger in the vaulted ceiling, amplifying even quiet notes."}
-      ,
+        "narration": "Echoes linger in the vaulted ceiling, amplifying even quiet notes."
+      },
       "excavate": {
         "narration": "Beneath the rubble you uncover a shard that vibrates when held near the sigils.",
         "item": "echo shard"
