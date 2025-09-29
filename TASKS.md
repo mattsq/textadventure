@@ -137,3 +137,214 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Add coverage for the new `journal` and `inventory` command summaries. *(Added tests asserting history truncation and alphabetised inventory listings.)*
 - [x] Refresh golden transcripts (if any) so the CLI demo walkthrough exercises the broader storyline. *(Captured an updated CLI walkthrough transcript and regression test to cover the expanded regions.)*
 - [x] Document the enhanced demo in `docs/data_driven_scenes.md`, including a high-level map, quest summaries, and authoring tips for further expansion. *(Added an "Expanded Demo Reference" section summarising regions, quest flow, and future authoring guidance.)*
+
+## Priority 10: Browser-Based Scene Editor
+- [ ] Design and implement a comprehensive web-based GUI for editing and extending scene data to make adventure authoring accessible to non-programmers.
+  - [ ] **Phase 1: Foundation & Backend API**
+    - [ ] Analyze current JSON schema and identify all data relationships (scenes, transitions, items, conditions).
+    - [ ] Design RESTful API specification for scene CRUD operations.
+    - [ ] Implement FastAPI backend with the following endpoints:
+      - [ ] `GET /api/scenes` - List all scenes with metadata
+      - [ ] `GET /api/scenes/{scene_id}` - Get detailed scene data
+      - [ ] `PUT /api/scenes/{scene_id}` - Update existing scene
+      - [ ] `POST /api/scenes` - Create new scene
+      - [ ] `DELETE /api/scenes/{scene_id}` - Delete scene (with dependency checks)
+      - [ ] `GET /api/scenes/validate` - Full integrity validation
+      - [ ] `GET /api/scenes/graph` - Scene connectivity graph data
+      - [ ] `POST /api/scenes/import` - Import JSON scene data
+      - [ ] `GET /api/scenes/export` - Export current scenes as JSON
+    - [ ] Add comprehensive validation engine:
+      - [ ] Scene reference integrity (no broken targets)
+      - [ ] Item flow analysis (sources vs requirements)
+      - [ ] Reachability analysis (unreachable scenes/items)
+      - [ ] Circular dependency detection
+      - [ ] Command uniqueness validation
+    - [ ] Implement WebSocket endpoint for live adventure testing.
+    - [ ] Add unit tests covering all API endpoints and validation logic.
+    - [ ] Document API specification with OpenAPI/Swagger.
+
+  - [ ] **Phase 2: Core Frontend Architecture**
+    - [ ] Set up React application with TypeScript for type safety.
+    - [ ] Configure build pipeline (Vite/Webpack) with development server.
+    - [ ] Implement responsive CSS framework (Tailwind CSS or Material-UI).
+    - [ ] Create base component library:
+      - [ ] Layout components (headers, sidebars, panels)
+      - [ ] Form components (inputs, selects, textareas)
+      - [ ] Data display components (tables, cards, badges)
+      - [ ] Navigation components (breadcrumbs, tabs)
+    - [ ] Set up state management (Redux Toolkit or Zustand).
+    - [ ] Implement API client with proper error handling and loading states.
+    - [ ] Add routing system for different editor views.
+
+  - [ ] **Phase 3: Scene List & Basic Editing**
+    - [ ] Implement scene list view:
+      - [ ] Searchable/filterable scene table
+      - [ ] Scene metadata display (description preview, choice count, transition count)
+      - [ ] Quick actions (edit, duplicate, delete)
+      - [ ] Validation status indicators (errors, warnings)
+    - [ ] Create basic scene editor form:
+      - [ ] Scene ID and description editing
+      - [ ] Dynamic choice list editor (add/remove/reorder)
+      - [ ] Basic transition editor (target selection, narration)
+      - [ ] Real-time validation feedback
+      - [ ] Auto-save functionality
+    - [ ] Implement scene creation wizard:
+      - [ ] Template selection (empty, copy from existing)
+      - [ ] Guided setup for basic properties
+      - [ ] Integration with scene list
+    - [ ] Add scene deletion with dependency checking:
+      - [ ] Show which scenes reference the target
+      - [ ] Confirmation dialog with impact analysis
+      - [ ] Safe deletion that updates references
+
+  - [ ] **Phase 4: Visual Scene Graph**
+    - [ ] Integrate React Flow library for interactive graph visualization.
+    - [ ] Implement scene node components:
+      - [ ] Color-coded by type (start, end, branch, linear)
+      - [ ] Validation status indicators (error, warning, valid)
+      - [ ] Hover tooltips with scene metadata
+      - [ ] Click to open editor
+    - [ ] Implement transition edge components:
+      - [ ] Different styles for different transition types
+      - [ ] Conditional edges (requirements) shown differently
+      - [ ] Edge labels showing command names
+      - [ ] Click to edit transition
+    - [ ] Add graph interaction features:
+      - [ ] Drag-and-drop scene positioning
+      - [ ] Zoom and pan controls
+      - [ ] Minimap for large graphs
+      - [ ] Auto-layout algorithms
+      - [ ] Search and focus on specific scenes
+    - [ ] Implement dependency highlighting:
+      - [ ] Highlight item flow chains
+      - [ ] Show unreachable scenes in red
+      - [ ] Trace paths between scenes
+      - [ ] Critical path analysis
+
+  - [ ] **Phase 5: Advanced Editing Features**
+    - [ ] Create comprehensive transition editor:
+      - [ ] Target scene dropdown with autocomplete
+      - [ ] Rich text editor for narration
+      - [ ] Item requirements multi-select
+      - [ ] Item consumption configuration
+      - [ ] Failure narration editor
+      - [ ] Conditional logic builder
+    - [ ] Implement choice matrix editor:
+      - [ ] Grid view of all choices across scenes
+      - [ ] Bulk editing capabilities
+      - [ ] Command standardization tools
+      - [ ] Consistency checking
+    - [ ] Build conditional logic visual editor:
+      - [ ] Drag-and-drop condition builder
+      - [ ] Support for `requires_history_any/all`
+      - [ ] Visual representation of complex conditions
+      - [ ] Testing interface for conditions
+    - [ ] Add item flow analyzer:
+      - [ ] Visual item dependency graph
+      - [ ] Source tracking (where items come from)
+      - [ ] Usage tracking (where items are required)
+      - [ ] Orphaned item detection
+      - [ ] Item balance analysis
+
+  - [ ] **Phase 6: Live Preview & Testing**
+    - [ ] Implement embedded adventure player:
+      - [ ] Real-time scene rendering
+      - [ ] Interactive choice selection
+      - [ ] State tracking (location, inventory, history)
+      - [ ] Reset and restart capabilities
+    - [ ] Create testing toolkit:
+      - [ ] State manipulation tools (set inventory, history)
+      - [ ] Jump to specific scenes
+      - [ ] Debug mode showing internal state
+      - [ ] Step-by-step execution
+    - [ ] Add WebSocket integration for live updates:
+      - [ ] Real-time scene updates in preview
+      - [ ] Collaborative editing indicators
+      - [ ] Change broadcasting
+    - [ ] Implement playtesting features:
+      - [ ] Session recording and replay
+      - [ ] Path tracking and analytics
+      - [ ] Playtester feedback collection
+      - [ ] A/B testing for narrative variants
+
+  - [ ] **Phase 7: Import/Export & File Management**
+    - [ ] Build robust JSON import system:
+      - [ ] File upload with validation
+      - [ ] Schema migration support
+      - [ ] Conflict resolution (merge vs replace)
+      - [ ] Backup creation before import
+    - [ ] Implement export options:
+      - [ ] Full scene export
+      - [ ] Selective scene export
+      - [ ] Minified vs pretty-printed JSON
+      - [ ] Backup and versioning
+    - [ ] Add version control integration:
+      - [ ] Git-style change tracking
+      - [ ] Diff visualization
+      - [ ] Rollback capabilities
+      - [ ] Branch management for different storylines
+    - [ ] Create project management features:
+      - [ ] Multiple adventure projects
+      - [ ] Project templates
+      - [ ] Asset organization
+      - [ ] Collaborative permissions
+
+  - [ ] **Phase 8: Quality of Life & Polish**
+    - [ ] Implement comprehensive search:
+      - [ ] Global text search across all scenes
+      - [ ] Advanced filters (by type, validation status, etc.)
+      - [ ] Search and replace functionality
+      - [ ] Reference finding
+    - [ ] Add keyboard shortcuts and accessibility:
+      - [ ] Common action shortcuts
+      - [ ] Tab navigation
+      - [ ] Screen reader support
+      - [ ] High contrast mode
+    - [ ] Create help system:
+      - [ ] Interactive tutorials
+      - [ ] Context-sensitive help
+      - [ ] Best practices guide
+      - [ ] Troubleshooting documentation
+    - [ ] Implement data analytics:
+      - [ ] Adventure complexity metrics
+      - [ ] Reachability statistics
+      - [ ] Content distribution analysis
+      - [ ] Quality assessment tools
+
+  - [ ] **Phase 9: Integration & Deployment**
+    - [ ] Integrate editor with existing CLI workflow:
+      - [ ] File watching for automatic reloads
+      - [ ] CLI command to launch editor
+      - [ ] Development mode integration
+    - [ ] Create deployment pipeline:
+      - [ ] Docker containerization
+      - [ ] Environment configuration
+      - [ ] Production build optimization
+      - [ ] Static asset management
+    - [ ] Add authentication and user management:
+      - [ ] User accounts and profiles
+      - [ ] Project sharing and permissions
+      - [ ] Collaborative editing features
+      - [ ] Access control
+    - [ ] Implement backup and recovery:
+      - [ ] Automatic backups
+      - [ ] Cloud storage integration
+      - [ ] Disaster recovery procedures
+      - [ ] Data export for migration
+
+  - [ ] **Phase 10: Documentation & Community**
+    - [ ] Create comprehensive user documentation:
+      - [ ] Getting started guide
+      - [ ] Feature reference
+      - [ ] Advanced techniques
+      - [ ] Troubleshooting guide
+    - [ ] Build developer documentation:
+      - [ ] API reference
+      - [ ] Extension guide
+      - [ ] Contributing guidelines
+      - [ ] Architecture overview
+    - [ ] Establish community features:
+      - [ ] Scene sharing marketplace
+      - [ ] Community templates
+      - [ ] Rating and review system
+      - [ ] Discussion forums
