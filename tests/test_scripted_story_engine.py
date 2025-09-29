@@ -73,6 +73,56 @@ def test_recall_command_reports_recent_actions() -> None:
     assert "explore the gate" in event.narration
 
 
+def test_journal_command_reports_recent_history() -> None:
+    world = WorldState()
+    engine = ScriptedStoryEngine()
+
+    for index in range(6):
+        world.record_event(f"Logged event {index}")
+
+    event = engine.propose_event(world, player_input="journal")
+
+    assert "flip through your journal" in event.narration.lower()
+    assert "- Logged event 1" in event.narration
+    assert "- Logged event 5" in event.narration
+    assert "- Logged event 0" not in event.narration
+
+
+def test_journal_command_handles_empty_history() -> None:
+    world = WorldState()
+    engine = ScriptedStoryEngine()
+
+    event = engine.propose_event(world, player_input="journal")
+
+    assert "journal is blank" in event.narration.lower()
+
+
+def test_inventory_command_summarises_sorted_items() -> None:
+    world = WorldState()
+    engine = ScriptedStoryEngine()
+
+    world.add_item("weathered map")
+    world.add_item("sunstone lens")
+
+    event = engine.propose_event(world, player_input="inventory")
+
+    assert "your pack currently holds" in event.narration.lower()
+    assert "sunstone lens" in event.narration
+    assert "weathered map" in event.narration
+    assert event.narration.index("sunstone lens") < event.narration.index(
+        "weathered map"
+    )
+
+
+def test_inventory_command_handles_empty_pack() -> None:
+    world = WorldState()
+    engine = ScriptedStoryEngine()
+
+    event = engine.propose_event(world, player_input="inventory")
+
+    assert "find nothing" in event.narration.lower()
+
+
 def test_tool_command_returns_lore_entry() -> None:
     world = WorldState(location="old-gate")
     engine = ScriptedStoryEngine()

@@ -130,7 +130,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Define the Aether Spire ascent and finale scaffolding.
   - [x] Review lore flavour interactions to highlight journal and memory hooks.
   - [ ] Mark the original checklist item complete once all subtasks pass review.
-- [ ] Update scripted-engine tests and fixtures to cover the expanded scene graph and any new command patterns.
+- [x] Update scripted-engine tests and fixtures to cover the expanded scene graph and any new command patterns.
   - [x] Add regression coverage validating transition targets, required items, and failure messages for gated actions. *(Added targeted tests for the ranger signal gate, flooded archives study requirement, and related success flows.)*
+  - [x] Add coverage for the new `journal` and `inventory` command summaries. *(Added tests asserting history truncation and alphabetised inventory listings.)*
 - [x] Refresh golden transcripts (if any) so the CLI demo walkthrough exercises the broader storyline. *(Captured an updated CLI walkthrough transcript and regression test to cover the expanded regions.)*
 - [x] Document the enhanced demo in `docs/data_driven_scenes.md`, including a high-level map, quest summaries, and authoring tips for further expansion. *(Added an "Expanded Demo Reference" section summarising regions, quest flow, and future authoring guidance.)*
