@@ -214,11 +214,14 @@ class LlamaCppClient(LLMClient):
             "temperature": 0.7,
             "top_p": 0.9,
             "repeat_penalty": 1.1,
-            "max_tokens": 150,  # Reasonable limit for narration
+            "max_tokens": 500,  # More generous limit to avoid JSON truncation
         }
 
         if default_options:
             optimized_defaults.update(default_options)
+
+        # CLI options should override defaults
+        optimized_defaults.update(client_options)
 
         self._default_options = optimized_defaults
 
