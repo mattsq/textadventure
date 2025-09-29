@@ -1,5 +1,12 @@
 """Core package for the text adventure framework."""
 
+from .analytics import (
+    AdventureComplexityMetrics,
+    compute_adventure_complexity,
+    compute_adventure_complexity_from_definitions,
+    compute_adventure_complexity_from_file,
+    format_complexity_report,
+)
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
 from .llm_providers import (
     AnthropicMessagesClient,
@@ -39,6 +46,11 @@ __all__ = [
     "StoryChoice",
     "StoryEvent",
     "StoryEngine",
+    "AdventureComplexityMetrics",
+    "compute_adventure_complexity",
+    "compute_adventure_complexity_from_definitions",
+    "compute_adventure_complexity_from_file",
+    "format_complexity_report",
     "ScriptedStoryEngine",
     "load_scenes_from_file",
     "load_scenes_from_mapping",
