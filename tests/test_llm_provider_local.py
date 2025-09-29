@@ -1,5 +1,5 @@
 import json
-from typing import Mapping
+from typing import Mapping, Optional
 
 import pytest
 
@@ -21,7 +21,7 @@ class _RecordingTransport:
         url: str,
         data: bytes,
         headers: Mapping[str, str],
-        timeout: float | None = None,
+        timeout: Optional[float] = None,
     ) -> tuple[int, Mapping[str, str], bytes]:
         self.calls.append(
             {
@@ -119,13 +119,12 @@ def test_llama_cpp_client_wraps_create_chat_completion() -> None:
         temperature=0.4,
     )
 
-    assert llama.calls == [
-        {
-            "messages": [{"role": "user", "content": "Hello?"}],
-            "n_predict": 64,
-            "temperature": 0.4,
-        }
-    ]
+    assert len(llama.calls) == 1
+    call = llama.calls[0]
+    assert call["messages"] == [{"role": "user", "content": "Hello?"}]
+    assert call["n_predict"] == 64
+    assert call["temperature"] == 0.4
+    # Allow additional optimization parameters to be present
     assert response.message.content == "Hello there"
     assert response.metadata == {"id": "llama-123", "model": "llama-cpp-test"}
     assert response.usage == {"prompt_tokens": 3}

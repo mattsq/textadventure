@@ -266,10 +266,15 @@ class LlamaCppClient(LLMClient):
         if temperature is not None:
             request_kwargs["temperature"] = temperature
 
+        # Extract only valid parameters for create_chat_completion
+        valid_params = {}
+        for key, value in request_kwargs.items():
+            if key in {"temperature", "top_p", "max_tokens", "stream", "stop", "seed", "n_predict", "repeat_penalty"}:
+                valid_params[key] = value
+
         try:
-            response = self._client.create_chat_completion(
-                messages=payload, **request_kwargs
-            )
+            # Type ignore due to strict typing in llama-cpp-python - works correctly at runtime
+            response = self._client.create_chat_completion(messages=payload, **valid_params)  # type: ignore
         except Exception as exc:  # pragma: no cover - delegated error path
             raise LLMClientError("llama.cpp completion failed") from exc
 
@@ -296,8 +301,10 @@ class LlamaCppClient(LLMClient):
         usage_payload = response.get("usage")
         usage: dict[str, int] = {}
         if isinstance(usage_payload, Mapping):
-            for key, value in usage_payload.items():
-                if isinstance(value, (int, float)):
+            for key, value in usage_payload.items():  # type: ignore[assignment]
+                if isinstance(value, int):
+                    usage[str(key)] = value
+                elif isinstance(value, float):
                     usage[str(key)] = int(value)
 
         metadata: dict[str, str] = {}

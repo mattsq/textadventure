@@ -48,7 +48,7 @@ class LLMStoryAgent(Agent):
         "- Maintain the mood and tone established by the existing story\n"
         "- Never contradict existing world state or previous narration\n"
         "- Optional: include 'choices' array and 'metadata' object if relevant\n\n"
-        "Example format: {\"narration\": \"Your enhanced description here\"}"
+        'Example format: {"narration": "Your enhanced description here"}'
     )
     temperature: float | None = None
     history_limit: int = 5
@@ -177,7 +177,7 @@ class LLMStoryAgent(Agent):
             raise ValueError("LLMStoryAgent received an empty response")
 
         # Try to extract JSON if wrapped in markdown or other text
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
         if json_match:
             text = json_match.group()
 
