@@ -209,7 +209,18 @@ class LlamaCppClient(LLMClient):
         default_options: Mapping[str, Any] | MutableMapping[str, Any] | None = None,
         **client_options: Any,
     ) -> None:
-        self._default_options = _coerce_mapping(default_options)
+        # Optimized defaults for narrative generation
+        optimized_defaults = {
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "repeat_penalty": 1.1,
+            "max_tokens": 150,  # Reasonable limit for narration
+        }
+
+        if default_options:
+            optimized_defaults.update(default_options)
+
+        self._default_options = optimized_defaults
 
         if client is None:
             if model_path is None:

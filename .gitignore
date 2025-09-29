@@ -19,3 +19,7 @@ build/
 
 # OS files
 .DS_Store
+
+# Model files
+models/
+*.gguf
