@@ -144,6 +144,37 @@ class AdventureContentDistribution:
     conditional_narrations: TextDistributionSummary
 
 
+@dataclass(frozen=True)
+class AdventureQualityReport:
+    """Summary describing potential content quality issues."""
+
+    scenes_missing_description: tuple[str, ...]
+    choices_missing_description: tuple[tuple[str, str], ...]
+    transitions_missing_narration: tuple[tuple[str, str], ...]
+    gated_transitions_missing_failure: tuple[tuple[str, str], ...]
+    conditional_overrides_missing_narration: tuple[tuple[str, str, int], ...]
+
+    @property
+    def issue_count(self) -> int:
+        """Return the total number of detected issues across all categories."""
+
+        return sum(
+            (
+                len(self.scenes_missing_description),
+                len(self.choices_missing_description),
+                len(self.transitions_missing_narration),
+                len(self.gated_transitions_missing_failure),
+                len(self.conditional_overrides_missing_narration),
+            )
+        )
+
+    @property
+    def has_issues(self) -> bool:
+        """Return ``True`` when any potential quality issue was detected."""
+
+        return self.issue_count > 0
+
+
 def _safe_average(total: int, count: int) -> float:
     if count == 0:
         return 0.0
@@ -387,6 +418,76 @@ def compute_adventure_content_distribution_from_file(
     )
 
 
+def assess_adventure_quality(
+    scenes: Mapping[str, _SceneLike],
+) -> AdventureQualityReport:
+    """Perform heuristic checks to highlight possible content issues."""
+
+    scenes_missing_description: list[str] = []
+    choices_missing_description: list[tuple[str, str]] = []
+    transitions_missing_narration: list[tuple[str, str]] = []
+    gated_transitions_missing_failure: list[tuple[str, str]] = []
+    conditional_overrides_missing_narration: list[tuple[str, str, int]] = []
+
+    for scene_id, scene in scenes.items():
+        if not _normalise_text(scene.description):
+            scenes_missing_description.append(scene_id)
+
+        for choice in scene.choices:
+            if not _normalise_text(choice.description):
+                choices_missing_description.append((scene_id, choice.command))
+
+        for command, transition in scene.transitions.items():
+            if not _normalise_text(transition.narration):
+                transitions_missing_narration.append((scene_id, command))
+
+            if (transition.requires or transition.consumes) and (
+                transition.failure_narration is None
+                or not _normalise_text(transition.failure_narration)
+            ):
+                gated_transitions_missing_failure.append((scene_id, command))
+
+            for index, override in enumerate(transition.narration_overrides):
+                if not _normalise_text(override.narration):
+                    conditional_overrides_missing_narration.append(
+                        (scene_id, command, index)
+                    )
+
+    return AdventureQualityReport(
+        scenes_missing_description=tuple(sorted(scenes_missing_description)),
+        choices_missing_description=tuple(sorted(choices_missing_description)),
+        transitions_missing_narration=tuple(sorted(transitions_missing_narration)),
+        gated_transitions_missing_failure=tuple(
+            sorted(gated_transitions_missing_failure)
+        ),
+        conditional_overrides_missing_narration=tuple(
+            sorted(conditional_overrides_missing_narration)
+        ),
+    )
+
+
+def assess_adventure_quality_from_definitions(
+    definitions: Mapping[str, Any],
+) -> AdventureQualityReport:
+    """Parse scene definitions and perform quality checks."""
+
+    from .scripted_story_engine import load_scenes_from_mapping
+
+    scenes = load_scenes_from_mapping(definitions)
+    return assess_adventure_quality(cast(Mapping[str, _SceneLike], scenes))
+
+
+def assess_adventure_quality_from_file(
+    path: str | Path,
+) -> AdventureQualityReport:
+    """Load scene definitions from ``path`` and perform quality checks."""
+
+    from .scripted_story_engine import load_scenes_from_file
+
+    scenes = load_scenes_from_file(path)
+    return assess_adventure_quality(cast(Mapping[str, _SceneLike], scenes))
+
+
 def compute_scene_reachability(
     scenes: Mapping[str, _SceneLike],
     *,
@@ -584,6 +685,53 @@ def format_content_distribution_report(
     return "\n".join(lines)
 
 
+def format_quality_report(report: AdventureQualityReport) -> str:
+    """Return a human-friendly report highlighting potential issues."""
+
+    lines = [
+        "Adventure Quality Assessment",
+        "============================",
+        f"Total issues detected: {report.issue_count}",
+    ]
+
+    if report.scenes_missing_description:
+        lines.append("Scenes missing descriptions:")
+        lines.extend(f"- {scene}" for scene in report.scenes_missing_description)
+
+    if report.choices_missing_description:
+        lines.append("Choices missing descriptions:")
+        lines.extend(
+            f"- {scene} :: {command}"
+            for scene, command in report.choices_missing_description
+        )
+
+    if report.transitions_missing_narration:
+        lines.append("Transitions missing narration:")
+        lines.extend(
+            f"- {scene} :: {command}"
+            for scene, command in report.transitions_missing_narration
+        )
+
+    if report.gated_transitions_missing_failure:
+        lines.append("Gated transitions missing failure narration:")
+        lines.extend(
+            f"- {scene} :: {command}"
+            for scene, command in report.gated_transitions_missing_failure
+        )
+
+    if report.conditional_overrides_missing_narration:
+        lines.append("Conditional overrides missing narration:")
+        lines.extend(
+            f"- {scene} :: {command} (override #{index + 1})"
+            for scene, command, index in report.conditional_overrides_missing_narration
+        )
+
+    if len(lines) == 3:
+        lines.append("No quality issues detected.")
+
+    return "\n".join(lines)
+
+
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -628,15 +776,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     reachability = compute_scene_reachability(
         scene_mapping, start_scene=args.start_scene
     )
+    quality = assess_adventure_quality(scene_mapping)
 
     report = format_complexity_report(metrics)
     distribution_report = format_content_distribution_report(content_distribution)
     reachability_report = format_reachability_report(reachability)
+    quality_report = format_quality_report(quality)
     print(report)
     print()
     print(distribution_report)
     print()
     print(reachability_report)
+    print()
+    print(quality_report)
     return 0
 
 
