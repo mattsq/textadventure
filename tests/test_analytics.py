@@ -8,9 +8,12 @@ from textadventure.analytics import (
     AdventureReachabilityReport,
     compute_adventure_complexity,
     compute_adventure_complexity_from_definitions,
+    compute_adventure_content_distribution,
+    compute_adventure_content_distribution_from_definitions,
     compute_scene_reachability,
     compute_scene_reachability_from_definitions,
     format_complexity_report,
+    format_content_distribution_report,
     format_reachability_report,
 )
 from textadventure.scripted_story_engine import load_scenes_from_mapping
@@ -176,6 +179,62 @@ def test_format_complexity_report_includes_key_details() -> None:
     assert "Choices: 6" in report
     assert "Unique items awarded: torch" in report
     assert "Unique history records: entered-hall" in report
+
+
+def test_compute_content_distribution() -> None:
+    scenes = load_scenes_from_mapping(_SAMPLE_SCENE_DEFINITIONS)
+    distribution = compute_adventure_content_distribution(scenes)
+
+    scene_summary = distribution.scene_descriptions
+    assert scene_summary.total_entries == 2
+    assert scene_summary.total_words == 15
+    assert scene_summary.max_words == 8
+    assert scene_summary.average_words == pytest.approx(7.5)
+
+    choice_summary = distribution.choice_descriptions
+    assert choice_summary.total_entries == 6
+    assert choice_summary.total_words == 23
+    assert choice_summary.min_words == 3
+    assert choice_summary.max_words == 5
+    assert choice_summary.average_characters == pytest.approx(23.1666, rel=1e-4)
+
+    transition_summary = distribution.transition_narrations
+    assert transition_summary.total_entries == 5
+    assert transition_summary.total_words == 42
+    assert transition_summary.max_words == 10
+
+    failure_summary = distribution.failure_narrations
+    assert failure_summary.total_entries == 1
+    assert failure_summary.total_words == 8
+    assert failure_summary.average_characters == pytest.approx(41.0)
+
+    conditional_summary = distribution.conditional_narrations
+    assert conditional_summary.total_entries == 1
+    assert conditional_summary.total_words == 7
+    assert conditional_summary.total_characters == 52
+
+
+def test_content_distribution_from_definitions_matches_direct() -> None:
+    direct = compute_adventure_content_distribution(
+        load_scenes_from_mapping(_SAMPLE_SCENE_DEFINITIONS)
+    )
+    via_definitions = compute_adventure_content_distribution_from_definitions(
+        _SAMPLE_SCENE_DEFINITIONS
+    )
+
+    assert via_definitions == direct
+
+
+def test_format_content_distribution_report_highlights_sections() -> None:
+    distribution = compute_adventure_content_distribution(
+        load_scenes_from_mapping(_SAMPLE_SCENE_DEFINITIONS)
+    )
+    report = format_content_distribution_report(distribution)
+
+    assert "Adventure Content Distribution" in report
+    assert "Scene descriptions" in report
+    assert "Choice descriptions" in report
+    assert "Transition narrations" in report
 
 
 def test_compute_scene_reachability_identifies_unreachable_scene() -> None:

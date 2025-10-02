@@ -319,7 +319,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Add analytics helpers to compute reachable and unreachable scenes from a starting location.
         - [x] Surface a formatted reachability report alongside the existing complexity output.
         - [x] Cover the new helpers with automated tests against sample scenes.
-      - [ ] Content distribution analysis
+      - [x] Content distribution analysis *(Added word/character distribution metrics across scenes, choices, transitions, failure narrations, and conditional overrides with CLI reporting.)*
       - [ ] Quality assessment tools
 
   - [ ] **Phase 9: Integration & Deployment**
