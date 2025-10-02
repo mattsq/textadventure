@@ -10,20 +10,30 @@ from typing import Any, Mapping, Protocol, Sequence, cast
 from .story_engine import StoryChoice
 
 
+class _ConditionalNarrationLike(Protocol):
+    """Protocol describing the data needed from conditional narration blocks."""
+
+    narration: str
+    records: Sequence[str]
+
+
 class _TransitionLike(Protocol):
     """Protocol describing the fields needed from transition objects."""
 
+    narration: str
+    failure_narration: str | None
     target: str | None
     item: str | None
     requires: Sequence[str]
     consumes: Sequence[str]
     records: Sequence[str]
-    narration_overrides: Sequence[object]
+    narration_overrides: Sequence[_ConditionalNarrationLike]
 
 
 class _SceneLike(Protocol):
     """Protocol describing the subset of scene details required for metrics."""
 
+    description: str
     choices: Sequence[StoryChoice]
     transitions: Mapping[str, _TransitionLike]
 
@@ -101,10 +111,102 @@ class AdventureReachabilityReport:
         return self.unreachable_count == 0
 
 
+@dataclass(frozen=True)
+class TextDistributionSummary:
+    """Statistical summary describing a collection of text entries."""
+
+    total_entries: int
+    empty_entries: int
+    total_characters: int
+    average_characters: float
+    min_characters: int
+    max_characters: int
+    total_words: int
+    average_words: float
+    min_words: int
+    max_words: int
+
+    @property
+    def non_empty_entries(self) -> int:
+        """Return the number of entries containing non-whitespace text."""
+
+        return self.total_entries - self.empty_entries
+
+
+@dataclass(frozen=True)
+class AdventureContentDistribution:
+    """Summary describing how narrative text is distributed across scenes."""
+
+    scene_descriptions: TextDistributionSummary
+    choice_descriptions: TextDistributionSummary
+    transition_narrations: TextDistributionSummary
+    failure_narrations: TextDistributionSummary
+    conditional_narrations: TextDistributionSummary
+
+
 def _safe_average(total: int, count: int) -> float:
     if count == 0:
         return 0.0
     return total / count
+
+
+def _normalise_text(value: str) -> str:
+    return value.strip()
+
+
+def _count_words(value: str) -> int:
+    stripped = _normalise_text(value)
+    if not stripped:
+        return 0
+    return len(stripped.split())
+
+
+def _summarise_texts(entries: Sequence[str]) -> TextDistributionSummary:
+    total_entries = len(entries)
+    if total_entries == 0:
+        return TextDistributionSummary(
+            total_entries=0,
+            empty_entries=0,
+            total_characters=0,
+            average_characters=0.0,
+            min_characters=0,
+            max_characters=0,
+            total_words=0,
+            average_words=0.0,
+            min_words=0,
+            max_words=0,
+        )
+
+    empty_entries = 0
+    character_counts: list[int] = []
+    word_counts: list[int] = []
+
+    for entry in entries:
+        stripped = _normalise_text(entry)
+        if not stripped:
+            empty_entries += 1
+        character_count = len(stripped)
+        word_count = _count_words(stripped)
+        character_counts.append(character_count)
+        word_counts.append(word_count)
+
+    total_characters = sum(character_counts)
+    total_words = sum(word_counts)
+    average_characters = total_characters / total_entries
+    average_words = total_words / total_entries
+
+    return TextDistributionSummary(
+        total_entries=total_entries,
+        empty_entries=empty_entries,
+        total_characters=total_characters,
+        average_characters=average_characters,
+        min_characters=min(character_counts),
+        max_characters=max(character_counts),
+        total_words=total_words,
+        average_words=average_words,
+        min_words=min(word_counts),
+        max_words=max(word_counts),
+    )
 
 
 def compute_adventure_complexity(
@@ -221,6 +323,68 @@ def compute_adventure_complexity_from_file(
 
     scenes = load_scenes_from_file(path)
     return compute_adventure_complexity(cast(Mapping[str, _SceneLike], scenes))
+
+
+def compute_adventure_content_distribution(
+    scenes: Mapping[str, _SceneLike],
+) -> AdventureContentDistribution:
+    """Summarise how narrative text is distributed across scenes."""
+
+    scene_descriptions = [scene.description for scene in scenes.values()]
+    choice_descriptions = [
+        choice.description for scene in scenes.values() for choice in scene.choices
+    ]
+    transition_narrations = [
+        transition.narration
+        for scene in scenes.values()
+        for transition in scene.transitions.values()
+    ]
+    failure_narrations = [
+        transition.failure_narration
+        for scene in scenes.values()
+        for transition in scene.transitions.values()
+        if transition.failure_narration is not None
+    ]
+    conditional_narrations = [
+        override.narration
+        for scene in scenes.values()
+        for transition in scene.transitions.values()
+        for override in transition.narration_overrides
+    ]
+
+    return AdventureContentDistribution(
+        scene_descriptions=_summarise_texts(scene_descriptions),
+        choice_descriptions=_summarise_texts(choice_descriptions),
+        transition_narrations=_summarise_texts(transition_narrations),
+        failure_narrations=_summarise_texts(failure_narrations),
+        conditional_narrations=_summarise_texts(conditional_narrations),
+    )
+
+
+def compute_adventure_content_distribution_from_definitions(
+    definitions: Mapping[str, Any],
+) -> AdventureContentDistribution:
+    """Parse scene definitions and summarise the narrative content distribution."""
+
+    from .scripted_story_engine import load_scenes_from_mapping
+
+    scenes = load_scenes_from_mapping(definitions)
+    return compute_adventure_content_distribution(
+        cast(Mapping[str, _SceneLike], scenes)
+    )
+
+
+def compute_adventure_content_distribution_from_file(
+    path: str | Path,
+) -> AdventureContentDistribution:
+    """Load scene definitions from ``path`` and summarise the content distribution."""
+
+    from .scripted_story_engine import load_scenes_from_file
+
+    scenes = load_scenes_from_file(path)
+    return compute_adventure_content_distribution(
+        cast(Mapping[str, _SceneLike], scenes)
+    )
 
 
 def compute_scene_reachability(
@@ -361,6 +525,65 @@ def format_reachability_report(report: AdventureReachabilityReport) -> str:
     return "\n".join(lines)
 
 
+def _format_distribution_section(
+    title: str, summary: TextDistributionSummary
+) -> list[str]:
+    return [
+        f"{title}:",
+        f"  Total entries: {summary.total_entries}",
+        f"  Non-empty entries: {summary.non_empty_entries}",
+        (
+            "  Words: "
+            f"{summary.total_words} (avg {summary.average_words:.2f}, "
+            f"min {summary.min_words}, max {summary.max_words})"
+        ),
+        (
+            "  Characters: "
+            f"{summary.total_characters} (avg {summary.average_characters:.2f}, "
+            f"min {summary.min_characters}, max {summary.max_characters})"
+        ),
+    ]
+
+
+def format_content_distribution_report(
+    distribution: AdventureContentDistribution,
+) -> str:
+    """Return a human-friendly report summarising content distribution."""
+
+    lines = [
+        "Adventure Content Distribution",
+        "==============================",
+    ]
+
+    lines.extend(
+        _format_distribution_section(
+            "Scene descriptions", distribution.scene_descriptions
+        )
+    )
+    lines.extend(
+        _format_distribution_section(
+            "Choice descriptions", distribution.choice_descriptions
+        )
+    )
+    lines.extend(
+        _format_distribution_section(
+            "Transition narrations", distribution.transition_narrations
+        )
+    )
+    lines.extend(
+        _format_distribution_section(
+            "Failure narrations", distribution.failure_narrations
+        )
+    )
+    lines.extend(
+        _format_distribution_section(
+            "Conditional narrations", distribution.conditional_narrations
+        )
+    )
+
+    return "\n".join(lines)
+
+
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -401,13 +624,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     scene_mapping = cast(Mapping[str, _SceneLike], scenes)
     metrics = compute_adventure_complexity(scene_mapping)
+    content_distribution = compute_adventure_content_distribution(scene_mapping)
     reachability = compute_scene_reachability(
         scene_mapping, start_scene=args.start_scene
     )
 
     report = format_complexity_report(metrics)
+    distribution_report = format_content_distribution_report(content_distribution)
     reachability_report = format_reachability_report(reachability)
     print(report)
+    print()
+    print(distribution_report)
     print()
     print(reachability_report)
     return 0
