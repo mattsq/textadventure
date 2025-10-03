@@ -161,6 +161,10 @@ agents. [`docs/llm_capabilities.md`](docs/llm_capabilities.md) documents the
 capability schema that LLM adapters use to advertise streaming, function
 calling, and tool support.
 
+Looking for a quick catalogue of everything the framework currently supports?
+See the [feature reference](docs/feature_reference.md) for an overview of the
+CLI, persistence, analytics, search tooling, and more.
+
 ## Troubleshooting
 
 Encountering issues with the CLI, persistence, or LLM integrations? Consult the

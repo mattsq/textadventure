@@ -356,7 +356,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] **Phase 10: Documentation & Community**
   - [ ] Create comprehensive user documentation:
       - [x] Getting started guide *(Added `docs/getting_started.md` with step-by-step setup, quality gates, and troubleshooting tips, and linked it from the README.)*
-      - [ ] Feature reference
+      - [x] Feature reference *(Documented key capabilities in `docs/feature_reference.md` and linked the overview from the README.)*
       - [ ] Advanced techniques
       - [ ] Troubleshooting guide
     - [ ] Build developer documentation:
