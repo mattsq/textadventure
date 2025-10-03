@@ -308,7 +308,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Create help system:
       - [ ] Interactive tutorials
       - [ ] Context-sensitive help
-      - [ ] Best practices guide
+      - [x] Best practices guide *(Documented adventure design guidance in `docs/best_practices.md` and linked it from the README.)*
       - [ ] Troubleshooting documentation
     - [ ] Implement data analytics:
       - [x] Adventure complexity metrics

@@ -151,7 +151,9 @@ Running the CLI with this engine lets designers iterate on adventures without
 changing the Python source. See
 [`docs/data_driven_scenes.md`](docs/data_driven_scenes.md) for a full breakdown
 of the JSON schema, validation rules, and tips for wiring custom files into the
-demo. [`docs/multi_agent_orchestration.md`](docs/multi_agent_orchestration.md)
+demo. [`docs/best_practices.md`](docs/best_practices.md) captures field-tested
+guidance for structuring scenes, gating progression, and preparing analytics
+reports. [`docs/multi_agent_orchestration.md`](docs/multi_agent_orchestration.md)
 describes how the coordinator hands off turns between scripted and LLM-backed
 agents. [`docs/llm_capabilities.md`](docs/llm_capabilities.md) documents the
 capability schema that LLM adapters use to advertise streaming, function
