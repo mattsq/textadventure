@@ -227,7 +227,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Rich text editor for narration
         - [ ] Evaluate rich text frameworks that output Markdown-compatible content
         - [x] Document requirements and integration plan *(see `docs/rich_text_editor_plan.md`)*
-        - [ ] Prototype Markdown rendering in the CLI runtime
+        - [x] Prototype Markdown rendering in the CLI runtime *(Added ANSI Markdown renderer and wired it into the CLI formatting flow.)*
         - [ ] Integrate the editor into the scene authoring UI shell
         - [ ] Add collaborative enhancements (presence indicators, inline comments)
       - [ ] Item requirements multi-select

@@ -10,6 +10,8 @@ from typing import Mapping, Sequence, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover - imported only for type checking
     from .world_state import WorldState
 
+from .markdown import render_markdown
+
 
 def _validate_text(value: str, *, field_name: str) -> str:
     """Validate and normalise free-form text fields used by story elements."""
@@ -101,11 +103,12 @@ class StoryEngine(ABC):
     def format_event(self, event: StoryEvent) -> str:
         """Create a printable representation of a story event."""
 
-        lines = [event.narration]
+        lines = [render_markdown(event.narration)]
         if event.choices:
             lines.append("")
             for choice in event.choices:
-                lines.append(f"[{choice.command}] {choice.description}")
+                description = render_markdown(choice.description)
+                lines.append(f"[{choice.command}] {description}")
         return "\n".join(lines)
 
 
