@@ -69,15 +69,17 @@ TASKS.md                   # Planning notes and backlog ideas
 3. Launch the demo adventure:
    ```bash
    python src/main.py
-   ```
-   Run `python src/main.py --help` to discover options for enabling persistence
-   (`--session-dir`, `--session-id`, `--no-persistence`) and transcript logging
-   (`--log-file`). The CLI can also attach an LLM-backed secondary narrator via
-   `--llm-provider`, forwarding additional key/value pairs to the selected
-   provider with repeated `--llm-option` flags (for example,
-   `--llm-provider openai --llm-option api_key=...`). Alternatively pass
-   `--llm-config path/to/config.json` to load the provider identifier and
-   options from a JSON file.
+ ```
+  Run `python src/main.py --help` to discover options for enabling persistence
+  (`--session-dir`, `--session-id`, `--no-persistence`) and transcript logging
+  (`--log-file`). The CLI can also attach an LLM-backed secondary narrator via
+  `--llm-provider`, forwarding additional key/value pairs to the selected
+  provider with repeated `--llm-option` flags (for example,
+  `--llm-provider openai --llm-option api_key=...`). Alternatively pass
+  `--llm-config path/to/config.json` to load the provider identifier and
+  options from a JSON file. A more detailed walkthrough covering environment
+  setup, optional features, and troubleshooting lives in
+  [`docs/getting_started.md`](docs/getting_started.md).
 
 ### Adding an LLM Co-narrator
 

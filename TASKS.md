@@ -354,8 +354,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Data export for migration
 
   - [ ] **Phase 10: Documentation & Community**
-    - [ ] Create comprehensive user documentation:
-      - [ ] Getting started guide
+  - [ ] Create comprehensive user documentation:
+      - [x] Getting started guide *(Added `docs/getting_started.md` with step-by-step setup, quality gates, and troubleshooting tips, and linked it from the README.)*
       - [ ] Feature reference
       - [ ] Advanced techniques
       - [ ] Troubleshooting guide
