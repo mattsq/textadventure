@@ -52,6 +52,16 @@ from .multi_agent import (
     ScriptedStoryAgent,
 )
 from .llm_story_agent import LLMStoryAgent
+from .search import (
+    FieldMatch,
+    FieldType,
+    SceneSearchResult,
+    SearchResults,
+    TextSpan,
+    search_scene_text,
+    search_scene_text_from_definitions,
+    search_scene_text_from_file,
+)
 from .persistence import (
     FileSessionStore,
     InMemorySessionStore,
@@ -103,6 +113,14 @@ __all__ = [
     "CoordinatorDebugState",
     "QueuedAgentMessage",
     "LLMStoryAgent",
+    "FieldMatch",
+    "FieldType",
+    "SceneSearchResult",
+    "SearchResults",
+    "TextSpan",
+    "search_scene_text",
+    "search_scene_text_from_definitions",
+    "search_scene_text_from_file",
     "render_markdown",
     "Tool",
     "ToolResponse",

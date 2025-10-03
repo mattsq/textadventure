@@ -151,3 +151,41 @@ def test_get_scene_can_include_validation_issues() -> None:
     )
     assert override_issue["severity"] == "error"
     assert override_issue["path"] == "transitions.use.narration_overrides[0].narration"
+
+
+def test_search_endpoint_returns_matches() -> None:
+    client = _client()
+
+    response = client.get("/api/search", params={"query": "gate"})
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["query"] == "gate"
+    assert payload["total_results"] >= 1
+    assert payload["total_matches"] >= 1
+
+    results = payload["results"]
+    assert results, "Expected search to return at least one scene"
+    first_result = results[0]
+    assert "scene_id" in first_result
+    assert first_result["match_count"] >= 1
+    assert first_result["matches"]
+    first_match = first_result["matches"][0]
+    assert first_match["spans"], "Expected match spans to be included"
+
+
+def test_search_endpoint_respects_limit_parameter() -> None:
+    client = _client()
+
+    response = client.get("/api/search", params={"query": "the", "limit": 1})
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert len(payload["results"]) == 1
+
+
+def test_search_endpoint_rejects_blank_queries() -> None:
+    client = _client()
+
+    response = client.get("/api/search", params={"query": "   "})
+    assert response.status_code == 400
