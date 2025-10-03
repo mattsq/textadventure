@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Literal, cast
+from typing import Any, Iterable, Mapping, Literal, Sequence, cast, get_args
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field, field_serializer
@@ -83,6 +83,52 @@ class SceneSearchResponse(BaseModel):
     total_results: int
     total_matches: int
     results: list[SceneSearchResultResource]
+
+
+def _parse_field_type_filters(value: str | None) -> list[FieldType] | None:
+    """Parse comma-separated field types into validated values."""
+
+    if value is None:
+        return None
+
+    raw_values = [candidate.strip() for candidate in value.split(",")]
+    filtered = [candidate for candidate in raw_values if candidate]
+    if not filtered:
+        return []
+
+    allowed = set(get_args(FieldType))
+    invalid = [candidate for candidate in filtered if candidate not in allowed]
+    if invalid:
+        joined = ", ".join(sorted(invalid))
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported field_types value(s): {joined}.",
+        )
+
+    return [cast(FieldType, candidate) for candidate in filtered]
+
+
+def _parse_validation_filters(value: str | None) -> list[ValidationStatus] | None:
+    """Parse comma-separated validation statuses into validated values."""
+
+    if value is None:
+        return None
+
+    raw_values = [candidate.strip() for candidate in value.split(",")]
+    filtered = [candidate for candidate in raw_values if candidate]
+    if not filtered:
+        return []
+
+    allowed = set(get_args(ValidationStatus))
+    invalid = [candidate for candidate in filtered if candidate not in allowed]
+    if invalid:
+        joined = ", ".join(sorted(invalid))
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported validation_statuses value(s): {joined}.",
+        )
+
+    return [cast(ValidationStatus, candidate) for candidate in filtered]
 
 
 @dataclass(frozen=True)
@@ -229,12 +275,51 @@ class SceneService:
 
         return SceneDetailResponse(data=resource, validation=validation)
 
-    def search_scene_text(self, query: str) -> SearchResults:
+    def search_scene_text(
+        self,
+        query: str,
+        *,
+        field_types: Sequence[FieldType] | FieldType | None = None,
+        validation_statuses: (
+            Sequence[ValidationStatus] | ValidationStatus | None
+        ) = None,
+    ) -> SearchResults:
         """Search scene text content for the provided ``query``."""
 
         definitions, _ = self._repository.load()
         scenes = load_scenes_from_mapping(definitions)
-        return search_scene_text(cast(Mapping[str, _SceneLike], scenes), query)
+        if field_types is None:
+            field_type_filter: list[FieldType] | None = None
+        elif isinstance(field_types, str):
+            field_type_filter = [field_types]
+        else:
+            field_type_filter = list(field_types)
+
+        if validation_statuses is None:
+            status_filter: list[ValidationStatus] | None = None
+        elif isinstance(validation_statuses, str):
+            status_filter = [validation_statuses]
+        else:
+            status_filter = list(validation_statuses)
+        allowed_scene_ids: set[str] | None = None
+
+        if status_filter is not None:
+            validation_map = _compute_validation_statuses(
+                cast(Mapping[str, Any], scenes)
+            )
+            allowed_statuses = set(status_filter)
+            allowed_scene_ids = {
+                scene_id
+                for scene_id, status in validation_map.items()
+                if status in allowed_statuses
+            }
+
+        return search_scene_text(
+            cast(Mapping[str, _SceneLike], scenes),
+            query,
+            field_types=field_type_filter,
+            allowed_scene_ids=allowed_scene_ids,
+        )
 
 
 def create_app(scene_service: SceneService | None = None) -> FastAPI:
@@ -302,6 +387,17 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
         query: str = Query(
             ..., min_length=1, description="Case-insensitive text to search for."
         ),
+        field_types: str | None = Query(
+            None,
+            description="Restrict matches to specific narrative fields (comma-separated).",
+        ),
+        validation_statuses: str | None = Query(
+            None,
+            description=(
+                "Limit results to scenes matching the provided validation states "
+                "(comma-separated)."
+            ),
+        ),
         limit: int = Query(
             50,
             ge=1,
@@ -310,7 +406,11 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
         ),
     ) -> SceneSearchResponse:
         try:
-            results = service.search_scene_text(query=query)
+            results = service.search_scene_text(
+                query=query,
+                field_types=_parse_field_type_filters(field_types),
+                validation_statuses=_parse_validation_filters(validation_statuses),
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:

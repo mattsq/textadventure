@@ -189,3 +189,134 @@ def test_search_endpoint_rejects_blank_queries() -> None:
 
     response = client.get("/api/search", params={"query": "   "})
     assert response.status_code == 400
+
+
+def test_search_endpoint_can_filter_by_field_type() -> None:
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            definitions: Mapping[str, Any] = {
+                "alpha": {
+                    "description": "Alpha ruins overlook the valley.",
+                    "choices": [
+                        {"command": "inspect", "description": "Inspect the carvings."},
+                    ],
+                    "transitions": {
+                        "inspect": {
+                            "narration": "The Alpha glyphs shimmer faintly.",
+                        }
+                    },
+                },
+                "beta": {
+                    "description": "A quiet grove surrounds an ancient obelisk.",
+                    "choices": [
+                        {
+                            "command": "whisper",
+                            "description": "Whisper about the Alpha trail.",
+                        }
+                    ],
+                    "transitions": {
+                        "whisper": {
+                            "narration": "The grove echoes the word alpha in reply.",
+                        }
+                    },
+                },
+            }
+            timestamp = datetime(2024, 1, 1, tzinfo=timezone.utc)
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    unfiltered = client.get("/api/search", params={"query": "alpha"})
+    assert unfiltered.status_code == 200
+    scene_ids = {result["scene_id"] for result in unfiltered.json()["results"]}
+    assert scene_ids == {"alpha", "beta"}
+
+    filtered = client.get(
+        "/api/search",
+        params=[("query", "alpha"), ("field_types", "choice_description")],
+    )
+    assert filtered.status_code == 200
+
+    payload = filtered.json()
+    filtered_ids = {result["scene_id"] for result in payload["results"]}
+    assert filtered_ids == {"beta"}
+
+    for result in payload["results"]:
+        assert result["matches"], "Expected field matches in filtered results"
+        for match in result["matches"]:
+            assert match["field_type"] == "choice_description"
+
+
+def test_search_endpoint_can_filter_by_validation_status() -> None:
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            definitions: Mapping[str, Any] = {
+                "valid-scene": {
+                    "description": "Alpha winds through a serene pass.",
+                    "choices": [
+                        {
+                            "command": "walk",
+                            "description": "Continue toward the Alpha ridge.",
+                        },
+                    ],
+                    "transitions": {
+                        "walk": {
+                            "narration": "You follow the alpha ridge further north.",
+                        }
+                    },
+                },
+                "warning-scene": {
+                    "description": "Alpha stones line a treacherous bridge.",
+                    "choices": [
+                        {
+                            "command": "cross",
+                            "description": "Attempt the Alpha crossing.",
+                        },
+                    ],
+                    "transitions": {
+                        "cross": {
+                            "narration": "Each step echoes alpha into the canyon.",
+                            "requires": ["rope"],
+                        }
+                    },
+                },
+                "error-scene": {
+                    "description": " ",
+                    "choices": [
+                        {
+                            "command": "signal",
+                            "description": "Signal with an alpha flare.",
+                        }
+                    ],
+                    "transitions": {
+                        "signal": {
+                            "narration": "",
+                        }
+                    },
+                },
+            }
+            timestamp = datetime(2024, 1, 1, tzinfo=timezone.utc)
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/search", params={"query": "alpha"})
+    assert response.status_code == 200
+    all_ids = {result["scene_id"] for result in response.json()["results"]}
+    assert all_ids == {"valid-scene", "warning-scene", "error-scene"}
+
+    def _fetch_ids(*statuses: str) -> set[str]:
+        params = {"query": "alpha"}
+        if statuses:
+            params["validation_statuses"] = ",".join(statuses)
+
+        response = client.get("/api/search", params=params)
+        assert response.status_code == 200
+        return {result["scene_id"] for result in response.json()["results"]}
+
+    assert _fetch_ids("valid") == {"valid-scene"}
+    assert _fetch_ids("warnings") == {"warning-scene"}
+    assert _fetch_ids("errors") == {"error-scene"}
+    assert _fetch_ids("valid", "warnings") == {"valid-scene", "warning-scene"}
