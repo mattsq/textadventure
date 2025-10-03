@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 
 from textadventure.analytics import (
     AdventureReachabilityReport,
+    assess_adventure_quality,
+    assess_adventure_quality_from_definitions,
     compute_adventure_complexity,
     compute_adventure_complexity_from_definitions,
     compute_adventure_content_distribution,
@@ -14,9 +18,41 @@ from textadventure.analytics import (
     compute_scene_reachability_from_definitions,
     format_complexity_report,
     format_content_distribution_report,
+    format_quality_report,
     format_reachability_report,
 )
 from textadventure.scripted_story_engine import load_scenes_from_mapping
+
+
+@dataclass(frozen=True)
+class _StubChoice:
+    command: str
+    description: str
+
+
+@dataclass(frozen=True)
+class _StubConditionalNarration:
+    narration: str
+    records: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _StubTransition:
+    narration: str
+    failure_narration: str | None = None
+    target: str | None = None
+    item: str | None = None
+    requires: tuple[str, ...] = ()
+    consumes: tuple[str, ...] = ()
+    records: tuple[str, ...] = ()
+    narration_overrides: tuple[_StubConditionalNarration, ...] = ()
+
+
+@dataclass(frozen=True)
+class _StubScene:
+    description: str
+    choices: tuple[_StubChoice, ...]
+    transitions: dict[str, _StubTransition]
 
 
 _SAMPLE_SCENE_DEFINITIONS = {
@@ -131,6 +167,51 @@ _REACHABILITY_SCENE_DEFINITIONS = {
             }
         },
     },
+}
+
+
+_QUALITY_SCENE_DEFINITIONS = {
+    "entry": {
+        "description": "A threshold between the forest and the ruin.",
+        "choices": [
+            {"command": "push", "description": "Push the heavy door."},
+        ],
+        "transitions": {
+            "push": {
+                "narration": " ",
+                "requires": ["iron-key"],
+                "narration_overrides": [
+                    {"narration": " ", "requires_history_any": ["inspected-door"]}
+                ],
+            }
+        },
+    }
+}
+
+
+_QUALITY_SCENES = {
+    "empty": _StubScene(
+        description=" ",
+        choices=(_StubChoice(command="noop", description=""),),
+        transitions={
+            "noop": _StubTransition(
+                narration="",
+                requires=("key",),
+                failure_narration=" ",
+                narration_overrides=(_StubConditionalNarration(narration=" "),),
+            )
+        },
+    ),
+    "complete": _StubScene(
+        description="A well described scene.",
+        choices=(_StubChoice(command="go", description="Proceed forward."),),
+        transitions={
+            "go": _StubTransition(
+                narration="You continue onward.",
+                target="empty",
+            )
+        },
+    ),
 }
 
 
@@ -277,6 +358,37 @@ def test_format_reachability_report_lists_unreachable_scenes() -> None:
     assert "Reachable scenes: 3 / 4" in formatted
     assert "Unreachable scenes detected" in formatted
     assert "isolated-sanctum" in formatted
+
+
+def test_assess_adventure_quality_highlights_issues() -> None:
+    report = assess_adventure_quality(_QUALITY_SCENES)
+
+    assert report.has_issues
+    assert report.scenes_missing_description == ("empty",)
+    assert report.choices_missing_description == (("empty", "noop"),)
+    assert report.transitions_missing_narration == (("empty", "noop"),)
+    assert report.gated_transitions_missing_failure == (("empty", "noop"),)
+    assert report.conditional_overrides_missing_narration == (("empty", "noop", 0),)
+
+
+def test_assess_adventure_quality_from_definitions_matches_direct() -> None:
+    report = assess_adventure_quality_from_definitions(_QUALITY_SCENE_DEFINITIONS)
+
+    assert not report.scenes_missing_description
+    assert not report.choices_missing_description
+    assert report.transitions_missing_narration == (("entry", "push"),)
+    assert report.gated_transitions_missing_failure == (("entry", "push"),)
+    assert report.conditional_overrides_missing_narration == (("entry", "push", 0),)
+
+
+def test_format_quality_report_lists_detected_issues() -> None:
+    report = assess_adventure_quality_from_definitions(_QUALITY_SCENE_DEFINITIONS)
+    formatted = format_quality_report(report)
+
+    assert "Adventure Quality Assessment" in formatted
+    assert "Total issues detected: 3" in formatted
+    assert "Scenes missing descriptions" not in formatted
+    assert "Conditional overrides missing narration" in formatted
 
 
 def test_compute_scene_reachability_raises_for_unknown_start() -> None:

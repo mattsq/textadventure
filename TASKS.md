@@ -320,7 +320,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Surface a formatted reachability report alongside the existing complexity output.
         - [x] Cover the new helpers with automated tests against sample scenes.
       - [x] Content distribution analysis *(Added word/character distribution metrics across scenes, choices, transitions, failure narrations, and conditional overrides with CLI reporting.)*
-      - [ ] Quality assessment tools
+      - [x] Quality assessment tools
+        - [x] Define heuristics for identifying low-quality scene content.
+        - [x] Implement quality assessment reporting utilities and CLI output.
+        - [x] Cover the new quality checks with automated tests.
 
   - [ ] **Phase 9: Integration & Deployment**
     - [ ] Integrate editor with existing CLI workflow:
