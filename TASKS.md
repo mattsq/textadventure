@@ -142,7 +142,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [ ] Design and implement a comprehensive web-based GUI for editing and extending scene data to make adventure authoring accessible to non-programmers.
   - [ ] **Phase 1: Foundation & Backend API**
     - [x] Analyze current JSON schema and identify all data relationships (scenes, transitions, items, conditions). *(Documented the existing runtime model in `docs/web_editor_schema.md` to guide the web editor API design.)*
-    - [ ] Design RESTful API specification for scene CRUD operations.
+    - [x] Design RESTful API specification for scene CRUD operations. *(Documented in `docs/web_editor_api_spec.md`.)*
     - [ ] Implement FastAPI backend with the following endpoints:
       - [ ] `GET /api/scenes` - List all scenes with metadata
       - [ ] `GET /api/scenes/{scene_id}` - Get detailed scene data
