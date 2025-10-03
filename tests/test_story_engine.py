@@ -61,3 +61,16 @@ def test_story_engine_format_event() -> None:
     assert "[examine]" not in formatted
     assert "[look]" in formatted
     assert "Survey the area" in formatted
+
+
+def test_story_engine_format_event_renders_markdown() -> None:
+    engine = DummyStoryEngine()
+    event = StoryEvent(
+        narration="You witness **something** remarkable.",
+        choices=[StoryChoice("Inspect", "Study the *details* carefully.")],
+    )
+
+    formatted = engine.format_event(event)
+
+    assert "\033[1msomething\033[0m" in formatted
+    assert "\033[3mdetails\033[0m" in formatted

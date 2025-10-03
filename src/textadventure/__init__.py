@@ -32,6 +32,7 @@ from .scripted_story_engine import (
     load_scenes_from_file,
     load_scenes_from_mapping,
 )
+from .markdown import render_markdown
 from .multi_agent import (
     Agent,
     AgentTrigger,
@@ -84,6 +85,7 @@ __all__ = [
     "CoordinatorDebugState",
     "QueuedAgentMessage",
     "LLMStoryAgent",
+    "render_markdown",
     "Tool",
     "ToolResponse",
     "KnowledgeBaseTool",
