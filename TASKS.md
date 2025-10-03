@@ -249,7 +249,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Source tracking (where items come from)
       - [ ] Usage tracking (where items are required)
       - [x] Orphaned item detection *(Implemented analytics helpers and CLI reporting for orphaned/unsourced items.)*
-      - [ ] Item balance analysis
+      - [x] Item balance analysis *(Added award/consumption balance classification and reporting.)*
 
   - [ ] **Phase 6: Live Preview & Testing**
     - [ ] Implement embedded adventure player:

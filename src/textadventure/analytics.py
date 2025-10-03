@@ -221,6 +221,42 @@ class ItemFlowDetails:
 
         return bool((not self.sources) and (self.requirements or self.consumptions))
 
+    @property
+    def total_sources(self) -> int:
+        """Return the number of award locations for the item."""
+
+        return len(self.sources)
+
+    @property
+    def total_requirements(self) -> int:
+        """Return the number of transitions that require the item."""
+
+        return len(self.requirements)
+
+    @property
+    def total_consumptions(self) -> int:
+        """Return the number of transitions that consume the item."""
+
+        return len(self.consumptions)
+
+    @property
+    def net_consumable_balance(self) -> int:
+        """Return the difference between award and consumption events."""
+
+        return self.total_sources - self.total_consumptions
+
+    @property
+    def has_surplus_awards(self) -> bool:
+        """Return ``True`` when the item can be acquired more often than consumed."""
+
+        return self.total_consumptions > 0 and self.net_consumable_balance > 0
+
+    @property
+    def has_consumption_deficit(self) -> bool:
+        """Return ``True`` when the item is consumed more often than it can be acquired."""
+
+        return self.total_consumptions > self.total_sources
+
 
 @dataclass(frozen=True)
 class ItemFlowReport:
@@ -239,6 +275,20 @@ class ItemFlowReport:
         """Return item identifiers that are required or consumed without a source."""
 
         return tuple(detail.item for detail in self.items if detail.is_missing_source)
+
+    @property
+    def items_with_surplus_awards(self) -> tuple[str, ...]:
+        """Return item identifiers that are awarded more times than they are consumed."""
+
+        return tuple(detail.item for detail in self.items if detail.has_surplus_awards)
+
+    @property
+    def items_with_consumption_deficit(self) -> tuple[str, ...]:
+        """Return item identifiers that are consumed more times than they are awarded."""
+
+        return tuple(
+            detail.item for detail in self.items if detail.has_consumption_deficit
+        )
 
 
 def _safe_average(total: int, count: int) -> float:
@@ -785,25 +835,44 @@ def format_item_flow_report(report: ItemFlowReport) -> str:
     if lines[-1] == "":
         lines.pop()
 
-    summary_added = False
+    summary_sections: list[tuple[str, tuple[str, ...]]] = []
+
     if report.orphaned_items:
-        if not summary_added:
-            lines.append("")
-            summary_added = True
-        lines.append("Items awarded but never used:")
-        lines.extend(f"- {item}" for item in report.orphaned_items)
+        summary_sections.append(
+            ("Items awarded but never used:", report.orphaned_items)
+        )
 
     if report.items_missing_sources:
-        if not summary_added:
-            lines.append("")
-            summary_added = True
-        lines.append("Items referenced without a source:")
-        lines.extend(f"- {item}" for item in report.items_missing_sources)
+        summary_sections.append(
+            ("Items referenced without a source:", report.items_missing_sources)
+        )
 
-    if not summary_added:
+    if report.items_with_surplus_awards:
+        summary_sections.append(
+            (
+                "Items awarded more times than they are consumed (potential surplus):",
+                report.items_with_surplus_awards,
+            )
+        )
+
+    if report.items_with_consumption_deficit:
+        summary_sections.append(
+            (
+                "Items consumed more times than they are awarded (potential deficit):",
+                report.items_with_consumption_deficit,
+            )
+        )
+
+    if summary_sections:
+        lines.append("")
+        for title, items in summary_sections:
+            lines.append(title)
+            lines.extend(f"- {item}" for item in items)
+    else:
         lines.append("")
         lines.append(
-            "All awarded items are referenced and every requirement has a source."
+            "All awarded items are referenced, every requirement has a source, "
+            "and consumable items have balanced awards."
         )
 
     return "\n".join(lines)
