@@ -159,6 +159,13 @@ agents. [`docs/llm_capabilities.md`](docs/llm_capabilities.md) documents the
 capability schema that LLM adapters use to advertise streaming, function
 calling, and tool support.
 
+## Troubleshooting
+
+Encountering issues with the CLI, persistence, or LLM integrations? Consult the
+[troubleshooting guide](docs/troubleshooting.md) for common symptoms, diagnostic
+steps, and recommended fixes. The checklist also covers analytics pitfalls and
+tips for capturing useful debug logs when reporting bugs.
+
 ## Testing and Quality Checks
 
 Run the automated checks from the repository root:

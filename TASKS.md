@@ -309,7 +309,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Interactive tutorials
       - [ ] Context-sensitive help
       - [x] Best practices guide *(Documented adventure design guidance in `docs/best_practices.md` and linked it from the README.)*
-      - [ ] Troubleshooting documentation
+      - [x] Troubleshooting documentation *(Added `docs/troubleshooting.md` and linked it from the README troubleshooting section.)*
     - [ ] Implement data analytics:
       - [x] Adventure complexity metrics
         - [x] Define core metrics to compute for scripted scene collections.
