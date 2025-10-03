@@ -235,6 +235,35 @@ def test_status_command_reports_world_and_queue_details(monkeypatch, capsys) -> 
     assert "Pending saves: checkpoint" in captured
 
 
+def test_help_command_offers_contextual_guidance(monkeypatch, capsys) -> None:
+    """The help command should surface both general and targeted guidance."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["help", "help explore", "help save", "help unknown", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world)
+
+    output = capsys.readouterr().out
+    assert "=== Help ===" in output
+    assert "Story choices:" in output
+    assert "explore - Head toward the mossy gate." in output
+    assert (
+        "save <session-id> - Unavailable: session persistence is disabled for this session."
+        in output
+    )
+    assert "=== Help: explore ===" in output
+    assert "This choice is currently available: Head toward the mossy gate." in output
+    assert "=== Help: save <session-id> ===" in output
+    assert "Unavailable: session persistence is disabled for this session." in output
+    assert (
+        "No help is available for 'unknown'. Showing general guidance instead."
+        in output
+    )
+
+
 def test_transcript_logger_captures_inputs_and_events(monkeypatch) -> None:
     """A transcript logger should record narration, metadata, and inputs."""
 
