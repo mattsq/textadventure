@@ -97,3 +97,30 @@ def test_search_rejects_empty_query() -> None:
 def test_search_from_definitions_helper() -> None:
     results = search_scene_text_from_definitions(_SAMPLE_DEFINITIONS, "torch")
     assert results.total_results == 1
+
+
+def test_search_scene_text_filters_allowed_field_types() -> None:
+    scenes = load_scenes_from_mapping(_SAMPLE_DEFINITIONS)
+
+    results = search_scene_text(
+        scenes,
+        "torch",
+        field_types=["choice_description"],
+    )
+
+    assert results.total_results == 1
+    scene_result = results.results[0]
+    assert scene_result.scene_id == "trail"
+    assert all(
+        match.field_type == "choice_description" for match in scene_result.matches
+    )
+
+
+def test_search_scene_text_filters_scene_ids() -> None:
+    scenes = load_scenes_from_mapping(_SAMPLE_DEFINITIONS)
+
+    only_trail = search_scene_text(scenes, "torch", allowed_scene_ids=["trail"])
+    assert {result.scene_id for result in only_trail.results} == {"trail"}
+
+    only_hall = search_scene_text(scenes, "torch", allowed_scene_ids=["hall"])
+    assert only_hall.total_results == 0

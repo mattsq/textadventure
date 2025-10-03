@@ -5,7 +5,17 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Protocol, Sequence, Tuple, Literal, cast
+from typing import (
+    Any,
+    Collection,
+    Iterable,
+    Mapping,
+    Protocol,
+    Sequence,
+    Tuple,
+    Literal,
+    cast,
+)
 
 
 FieldType = Literal[
@@ -105,6 +115,9 @@ class SearchResults:
 def search_scene_text(
     scenes: Mapping[str, _SceneLike],
     query: str,
+    *,
+    field_types: Collection[FieldType] | None = None,
+    allowed_scene_ids: Collection[str] | None = None,
 ) -> SearchResults:
     """Search narrative text fields across ``scenes`` for ``query``.
 
@@ -112,6 +125,10 @@ def search_scene_text(
     narrations, failure narrations, and conditional override narrations.
     Matching is case-insensitive and returns positional spans for callers that
     wish to highlight hits. Leading and trailing whitespace is ignored.
+
+    Optional ``field_types`` can restrict which narrative fields contribute to
+    the result set, while ``allowed_scene_ids`` limits which scenes are
+    considered during the search.
     """
 
     normalised_query = query.strip()
@@ -120,8 +137,12 @@ def search_scene_text(
 
     pattern = re.compile(re.escape(normalised_query), re.IGNORECASE)
     results: list[SceneSearchResult] = []
+    allowed_fields = set(field_types) if field_types is not None else None
+    allowed_scenes = set(allowed_scene_ids) if allowed_scene_ids is not None else None
 
     for scene_id in sorted(scenes.keys()):
+        if allowed_scenes is not None and scene_id not in allowed_scenes:
+            continue
         scene = scenes[scene_id]
         matches: list[FieldMatch] = []
 
@@ -176,8 +197,16 @@ def search_scene_text(
                 )
 
         if matches:
+            if allowed_fields is not None:
+                matches = [
+                    match for match in matches if match.field_type in allowed_fields
+                ]
+
             matches.sort(key=lambda match: (match.field_type, match.path))
-            results.append(SceneSearchResult(scene_id=scene_id, matches=tuple(matches)))
+            if matches:
+                results.append(
+                    SceneSearchResult(scene_id=scene_id, matches=tuple(matches))
+                )
 
     return SearchResults(query=normalised_query, results=tuple(results))
 
@@ -185,22 +214,41 @@ def search_scene_text(
 def search_scene_text_from_definitions(
     definitions: Mapping[str, Any],
     query: str,
+    *,
+    field_types: Collection[FieldType] | None = None,
+    allowed_scene_ids: Collection[str] | None = None,
 ) -> SearchResults:
     """Parse scene definitions and search their text content."""
 
     from .scripted_story_engine import load_scenes_from_mapping
 
     scenes = load_scenes_from_mapping(definitions)
-    return search_scene_text(cast(Mapping[str, _SceneLike], scenes), query)
+    return search_scene_text(
+        cast(Mapping[str, _SceneLike], scenes),
+        query,
+        field_types=field_types,
+        allowed_scene_ids=allowed_scene_ids,
+    )
 
 
-def search_scene_text_from_file(path: str | Path, query: str) -> SearchResults:
+def search_scene_text_from_file(
+    path: str | Path,
+    query: str,
+    *,
+    field_types: Collection[FieldType] | None = None,
+    allowed_scene_ids: Collection[str] | None = None,
+) -> SearchResults:
     """Load scene definitions from ``path`` and search their text content."""
 
     from .scripted_story_engine import load_scenes_from_file
 
     scenes = load_scenes_from_file(path)
-    return search_scene_text(cast(Mapping[str, _SceneLike], scenes), query)
+    return search_scene_text(
+        cast(Mapping[str, _SceneLike], scenes),
+        query,
+        field_types=field_types,
+        allowed_scene_ids=allowed_scene_ids,
+    )
 
 
 def _iter_field_matches(

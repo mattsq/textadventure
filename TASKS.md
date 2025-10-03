@@ -297,7 +297,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] **Phase 8: Quality of Life & Polish**
     - [ ] Implement comprehensive search:
       - [x] Global text search across all scenes *(Added search utilities and API endpoint for querying scene text with highlighted spans.)*
-      - [ ] Advanced filters (by type, validation status, etc.)
+      - [x] Advanced filters (by type, validation status, etc.) *(Search utilities now support field/scene filters and the API accepts comma-separated field type and validation filters with regression coverage.)*
+        - [x] Extend search utilities to support field-type and scene filters
+        - [x] Surface field-type filtering in the API/search endpoint
+        - [x] Add validation-status filtering support via the API
+        - [x] Expand tests covering the new filtering capabilities
       - [ ] Search and replace functionality
       - [ ] Reference finding
     - [ ] Add keyboard shortcuts and accessibility:
