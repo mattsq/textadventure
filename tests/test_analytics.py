@@ -483,6 +483,59 @@ def test_analyse_item_flow_tracks_sources_and_usage() -> None:
     assert report.items_missing_sources == ("gold-key",)
 
 
+def test_item_flow_report_classifies_balance_states() -> None:
+    report = ItemFlowReport(
+        items=(
+            ItemFlowDetails(
+                item="balanced",
+                sources=(ItemSource(scene="forge", command="award"),),
+                requirements=(),
+                consumptions=(ItemConsumption(scene="forge", command="consume"),),
+            ),
+            ItemFlowDetails(
+                item="surplus",
+                sources=(
+                    ItemSource(scene="forge", command="award"),
+                    ItemSource(scene="forge", command="bonus"),
+                ),
+                requirements=(),
+                consumptions=(ItemConsumption(scene="forge", command="consume"),),
+            ),
+            ItemFlowDetails(
+                item="deficit",
+                sources=(ItemSource(scene="forge", command="award"),),
+                requirements=(),
+                consumptions=(
+                    ItemConsumption(scene="forge", command="consume"),
+                    ItemConsumption(scene="forge", command="extra"),
+                ),
+            ),
+            ItemFlowDetails(
+                item="orphaned",
+                sources=(ItemSource(scene="forge", command="award"),),
+                requirements=(),
+                consumptions=(),
+            ),
+        )
+    )
+
+    details = {detail.item: detail for detail in report.items}
+    assert details["balanced"].net_consumable_balance == 0
+    assert details["balanced"].has_surplus_awards is False
+    assert details["balanced"].has_consumption_deficit is False
+
+    assert details["surplus"].net_consumable_balance == 1
+    assert details["surplus"].has_surplus_awards is True
+    assert details["surplus"].has_consumption_deficit is False
+
+    assert details["deficit"].net_consumable_balance == -1
+    assert details["deficit"].has_surplus_awards is False
+    assert details["deficit"].has_consumption_deficit is True
+
+    assert report.items_with_surplus_awards == ("surplus",)
+    assert report.items_with_consumption_deficit == ("deficit",)
+
+
 def test_analyse_item_flow_from_definitions_matches_direct() -> None:
     scenes = load_scenes_from_mapping(_ITEM_FLOW_SCENE_DEFINITIONS)
     direct = analyse_item_flow(scenes)
@@ -504,6 +557,44 @@ def test_format_item_flow_report_highlights_key_sections() -> None:
     assert "- herb" in formatted
     assert "Items referenced without a source" in formatted
     assert "- gold-key" in formatted
+
+
+def test_format_item_flow_report_includes_balance_summary() -> None:
+    report = ItemFlowReport(
+        items=(
+            ItemFlowDetails(
+                item="surplus",
+                sources=(
+                    ItemSource(scene="forge", command="award"),
+                    ItemSource(scene="forge", command="bonus"),
+                ),
+                requirements=(),
+                consumptions=(ItemConsumption(scene="forge", command="consume"),),
+            ),
+            ItemFlowDetails(
+                item="deficit",
+                sources=(ItemSource(scene="forge", command="award"),),
+                requirements=(),
+                consumptions=(
+                    ItemConsumption(scene="forge", command="consume"),
+                    ItemConsumption(scene="forge", command="extra"),
+                ),
+            ),
+        )
+    )
+
+    formatted = format_item_flow_report(report)
+
+    assert (
+        "Items awarded more times than they are consumed (potential surplus):"
+        in formatted
+    )
+    assert "- surplus" in formatted
+    assert (
+        "Items consumed more times than they are awarded (potential deficit):"
+        in formatted
+    )
+    assert "- deficit" in formatted
 
 
 def test_compute_scene_reachability_raises_for_unknown_start() -> None:
