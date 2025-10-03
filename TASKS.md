@@ -315,7 +315,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Define core metrics to compute for scripted scene collections.
         - [x] Implement metrics utilities with automated tests.
         - [x] Provide a CLI/report helper for summarising the results.
-      - [ ] Reachability statistics
+      - [x] Reachability statistics *(Reachability analysis utilities, CLI reporting, and regression coverage implemented.)*
         - [x] Add analytics helpers to compute reachable and unreachable scenes from a starting location.
         - [x] Surface a formatted reachability report alongside the existing complexity output.
         - [x] Cover the new helpers with automated tests against sample scenes.
