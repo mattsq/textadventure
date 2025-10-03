@@ -10,6 +10,7 @@ from typing import (
     Collection,
     Iterable,
     Mapping,
+    MutableMapping,
     Protocol,
     Sequence,
     Tuple,
@@ -110,6 +111,58 @@ class SearchResults:
         """Return the total number of matches across all scenes."""
 
         return sum(result.match_count for result in self.results)
+
+
+@dataclass(frozen=True)
+class FieldReplacement:
+    """Record describing text replacements applied within a field."""
+
+    field_type: FieldType
+    path: str
+    original_text: str
+    updated_text: str
+    spans: Tuple[TextSpan, ...]
+
+    @property
+    def replacement_count(self) -> int:
+        """Return how many replacements were applied within this field."""
+
+        return len(self.spans)
+
+
+@dataclass(frozen=True)
+class SceneReplacementResult:
+    """Aggregated replacements for a single scene."""
+
+    scene_id: str
+    replacements: Tuple[FieldReplacement, ...]
+
+    @property
+    def replacement_count(self) -> int:
+        """Return the total number of replacements across the scene."""
+
+        return sum(replacement.replacement_count for replacement in self.replacements)
+
+
+@dataclass(frozen=True)
+class ReplacementResults:
+    """Collection of replacements applied for a query."""
+
+    query: str
+    replacement_text: str
+    results: Tuple[SceneReplacementResult, ...]
+
+    @property
+    def total_results(self) -> int:
+        """Return how many scenes were modified by the replacement."""
+
+        return len(self.results)
+
+    @property
+    def total_replacement_count(self) -> int:
+        """Return the total number of replacements across all scenes."""
+
+        return sum(result.replacement_count for result in self.results)
 
 
 def search_scene_text(
@@ -251,6 +304,177 @@ def search_scene_text_from_file(
     )
 
 
+def replace_scene_text_in_definitions(
+    definitions: MutableMapping[str, Any],
+    query: str,
+    replacement: str,
+    *,
+    field_types: Collection[FieldType] | None = None,
+    allowed_scene_ids: Collection[str] | None = None,
+) -> ReplacementResults:
+    """Replace occurrences of ``query`` within scene definition text fields.
+
+    The operation mutates ``definitions`` in-place, substituting case-insensitive
+    matches of ``query`` with ``replacement`` across the same narrative fields
+    inspected by :func:`search_scene_text`.
+    """
+
+    normalised_query = query.strip()
+    if not normalised_query:
+        raise ValueError("Search query must not be empty.")
+
+    pattern = re.compile(re.escape(normalised_query), re.IGNORECASE)
+    allowed_fields = set(field_types) if field_types is not None else None
+    allowed_scenes = set(allowed_scene_ids) if allowed_scene_ids is not None else None
+    scene_results: list[SceneReplacementResult] = []
+
+    for scene_id in sorted(definitions.keys()):
+        if allowed_scenes is not None and scene_id not in allowed_scenes:
+            continue
+
+        payload = definitions[scene_id]
+        if not isinstance(payload, MutableMapping):
+            raise ValueError(
+                f"Scene '{scene_id}' definition must be a mutable mapping to support replacements."
+            )
+
+        replacements: list[FieldReplacement] = []
+
+        if allowed_fields is None or "scene_description" in allowed_fields:
+            description = payload.get("description")
+            if isinstance(description, str):
+                result = _replace_field_text(
+                    pattern,
+                    replacement=replacement,
+                    field_type="scene_description",
+                    path="description",
+                    text=description,
+                )
+                if result is not None:
+                    payload["description"] = result.updated_text
+                    replacements.append(result)
+
+        if allowed_fields is None or "choice_description" in allowed_fields:
+            raw_choices = payload.get("choices")
+            if isinstance(raw_choices, list):
+                for choice in raw_choices:
+                    if not isinstance(choice, MutableMapping):
+                        continue
+                    command = choice.get("command")
+                    description = choice.get("description")
+                    if not isinstance(description, str):
+                        continue
+                    path = (
+                        f"choices.{command}.description"
+                        if isinstance(command, str)
+                        else "choices[].description"
+                    )
+                    result = _replace_field_text(
+                        pattern,
+                        replacement=replacement,
+                        field_type="choice_description",
+                        path=path,
+                        text=description,
+                    )
+                    if result is not None:
+                        choice["description"] = result.updated_text
+                        replacements.append(result)
+
+        if allowed_fields is None or allowed_fields & {
+            "transition_narration",
+            "transition_failure_narration",
+            "override_narration",
+        }:
+            raw_transitions = payload.get("transitions")
+            if isinstance(raw_transitions, MutableMapping):
+                for command, transition in raw_transitions.items():
+                    if not isinstance(transition, MutableMapping):
+                        continue
+
+                    if (
+                        allowed_fields is None
+                        or "transition_narration" in allowed_fields
+                    ):
+                        narration = transition.get("narration")
+                        if isinstance(narration, str):
+                            path = (
+                                f"transitions.{command}.narration"
+                                if isinstance(command, str)
+                                else "transitions[].narration"
+                            )
+                            result = _replace_field_text(
+                                pattern,
+                                replacement=replacement,
+                                field_type="transition_narration",
+                                path=path,
+                                text=narration,
+                            )
+                            if result is not None:
+                                transition["narration"] = result.updated_text
+                                replacements.append(result)
+
+                    if (
+                        allowed_fields is None
+                        or "transition_failure_narration" in allowed_fields
+                    ):
+                        failure = transition.get("failure_narration")
+                        if isinstance(failure, str):
+                            path = (
+                                f"transitions.{command}.failure_narration"
+                                if isinstance(command, str)
+                                else "transitions[].failure_narration"
+                            )
+                            result = _replace_field_text(
+                                pattern,
+                                replacement=replacement,
+                                field_type="transition_failure_narration",
+                                path=path,
+                                text=failure,
+                            )
+                            if result is not None:
+                                transition["failure_narration"] = result.updated_text
+                                replacements.append(result)
+
+                    if allowed_fields is None or "override_narration" in allowed_fields:
+                        overrides = transition.get("narration_overrides")
+                        if isinstance(overrides, list):
+                            for index, override in enumerate(overrides):
+                                if not isinstance(override, MutableMapping):
+                                    continue
+                                narration = override.get("narration")
+                                if not isinstance(narration, str):
+                                    continue
+                                path = (
+                                    f"transitions.{command}.narration_overrides[{index}].narration"
+                                    if isinstance(command, str)
+                                    else "transitions[].narration_overrides[].narration"
+                                )
+                                result = _replace_field_text(
+                                    pattern,
+                                    replacement=replacement,
+                                    field_type="override_narration",
+                                    path=path,
+                                    text=narration,
+                                )
+                                if result is not None:
+                                    override["narration"] = result.updated_text
+                                    replacements.append(result)
+
+        if replacements:
+            replacements.sort(key=lambda item: (item.field_type, item.path))
+            scene_results.append(
+                SceneReplacementResult(
+                    scene_id=scene_id, replacements=tuple(replacements)
+                )
+            )
+
+    return ReplacementResults(
+        query=normalised_query,
+        replacement_text=replacement,
+        results=tuple(scene_results),
+    )
+
+
 def _iter_field_matches(
     pattern: re.Pattern[str],
     *,
@@ -270,6 +494,33 @@ def _iter_field_matches(
     return [FieldMatch(field_type=field_type, path=path, text=text, spans=tuple(spans))]
 
 
+def _replace_field_text(
+    pattern: re.Pattern[str],
+    *,
+    replacement: str,
+    field_type: FieldType,
+    path: str,
+    text: str,
+) -> FieldReplacement | None:
+    """Return a replacement record for ``text`` or ``None`` when no match."""
+
+    if not text:
+        return None
+
+    spans = [TextSpan(match.start(), match.end()) for match in pattern.finditer(text)]
+    if not spans:
+        return None
+
+    updated_text = pattern.sub(replacement, text)
+    return FieldReplacement(
+        field_type=field_type,
+        path=path,
+        original_text=text,
+        updated_text=updated_text,
+        spans=tuple(spans),
+    )
+
+
 __all__ = [
     "FieldMatch",
     "FieldType",
@@ -279,4 +530,8 @@ __all__ = [
     "search_scene_text",
     "search_scene_text_from_definitions",
     "search_scene_text_from_file",
+    "FieldReplacement",
+    "SceneReplacementResult",
+    "ReplacementResults",
+    "replace_scene_text_in_definitions",
 ]
