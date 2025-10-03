@@ -28,6 +28,48 @@ FieldType = Literal[
 ]
 
 
+ReferenceCategory = Literal["scene", "item", "history"]
+
+
+ReferenceType = Literal[
+    "transition_target",
+    "transition_item_award",
+    "transition_item_requirement",
+    "transition_item_consumption",
+    "override_item_requirement_all",
+    "override_item_requirement_any",
+    "override_item_forbidden",
+    "transition_history_record",
+    "override_history_record",
+    "override_history_requirement_all",
+    "override_history_requirement_any",
+    "override_history_forbidden",
+]
+
+
+_REFERENCE_TYPE_TO_CATEGORY: Mapping[ReferenceType, ReferenceCategory] = {
+    "transition_target": "scene",
+    "transition_item_award": "item",
+    "transition_item_requirement": "item",
+    "transition_item_consumption": "item",
+    "override_item_requirement_all": "item",
+    "override_item_requirement_any": "item",
+    "override_item_forbidden": "item",
+    "transition_history_record": "history",
+    "override_history_record": "history",
+    "override_history_requirement_all": "history",
+    "override_history_requirement_any": "history",
+    "override_history_forbidden": "history",
+}
+
+_REFERENCE_CATEGORIES: frozenset[ReferenceCategory] = frozenset(
+    _REFERENCE_TYPE_TO_CATEGORY.values()
+)
+_REFERENCE_TYPES: frozenset[ReferenceType] = frozenset(
+    _REFERENCE_TYPE_TO_CATEGORY.keys()
+)
+
+
 class _ChoiceLike(Protocol):
     command: str
     description: str
@@ -35,11 +77,23 @@ class _ChoiceLike(Protocol):
 
 class _OverrideLike(Protocol):
     narration: str
+    records: Sequence[str]
+    requires_history_all: Sequence[str]
+    requires_history_any: Sequence[str]
+    forbids_history_any: Sequence[str]
+    requires_inventory_all: Sequence[str]
+    requires_inventory_any: Sequence[str]
+    forbids_inventory_any: Sequence[str]
 
 
 class _TransitionLike(Protocol):
     narration: str
     failure_narration: str | None
+    target: str | None
+    item: str | None
+    requires: Sequence[str]
+    consumes: Sequence[str]
+    records: Sequence[str]
     narration_overrides: Sequence[_OverrideLike]
 
 
@@ -163,6 +217,50 @@ class ReplacementResults:
         """Return the total number of replacements across all scenes."""
 
         return sum(result.replacement_count for result in self.results)
+
+
+@dataclass(frozen=True)
+class ReferenceMatch:
+    """Structured description of where an identifier is referenced."""
+
+    category: ReferenceCategory
+    reference_type: ReferenceType
+    path: str
+    value: str
+
+
+@dataclass(frozen=True)
+class SceneReferenceResult:
+    """Aggregated reference matches for a single scene."""
+
+    scene_id: str
+    matches: Tuple[ReferenceMatch, ...]
+
+    @property
+    def match_count(self) -> int:
+        """Return how many references were found within the scene."""
+
+        return len(self.matches)
+
+
+@dataclass(frozen=True)
+class ReferenceResults:
+    """Collection of reference matches for an identifier query."""
+
+    identifier: str
+    results: Tuple[SceneReferenceResult, ...]
+
+    @property
+    def total_results(self) -> int:
+        """Return how many scenes include at least one reference."""
+
+        return len(self.results)
+
+    @property
+    def total_match_count(self) -> int:
+        """Return the total number of references across all scenes."""
+
+        return sum(result.match_count for result in self.results)
 
 
 def search_scene_text(
@@ -475,6 +573,241 @@ def replace_scene_text_in_definitions(
     )
 
 
+def find_references(
+    scenes: Mapping[str, _SceneLike],
+    identifier: str,
+    *,
+    categories: Collection[ReferenceCategory] | None = None,
+    reference_types: Collection[ReferenceType] | None = None,
+    allowed_scene_ids: Collection[str] | None = None,
+) -> ReferenceResults:
+    """Locate structured references to ``identifier`` within ``scenes``.
+
+    The search inspects transition targets, inventory interactions, and history
+    usage across both base transitions and conditional narration overrides. The
+    ``identifier`` must be a non-empty string and comparisons are case-sensitive.
+
+    Callers can restrict the results to specific ``categories`` (scene, item, or
+    history references), particular ``reference_types`` (e.g. ``transition_target``
+    or ``override_history_record``), or a subset of ``allowed_scene_ids``.
+    """
+
+    normalised_identifier = identifier.strip()
+    if not normalised_identifier:
+        raise ValueError("Reference identifier must not be empty.")
+
+    allowed_categories: frozenset[ReferenceCategory] | None
+    if categories is not None:
+        allowed_categories = frozenset(categories)
+    else:
+        allowed_categories = None
+    if (
+        allowed_categories is not None
+        and not allowed_categories <= _REFERENCE_CATEGORIES
+    ):
+        invalid = sorted(
+            str(category) for category in allowed_categories - _REFERENCE_CATEGORIES
+        )
+        joined = ", ".join(invalid)
+        raise ValueError(f"Unsupported reference categories: {joined}.")
+
+    allowed_types: frozenset[ReferenceType] | None
+    if reference_types is not None:
+        allowed_types = frozenset(reference_types)
+    else:
+        allowed_types = None
+    if allowed_types is not None and not allowed_types <= _REFERENCE_TYPES:
+        invalid = sorted(
+            str(reference_type) for reference_type in allowed_types - _REFERENCE_TYPES
+        )
+        joined = ", ".join(invalid)
+        raise ValueError(f"Unsupported reference types: {joined}.")
+
+    allowed_scenes: frozenset[str] | None
+    if allowed_scene_ids is not None:
+        allowed_scenes = frozenset(allowed_scene_ids)
+    else:
+        allowed_scenes = None
+
+    results: list[SceneReferenceResult] = []
+
+    def _should_include(reference_type: ReferenceType) -> bool:
+        category = _REFERENCE_TYPE_TO_CATEGORY[reference_type]
+        if allowed_categories is not None and category not in allowed_categories:
+            return False
+        if allowed_types is not None and reference_type not in allowed_types:
+            return False
+        return True
+
+    for scene_id in sorted(scenes.keys()):
+        if allowed_scenes is not None and scene_id not in allowed_scenes:
+            continue
+
+        scene = scenes[scene_id]
+        matches: list[ReferenceMatch] = []
+
+        def _maybe_add(
+            reference_type: ReferenceType, path: str, value: str | None
+        ) -> None:
+            if value is None or value != normalised_identifier:
+                return
+            if not _should_include(reference_type):
+                return
+            category = _REFERENCE_TYPE_TO_CATEGORY[reference_type]
+            matches.append(
+                ReferenceMatch(
+                    category=category,
+                    reference_type=reference_type,
+                    path=path,
+                    value=value,
+                )
+            )
+
+        for command in sorted(scene.transitions.keys()):
+            transition = scene.transitions[command]
+
+            _maybe_add(
+                "transition_target",
+                path=f"transitions.{command}.target",
+                value=transition.target,
+            )
+            _maybe_add(
+                "transition_item_award",
+                path=f"transitions.{command}.item",
+                value=transition.item,
+            )
+
+            for index, required in enumerate(transition.requires):
+                _maybe_add(
+                    "transition_item_requirement",
+                    path=f"transitions.{command}.requires[{index}]",
+                    value=required,
+                )
+
+            for index, consumed in enumerate(transition.consumes):
+                _maybe_add(
+                    "transition_item_consumption",
+                    path=f"transitions.{command}.consumes[{index}]",
+                    value=consumed,
+                )
+
+            for index, record in enumerate(transition.records):
+                _maybe_add(
+                    "transition_history_record",
+                    path=f"transitions.{command}.records[{index}]",
+                    value=record,
+                )
+
+            for override_index, override in enumerate(transition.narration_overrides):
+                override_path = (
+                    f"transitions.{command}.narration_overrides[{override_index}]"
+                )
+
+                for index, record in enumerate(override.records):
+                    _maybe_add(
+                        "override_history_record",
+                        path=f"{override_path}.records[{index}]",
+                        value=record,
+                    )
+
+                for index, entry in enumerate(override.requires_history_all):
+                    _maybe_add(
+                        "override_history_requirement_all",
+                        path=f"{override_path}.requires_history_all[{index}]",
+                        value=entry,
+                    )
+
+                for index, entry in enumerate(override.requires_history_any):
+                    _maybe_add(
+                        "override_history_requirement_any",
+                        path=f"{override_path}.requires_history_any[{index}]",
+                        value=entry,
+                    )
+
+                for index, entry in enumerate(override.forbids_history_any):
+                    _maybe_add(
+                        "override_history_forbidden",
+                        path=f"{override_path}.forbids_history_any[{index}]",
+                        value=entry,
+                    )
+
+                for index, entry in enumerate(override.requires_inventory_all):
+                    _maybe_add(
+                        "override_item_requirement_all",
+                        path=f"{override_path}.requires_inventory_all[{index}]",
+                        value=entry,
+                    )
+
+                for index, entry in enumerate(override.requires_inventory_any):
+                    _maybe_add(
+                        "override_item_requirement_any",
+                        path=f"{override_path}.requires_inventory_any[{index}]",
+                        value=entry,
+                    )
+
+                for index, entry in enumerate(override.forbids_inventory_any):
+                    _maybe_add(
+                        "override_item_forbidden",
+                        path=f"{override_path}.forbids_inventory_any[{index}]",
+                        value=entry,
+                    )
+
+        if matches:
+            matches.sort(key=lambda match: (match.reference_type, match.path))
+            results.append(
+                SceneReferenceResult(scene_id=scene_id, matches=tuple(matches))
+            )
+
+    return ReferenceResults(
+        identifier=normalised_identifier,
+        results=tuple(results),
+    )
+
+
+def find_references_in_definitions(
+    definitions: Mapping[str, Any],
+    identifier: str,
+    *,
+    categories: Collection[ReferenceCategory] | None = None,
+    reference_types: Collection[ReferenceType] | None = None,
+    allowed_scene_ids: Collection[str] | None = None,
+) -> ReferenceResults:
+    """Parse scene definitions and locate references to ``identifier``."""
+
+    from .scripted_story_engine import load_scenes_from_mapping
+
+    scenes = load_scenes_from_mapping(definitions)
+    return find_references(
+        cast(Mapping[str, _SceneLike], scenes),
+        identifier,
+        categories=categories,
+        reference_types=reference_types,
+        allowed_scene_ids=allowed_scene_ids,
+    )
+
+
+def find_references_in_file(
+    path: str | Path,
+    identifier: str,
+    *,
+    categories: Collection[ReferenceCategory] | None = None,
+    reference_types: Collection[ReferenceType] | None = None,
+    allowed_scene_ids: Collection[str] | None = None,
+) -> ReferenceResults:
+    """Load scene definitions from ``path`` and locate references."""
+
+    from .scripted_story_engine import load_scenes_from_file
+
+    scenes = load_scenes_from_file(path)
+    return find_references(
+        cast(Mapping[str, _SceneLike], scenes),
+        identifier,
+        categories=categories,
+        reference_types=reference_types,
+        allowed_scene_ids=allowed_scene_ids,
+    )
+
+
 def _iter_field_matches(
     pattern: re.Pattern[str],
     *,
@@ -534,4 +867,12 @@ __all__ = [
     "SceneReplacementResult",
     "ReplacementResults",
     "replace_scene_text_in_definitions",
+    "ReferenceCategory",
+    "ReferenceType",
+    "ReferenceMatch",
+    "SceneReferenceResult",
+    "ReferenceResults",
+    "find_references",
+    "find_references_in_definitions",
+    "find_references_in_file",
 ]

@@ -303,7 +303,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Add validation-status filtering support via the API
         - [x] Expand tests covering the new filtering capabilities
       - [x] Search and replace functionality *(Added in-place scene text replacement utilities with automated coverage.)*
-      - [ ] Reference finding
+      - [x] Reference finding *(Implemented structured reference detection utilities with filtering and regression coverage.)*
+        - [x] Define reference categories for scenes, items, and history usage.
+        - [x] Implement utilities to locate structured references with optional filters.
+        - [x] Add regression tests covering reference detection scenarios.
     - [ ] Add keyboard shortcuts and accessibility:
       - [ ] Common action shortcuts
       - [ ] Tab navigation
