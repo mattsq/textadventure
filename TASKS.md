@@ -248,7 +248,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Visual item dependency graph
       - [ ] Source tracking (where items come from)
       - [ ] Usage tracking (where items are required)
-      - [ ] Orphaned item detection
+      - [x] Orphaned item detection *(Implemented analytics helpers and CLI reporting for orphaned/unsourced items.)*
       - [ ] Item balance analysis
 
   - [ ] **Phase 6: Live Preview & Testing**
