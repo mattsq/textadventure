@@ -314,7 +314,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] High contrast mode
     - [ ] Create help system:
       - [ ] Interactive tutorials
-      - [ ] Context-sensitive help
+      - [x] Context-sensitive help *(Added a CLI `help` command that surfaces current story choices alongside system command guidance.)*
       - [x] Best practices guide *(Documented adventure design guidance in `docs/best_practices.md` and linked it from the README.)*
       - [x] Troubleshooting documentation *(Added `docs/troubleshooting.md` and linked it from the README troubleshooting section.)*
     - [ ] Implement data analytics:

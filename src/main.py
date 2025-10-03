@@ -91,6 +91,80 @@ def run_cli(
         return new_event
 
     event: StoryEvent | None = None
+
+    def _print_help(topic: str | None) -> None:
+        if event is None:
+            print("\nHelp is unavailable until the first story event is generated.")
+            print()
+            return
+
+        command_help: dict[str, tuple[str, str]] = {}
+        if session_store is not None:
+            command_help["save"] = (
+                "save <session-id>",
+                "Store your current progress for later.",
+            )
+            command_help["load"] = (
+                "load <session-id>",
+                "Restore a previously saved session.",
+            )
+        else:
+            command_help["save"] = (
+                "save <session-id>",
+                "Unavailable: session persistence is disabled for this session.",
+            )
+            command_help["load"] = (
+                "load <session-id>",
+                "Unavailable: session persistence is disabled for this session.",
+            )
+        command_help["help"] = (
+            "help [command]",
+            "Display help for available commands. Use 'help <command>' for details.",
+        )
+        command_help["status"] = (
+            "status",
+            "Show your location, inventory, and queued agent messages.",
+        )
+        command_help["quit"] = ("quit", "Exit the adventure immediately.")
+
+        choice_map = {choice.command: choice.description for choice in event.choices}
+
+        if topic:
+            lowered_topic = topic.lower()
+            if lowered_topic in command_help:
+                usage, description = command_help[lowered_topic]
+                print(f"\n=== Help: {usage} ===")
+                print(description)
+                print()
+                return
+            if lowered_topic in choice_map:
+                description = choice_map[lowered_topic]
+                print(f"\n=== Help: {lowered_topic} ===")
+                print(f"This choice is currently available: {description}")
+                print("Enter the command exactly as shown to follow this branch.")
+                print()
+                return
+            print(
+                f"\nNo help is available for '{topic}'. "
+                "Showing general guidance instead."
+            )
+
+        print("\n=== Help ===")
+        print("Enter one of the story choices below or use a system command.")
+        print("Type 'help <command>' to view details about a specific option.")
+
+        print("\nStory choices:")
+        if choice_map:
+            for command, description in choice_map.items():
+                print(f"  {command} - {description}")
+        else:
+            print("  (No story choices are available right now.)")
+
+        print("\nSystem commands:")
+        for usage, description in command_help.values():
+            print(f"  {usage} - {description}")
+        print()
+
     if session_store is not None and autoload_session:
         try:
             snapshot = session_store.load(autoload_session)
@@ -135,6 +209,11 @@ def run_cli(
         if lowered in {"quit", "exit"}:
             print("\nThanks for playing!")
             break
+
+        if command_lower == "help":
+            topic = argument.strip()
+            _print_help(topic if topic else None)
+            continue
 
         if command_lower == "save":
             if session_store is None:
