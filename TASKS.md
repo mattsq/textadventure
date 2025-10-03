@@ -363,7 +363,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] API reference
       - [ ] Extension guide
       - [ ] Contributing guidelines
-      - [ ] Architecture overview
+      - [x] Architecture overview *(Documented the module layout and extension points in `docs/architecture_overview.md`.)*
     - [ ] Establish community features:
       - [ ] Scene sharing marketplace
       - [ ] Community templates
