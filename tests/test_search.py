@@ -1,0 +1,99 @@
+from textadventure.scripted_story_engine import load_scenes_from_mapping
+from textadventure.search import (
+    search_scene_text,
+    search_scene_text_from_definitions,
+)
+
+
+_SAMPLE_DEFINITIONS = {
+    "trail": {
+        "description": "A torch-lit trail winds toward a shadowed gate.",
+        "choices": [
+            {"command": "take", "description": "Take the torch from the sconce."},
+            {"command": "wait", "description": "Wait for the guide."},
+        ],
+        "transitions": {
+            "take": {
+                "narration": "You secure the torch and feel braver already.",
+            },
+            "open": {
+                "narration": "Torch held high, you tug at the gate.",
+                "failure_narration": "Without the torch the darkness is overwhelming.",
+                "narration_overrides": [
+                    {
+                        "narration": "Torch blazing, the gate opens without protest.",
+                    }
+                ],
+            },
+        },
+    },
+    "hall": {
+        "description": "An empty hall stretches ahead.",
+        "choices": [
+            {"command": "listen", "description": "Listen for movement."},
+        ],
+        "transitions": {"listen": {"narration": "The hall remains quiet."}},
+    },
+}
+
+
+def test_search_scene_text_finds_matches_across_fields() -> None:
+    scenes = load_scenes_from_mapping(_SAMPLE_DEFINITIONS)
+
+    results = search_scene_text(scenes, "torch")
+
+    assert results.query == "torch"
+    assert results.total_results == 1
+    assert results.total_match_count == 6
+
+    scene_result = results.results[0]
+    assert scene_result.scene_id == "trail"
+    assert scene_result.match_count == 6
+
+    matches_by_path = {match.path: match for match in scene_result.matches}
+    expected_paths = {
+        "description",
+        "choices.take.description",
+        "transitions.take.narration",
+        "transitions.open.narration",
+        "transitions.open.failure_narration",
+        "transitions.open.narration_overrides[0].narration",
+    }
+    assert matches_by_path.keys() == expected_paths
+
+    description_match = matches_by_path["description"]
+    assert description_match.field_type == "scene_description"
+    assert description_match.match_count == 1
+    first_span = description_match.spans[0]
+    assert first_span.start == 2
+    assert first_span.end == 7
+
+    override_match = matches_by_path[
+        "transitions.open.narration_overrides[0].narration"
+    ]
+    assert override_match.field_type == "override_narration"
+    assert override_match.match_count == 1
+
+
+def test_search_trims_query_whitespace() -> None:
+    scenes = load_scenes_from_mapping(_SAMPLE_DEFINITIONS)
+
+    results = search_scene_text(scenes, "  Torch  ")
+    assert results.query == "Torch"
+    assert results.total_results == 1
+
+
+def test_search_rejects_empty_query() -> None:
+    scenes = load_scenes_from_mapping(_SAMPLE_DEFINITIONS)
+
+    try:
+        search_scene_text(scenes, "   ")
+    except ValueError as exc:
+        assert "must not be empty" in str(exc)
+    else:  # pragma: no cover - safeguard for failing test expectation
+        raise AssertionError("Expected ValueError for empty search query")
+
+
+def test_search_from_definitions_helper() -> None:
+    results = search_scene_text_from_definitions(_SAMPLE_DEFINITIONS, "torch")
+    assert results.total_results == 1

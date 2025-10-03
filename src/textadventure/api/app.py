@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field, field_serializer
 
 from ..analytics import assess_adventure_quality
+from ..search import FieldType, SearchResults, _SceneLike, search_scene_text
 from ..scripted_story_engine import load_scenes_from_mapping
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
@@ -48,6 +49,40 @@ class SceneListResponse(BaseModel):
 
     data: list[SceneSummary]
     pagination: Pagination
+
+
+class TextSpanResource(BaseModel):
+    """Range describing where a search hit occurred within text."""
+
+    start: int = Field(..., ge=0)
+    end: int = Field(..., ge=0)
+
+
+class FieldMatchResource(BaseModel):
+    """Description of an individual field that matched a search query."""
+
+    field_type: FieldType
+    path: str
+    text: str
+    spans: list[TextSpanResource]
+    match_count: int
+
+
+class SceneSearchResultResource(BaseModel):
+    """Aggregated search matches for a single scene."""
+
+    scene_id: str
+    match_count: int
+    matches: list[FieldMatchResource]
+
+
+class SceneSearchResponse(BaseModel):
+    """Response payload describing search results across scenes."""
+
+    query: str
+    total_results: int
+    total_matches: int
+    results: list[SceneSearchResultResource]
 
 
 @dataclass(frozen=True)
@@ -194,6 +229,13 @@ class SceneService:
 
         return SceneDetailResponse(data=resource, validation=validation)
 
+    def search_scene_text(self, query: str) -> SearchResults:
+        """Search scene text content for the provided ``query``."""
+
+        definitions, _ = self._repository.load()
+        scenes = load_scenes_from_mapping(definitions)
+        return search_scene_text(cast(Mapping[str, _SceneLike], scenes), query)
+
 
 def create_app(scene_service: SceneService | None = None) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -254,6 +296,27 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get("/api/search", response_model=SceneSearchResponse)
+    def search_scenes(
+        query: str = Query(
+            ..., min_length=1, description="Case-insensitive text to search for."
+        ),
+        limit: int = Query(
+            50,
+            ge=1,
+            le=200,
+            description="Maximum number of scenes to return (max 200).",
+        ),
+    ) -> SceneSearchResponse:
+        try:
+            results = service.search_scene_text(query=query)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_search_response(results, limit=limit)
 
     return app
 
@@ -318,6 +381,47 @@ def _compute_validation_statuses(
             validation_map[scene_id] = "valid"
 
     return validation_map
+
+
+def _build_search_response(
+    results: SearchResults,
+    *,
+    limit: int,
+) -> SceneSearchResponse:
+    limited_results = list(results.results[:limit])
+
+    scene_resources: list[SceneSearchResultResource] = []
+    for scene_result in limited_results:
+        field_resources: list[FieldMatchResource] = []
+        for field_match in scene_result.matches:
+            span_resources = [
+                TextSpanResource(start=span.start, end=span.end)
+                for span in field_match.spans
+            ]
+            field_resources.append(
+                FieldMatchResource(
+                    field_type=field_match.field_type,
+                    path=field_match.path,
+                    text=field_match.text,
+                    spans=span_resources,
+                    match_count=field_match.match_count,
+                )
+            )
+
+        scene_resources.append(
+            SceneSearchResultResource(
+                scene_id=scene_result.scene_id,
+                match_count=scene_result.match_count,
+                matches=field_resources,
+            )
+        )
+
+    return SceneSearchResponse(
+        query=results.query,
+        total_results=results.total_results,
+        total_matches=results.total_match_count,
+        results=scene_resources,
+    )
 
 
 class ChoiceResource(BaseModel):

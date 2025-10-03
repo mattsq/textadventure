@@ -296,7 +296,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 
   - [ ] **Phase 8: Quality of Life & Polish**
     - [ ] Implement comprehensive search:
-      - [ ] Global text search across all scenes
+      - [x] Global text search across all scenes *(Added search utilities and API endpoint for querying scene text with highlighted spans.)*
       - [ ] Advanced filters (by type, validation status, etc.)
       - [ ] Search and replace functionality
       - [ ] Reference finding
