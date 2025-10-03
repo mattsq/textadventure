@@ -145,7 +145,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Design RESTful API specification for scene CRUD operations. *(Documented in `docs/web_editor_api_spec.md`.)*
     - [ ] Implement FastAPI backend with the following endpoints:
       - [x] `GET /api/scenes` - List all scenes with metadata *(Implemented read-only endpoint backed by the scripted scene store, including pagination, filtering, and validation summaries.)*
-      - [ ] `GET /api/scenes/{scene_id}` - Get detailed scene data
+      - [x] `GET /api/scenes/{scene_id}` - Get detailed scene data *(Implemented read-only detail endpoint returning full scene definitions with optional validation metadata.)*
       - [ ] `PUT /api/scenes/{scene_id}` - Update existing scene
       - [ ] `POST /api/scenes` - Create new scene
       - [ ] `DELETE /api/scenes/{scene_id}` - Delete scene (with dependency checks)

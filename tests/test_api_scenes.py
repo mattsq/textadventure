@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Any, Mapping
 
 from fastapi.testclient import TestClient
 
 from textadventure.api import create_app
+from textadventure.api.app import SceneService
 
 
 def _client() -> TestClient:
@@ -71,3 +73,81 @@ def test_pagination_limits_results() -> None:
     payload = response.json()
     assert len(payload["data"]) == 1
     assert payload["pagination"]["page_size"] == 1
+
+
+def test_get_scene_returns_full_definition_without_validation_block() -> None:
+    client = _client()
+
+    response = client.get("/api/scenes/starting-area")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["data"]["id"] == "starting-area"
+    assert payload["data"]["choices"]
+    assert payload["data"]["transitions"]
+    assert payload.get("validation") is None
+
+    created_at = datetime.fromisoformat(payload["data"]["created_at"])
+    updated_at = datetime.fromisoformat(payload["data"]["updated_at"])
+    assert created_at.tzinfo is not None
+    assert updated_at.tzinfo is not None
+
+
+def test_get_scene_returns_404_for_unknown_identifier() -> None:
+    client = _client()
+
+    response = client.get("/api/scenes/unknown")
+    assert response.status_code == 404
+
+
+def test_get_scene_can_include_validation_issues() -> None:
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            definitions: Mapping[str, Any] = {
+                "alpha": {
+                    "description": "Alpha",
+                    "choices": [
+                        {"command": "use", "description": "Use the tool"},
+                    ],
+                    "transitions": {
+                        "use": {
+                            "narration": "You use the tool.",
+                            "requires": ["widget"],
+                            "narration_overrides": [
+                                {
+                                    "narration": " ",
+                                    "requires_history_any": ["alpha-used"],
+                                }
+                            ],
+                        }
+                    },
+                }
+            }
+            timestamp = datetime(2024, 1, 1, tzinfo=timezone.utc)
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/scenes/alpha", params={"include_validation": "true"})
+    assert response.status_code == 200
+
+    payload = response.json()
+    issues = payload["validation"]["issues"]
+    assert issues, "Expected validation issues to be reported"
+
+    codes = {issue["code"] for issue in issues}
+    assert "missing_failure_narration" in codes
+    assert "missing_override_narration" in codes
+
+    failure_issue = next(
+        issue for issue in issues if issue["code"] == "missing_failure_narration"
+    )
+    assert failure_issue["severity"] == "warning"
+    assert failure_issue["path"] == "transitions.use.failure_narration"
+
+    override_issue = next(
+        issue for issue in issues if issue["code"] == "missing_override_narration"
+    )
+    assert override_issue["severity"] == "error"
+    assert override_issue["path"] == "transitions.use.narration_overrides[0].narration"

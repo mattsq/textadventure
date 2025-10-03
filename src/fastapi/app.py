@@ -53,18 +53,25 @@ class FastAPI:
 
         return decorator
 
-    def _resolve_route(self, path: str) -> _Route:
-        try:
-            return self._routes[path]
-        except KeyError as exc:
-            raise HTTPException(404, f"Route '{path}' is not registered") from exc
+    def _resolve_route(self, path: str) -> tuple[_Route, dict[str, str]]:
+        if path in self._routes:
+            return self._routes[path], {}
+
+        for route in self._routes.values():
+            params = _match_path(route.path, path)
+            if params is not None:
+                return route, params
+
+        raise HTTPException(404, f"Route '{path}' is not registered")
 
     def _dispatch(self, method: str, path: str, params: Mapping[str, Any]) -> Any:
         if method.upper() != "GET":
             raise HTTPException(405, f"Unsupported method '{method}'")
 
-        route = self._resolve_route(path)
-        kwargs = _build_keyword_arguments(route.endpoint, params)
+        route, path_params = self._resolve_route(path)
+        combined_params: dict[str, Any] = dict(path_params)
+        combined_params.update(params)
+        kwargs = _build_keyword_arguments(route.endpoint, combined_params)
         return route.endpoint(**kwargs)
 
 
@@ -85,6 +92,30 @@ def _build_keyword_arguments(
             pass
 
     return bound_params
+
+
+def _match_path(route_path: str, request_path: str) -> dict[str, str] | None:
+    route_segments = [
+        segment for segment in route_path.strip("/").split("/") if segment
+    ]
+    request_segments = [
+        segment for segment in request_path.strip("/").split("/") if segment
+    ]
+
+    if len(route_segments) != len(request_segments):
+        return None
+
+    params: dict[str, str] = {}
+    for template_segment, actual_segment in zip(route_segments, request_segments):
+        if template_segment.startswith("{") and template_segment.endswith("}"):
+            param_name = template_segment[1:-1]
+            if not param_name:
+                return None
+            params[param_name] = actual_segment
+        elif template_segment != actual_segment:
+            return None
+
+    return params
 
 
 def _convert_value(value: Any, annotation: Any) -> Any:

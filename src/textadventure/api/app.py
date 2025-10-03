@@ -168,6 +168,32 @@ class SceneService:
         )
         return response
 
+    def get_scene_detail(
+        self,
+        scene_id: str,
+        *,
+        include_validation: bool,
+    ) -> "SceneDetailResponse":
+        """Return the full scene definition for ``scene_id``."""
+
+        definitions, dataset_timestamp = self._repository.load()
+        scenes = load_scenes_from_mapping(definitions)
+
+        try:
+            scene = scenes[scene_id]
+        except KeyError as exc:
+            raise KeyError(f"Scene '{scene_id}' is not defined.") from exc
+
+        resource = _build_scene_resource(scene_id, scene, dataset_timestamp)
+
+        validation: SceneValidation | None = None
+        if include_validation:
+            validation = SceneValidation(
+                issues=_collect_validation_issues(scene_id, scenes)
+            )
+
+        return SceneDetailResponse(data=resource, validation=validation)
+
 
 def create_app(scene_service: SceneService | None = None) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -204,6 +230,26 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
                 page=page,
                 page_size=page_size,
             )
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get("/api/scenes/{scene_id}", response_model=SceneDetailResponse)
+    def get_scene(
+        scene_id: str,
+        *,
+        include_validation: bool = Query(
+            False,
+            description="Include inline validation issues for the requested scene.",
+        ),
+    ) -> SceneDetailResponse:
+        try:
+            return service.get_scene_detail(
+                scene_id=scene_id, include_validation=include_validation
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -272,3 +318,198 @@ def _compute_validation_statuses(
             validation_map[scene_id] = "valid"
 
     return validation_map
+
+
+class ChoiceResource(BaseModel):
+    """Representation of a single scene choice."""
+
+    command: str
+    description: str
+
+
+class NarrationOverrideResource(BaseModel):
+    """Conditional narration override description."""
+
+    narration: str
+    requires_history_all: list[str] = Field(default_factory=list)
+    requires_history_any: list[str] = Field(default_factory=list)
+    forbids_history_any: list[str] = Field(default_factory=list)
+    requires_inventory_all: list[str] = Field(default_factory=list)
+    requires_inventory_any: list[str] = Field(default_factory=list)
+    forbids_inventory_any: list[str] = Field(default_factory=list)
+    records: list[str] = Field(default_factory=list)
+
+
+class TransitionResource(BaseModel):
+    """Serialized representation of a transition."""
+
+    narration: str
+    target: str | None = None
+    item: str | None = None
+    requires: list[str] = Field(default_factory=list)
+    consumes: list[str] = Field(default_factory=list)
+    records: list[str] = Field(default_factory=list)
+    failure_narration: str | None = None
+    narration_overrides: list[NarrationOverrideResource] = Field(default_factory=list)
+
+
+class SceneResource(BaseModel):
+    """Full scene definition returned by the API."""
+
+    id: str
+    description: str
+    choices: list[ChoiceResource]
+    transitions: dict[str, TransitionResource]
+    created_at: datetime
+    updated_at: datetime
+
+    @field_serializer("created_at")
+    def _serialize_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("updated_at")
+    def _serialize_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class ValidationIssue(BaseModel):
+    """Description of a validation issue detected for a scene."""
+
+    severity: Literal["error", "warning"]
+    code: str
+    message: str
+    path: str
+
+
+class SceneValidation(BaseModel):
+    """Collection of validation issues for a scene."""
+
+    issues: list[ValidationIssue]
+
+
+class SceneDetailResponse(BaseModel):
+    """Response envelope for a single scene detail request."""
+
+    data: SceneResource
+    validation: SceneValidation | None = None
+
+
+def _build_scene_resource(
+    scene_id: str,
+    scene: Any,
+    dataset_timestamp: datetime,
+) -> SceneResource:
+    choices = [
+        ChoiceResource(command=choice.command, description=choice.description)
+        for choice in scene.choices
+    ]
+
+    transitions: dict[str, TransitionResource] = {}
+    for command, transition in scene.transitions.items():
+        overrides = [
+            NarrationOverrideResource(
+                narration=override.narration,
+                requires_history_all=list(override.requires_history_all),
+                requires_history_any=list(override.requires_history_any),
+                forbids_history_any=list(override.forbids_history_any),
+                requires_inventory_all=list(override.requires_inventory_all),
+                requires_inventory_any=list(override.requires_inventory_any),
+                forbids_inventory_any=list(override.forbids_inventory_any),
+                records=list(override.records),
+            )
+            for override in transition.narration_overrides
+        ]
+
+        transitions[command] = TransitionResource(
+            narration=transition.narration,
+            target=transition.target,
+            item=transition.item,
+            requires=list(transition.requires),
+            consumes=list(transition.consumes),
+            records=list(transition.records),
+            failure_narration=transition.failure_narration,
+            narration_overrides=overrides,
+        )
+
+    return SceneResource(
+        id=scene_id,
+        description=scene.description,
+        choices=choices,
+        transitions=transitions,
+        created_at=dataset_timestamp,
+        updated_at=dataset_timestamp,
+    )
+
+
+def _collect_validation_issues(
+    scene_id: str,
+    scenes: Mapping[str, Any],
+) -> list[ValidationIssue]:
+    report = assess_adventure_quality(cast(Mapping[str, Any], scenes))
+
+    issues: list[ValidationIssue] = []
+
+    if scene_id in report.scenes_missing_description:
+        issues.append(
+            ValidationIssue(
+                severity="error",
+                code="missing_scene_description",
+                message="Scene description is empty.",
+                path="description",
+            )
+        )
+
+    for candidate_scene, command in report.choices_missing_description:
+        if candidate_scene == scene_id:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="missing_choice_description",
+                    message=f"Choice '{command}' is missing a description.",
+                    path=f"choices.{command}.description",
+                )
+            )
+
+    for candidate_scene, command in report.transitions_missing_narration:
+        if candidate_scene == scene_id:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="missing_transition_narration",
+                    message=f"Transition '{command}' is missing narration.",
+                    path=f"transitions.{command}.narration",
+                )
+            )
+
+    for candidate_scene, command in report.gated_transitions_missing_failure:
+        if candidate_scene == scene_id:
+            issues.append(
+                ValidationIssue(
+                    severity="warning",
+                    code="missing_failure_narration",
+                    message=(
+                        f"Transition '{command}' requires inventory but lacks failure narration."
+                    ),
+                    path=f"transitions.{command}.failure_narration",
+                )
+            )
+
+    for (
+        candidate_scene,
+        command,
+        index,
+    ) in report.conditional_overrides_missing_narration:
+        if candidate_scene == scene_id:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="missing_override_narration",
+                    message=(
+                        f"Narration override #{index + 1} for transition '{command}' is empty."
+                    ),
+                    path=f"transitions.{command}.narration_overrides[{index}].narration",
+                )
+            )
+
+    issues.sort(key=lambda issue: (issue.path, issue.code))
+    return issues
