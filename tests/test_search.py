@@ -1,7 +1,10 @@
+from copy import deepcopy
+
 from textadventure.scripted_story_engine import load_scenes_from_mapping
 from textadventure.search import (
     search_scene_text,
     search_scene_text_from_definitions,
+    replace_scene_text_in_definitions,
 )
 
 
@@ -124,3 +127,97 @@ def test_search_scene_text_filters_scene_ids() -> None:
 
     only_hall = search_scene_text(scenes, "torch", allowed_scene_ids=["hall"])
     assert only_hall.total_results == 0
+
+
+def test_replace_scene_text_updates_all_fields() -> None:
+    definitions = deepcopy(_SAMPLE_DEFINITIONS)
+
+    results = replace_scene_text_in_definitions(definitions, "torch", "lantern")
+
+    trail = definitions["trail"]
+    assert trail["description"] == "A lantern-lit trail winds toward a shadowed gate."
+    assert trail["choices"][0]["description"] == "Take the lantern from the sconce."
+    assert (
+        trail["transitions"]["take"]["narration"]
+        == "You secure the lantern and feel braver already."
+    )
+    assert (
+        trail["transitions"]["open"]["failure_narration"]
+        == "Without the lantern the darkness is overwhelming."
+    )
+    assert (
+        trail["transitions"]["open"]["narration_overrides"][0]["narration"]
+        == "lantern blazing, the gate opens without protest."
+    )
+
+    assert results.query == "torch"
+    assert results.replacement_text == "lantern"
+    assert results.total_results == 1
+    assert results.total_replacement_count == 6
+
+    scene_result = results.results[0]
+    assert scene_result.scene_id == "trail"
+    assert scene_result.replacement_count == 6
+    replacements_by_path = {
+        replacement.path: replacement for replacement in scene_result.replacements
+    }
+    assert replacements_by_path["description"].updated_text == trail["description"]
+    assert (
+        replacements_by_path["description"].original_text
+        != replacements_by_path["description"].updated_text
+    )
+
+
+def test_replace_scene_text_respects_field_filters() -> None:
+    definitions = deepcopy(_SAMPLE_DEFINITIONS)
+
+    results = replace_scene_text_in_definitions(
+        definitions,
+        "torch",
+        "lantern",
+        field_types=["choice_description"],
+    )
+
+    trail = definitions["trail"]
+    assert trail["description"].startswith("A torch")
+    assert trail["choices"][0]["description"] == "Take the lantern from the sconce."
+    assert trail["transitions"]["open"]["narration"].startswith("Torch held high")
+    assert results.total_results == 1
+    assert results.total_replacement_count == 1
+
+
+def test_replace_scene_text_filters_allowed_scene_ids() -> None:
+    definitions = deepcopy(_SAMPLE_DEFINITIONS)
+
+    results = replace_scene_text_in_definitions(
+        definitions,
+        "hall",
+        "corridor",
+        allowed_scene_ids=["hall"],
+    )
+
+    assert definitions["hall"]["description"] == "An empty corridor stretches ahead."
+    assert definitions["trail"]["description"].startswith("A torch")
+    assert results.total_results == 1
+    assert results.total_replacement_count == 2
+    assert results.query == "hall"
+
+
+def test_replace_scene_text_trims_query_whitespace() -> None:
+    definitions = deepcopy(_SAMPLE_DEFINITIONS)
+
+    results = replace_scene_text_in_definitions(definitions, "  hall  ", "corridor")
+
+    assert results.query == "hall"
+    assert results.total_replacement_count == 2
+
+
+def test_replace_scene_text_rejects_empty_query() -> None:
+    definitions = deepcopy(_SAMPLE_DEFINITIONS)
+
+    try:
+        replace_scene_text_in_definitions(definitions, "   ", "lantern")
+    except ValueError as exc:
+        assert "must not be empty" in str(exc)
+    else:  # pragma: no cover - safeguard for failing test expectation
+        raise AssertionError("Expected ValueError for empty replacement query")

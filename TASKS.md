@@ -302,7 +302,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Surface field-type filtering in the API/search endpoint
         - [x] Add validation-status filtering support via the API
         - [x] Expand tests covering the new filtering capabilities
-      - [ ] Search and replace functionality
+      - [x] Search and replace functionality *(Added in-place scene text replacement utilities with automated coverage.)*
       - [ ] Reference finding
     - [ ] Add keyboard shortcuts and accessibility:
       - [ ] Common action shortcuts
