@@ -8,6 +8,13 @@ import pytest
 
 from textadventure.analytics import (
     AdventureReachabilityReport,
+    ItemConsumption,
+    ItemFlowDetails,
+    ItemFlowReport,
+    ItemRequirement,
+    ItemSource,
+    analyse_item_flow,
+    analyse_item_flow_from_definitions,
     assess_adventure_quality,
     assess_adventure_quality_from_definitions,
     compute_adventure_complexity,
@@ -16,6 +23,7 @@ from textadventure.analytics import (
     compute_adventure_content_distribution_from_definitions,
     compute_scene_reachability,
     compute_scene_reachability_from_definitions,
+    format_item_flow_report,
     format_complexity_report,
     format_content_distribution_report,
     format_quality_report,
@@ -215,6 +223,63 @@ _QUALITY_SCENES = {
 }
 
 
+_ITEM_FLOW_SCENE_DEFINITIONS = {
+    "forge": {
+        "description": "Sparks rain from the ancient anvil.",
+        "choices": [
+            {"command": "take-hammer", "description": "Take the smith's hammer."},
+            {"command": "polish", "description": "Polish the hammer."},
+            {"command": "leave", "description": "Step into the vault."},
+        ],
+        "transitions": {
+            "take-hammer": {
+                "narration": "You claim the sturdy hammer.",
+                "item": "hammer",
+            },
+            "polish": {
+                "narration": "You polish the hammer and place it aside.",
+                "consumes": ["hammer"],
+            },
+            "leave": {
+                "narration": "You carry your tools into the vault.",
+                "target": "vault",
+            },
+        },
+    },
+    "garden": {
+        "description": "Fresh herbs thrive beside the walkway.",
+        "choices": [
+            {"command": "pick-herb", "description": "Gather a handful of herbs."},
+            {"command": "rest", "description": "Rest on the stone bench."},
+        ],
+        "transitions": {
+            "pick-herb": {
+                "narration": "You pick a fragrant bundle of herbs.",
+                "item": "herb",
+            },
+            "rest": {"narration": "You breathe in the calming scent."},
+        },
+    },
+    "vault": {
+        "description": "A heavy golden door blocks the vault.",
+        "choices": [
+            {"command": "unlock", "description": "Unlock the golden door."},
+            {"command": "return", "description": "Return to the garden."},
+        ],
+        "transitions": {
+            "unlock": {
+                "narration": "The lock accepts a golden key with a soft click.",
+                "requires": ["gold-key"],
+            },
+            "return": {
+                "narration": "You stroll back to the herb garden.",
+                "target": "garden",
+            },
+        },
+    },
+}
+
+
 def test_compute_adventure_complexity() -> None:
     scenes = load_scenes_from_mapping(_SAMPLE_SCENE_DEFINITIONS)
     metrics = compute_adventure_complexity(scenes)
@@ -389,6 +454,56 @@ def test_format_quality_report_lists_detected_issues() -> None:
     assert "Total issues detected: 3" in formatted
     assert "Scenes missing descriptions" not in formatted
     assert "Conditional overrides missing narration" in formatted
+
+
+def test_analyse_item_flow_tracks_sources_and_usage() -> None:
+    scenes = load_scenes_from_mapping(_ITEM_FLOW_SCENE_DEFINITIONS)
+    report = analyse_item_flow(scenes)
+
+    assert isinstance(report, ItemFlowReport)
+    details_by_item = {detail.item: detail for detail in report.items}
+
+    hammer = details_by_item["hammer"]
+    assert isinstance(hammer, ItemFlowDetails)
+    assert hammer.sources == (ItemSource(scene="forge", command="take-hammer"),)
+    assert hammer.requirements == ()
+    assert hammer.consumptions == (ItemConsumption(scene="forge", command="polish"),)
+
+    herb = details_by_item["herb"]
+    assert herb.sources == (ItemSource(scene="garden", command="pick-herb"),)
+    assert herb.requirements == ()
+    assert herb.consumptions == ()
+
+    gold_key = details_by_item["gold-key"]
+    assert gold_key.sources == ()
+    assert gold_key.requirements == (ItemRequirement(scene="vault", command="unlock"),)
+    assert gold_key.consumptions == ()
+
+    assert report.orphaned_items == ("herb",)
+    assert report.items_missing_sources == ("gold-key",)
+
+
+def test_analyse_item_flow_from_definitions_matches_direct() -> None:
+    scenes = load_scenes_from_mapping(_ITEM_FLOW_SCENE_DEFINITIONS)
+    direct = analyse_item_flow(scenes)
+    via_definitions = analyse_item_flow_from_definitions(_ITEM_FLOW_SCENE_DEFINITIONS)
+
+    assert via_definitions == direct
+
+
+def test_format_item_flow_report_highlights_key_sections() -> None:
+    report = analyse_item_flow_from_definitions(_ITEM_FLOW_SCENE_DEFINITIONS)
+    formatted = format_item_flow_report(report)
+
+    assert "Adventure Item Flow" in formatted
+    assert "Item: hammer" in formatted
+    assert "Sources:" in formatted
+    assert "Required by:" in formatted
+    assert "Consumed by:" in formatted
+    assert "Items awarded but never used" in formatted
+    assert "- herb" in formatted
+    assert "Items referenced without a source" in formatted
+    assert "- gold-key" in formatted
 
 
 def test_compute_scene_reachability_raises_for_unknown_start() -> None:
