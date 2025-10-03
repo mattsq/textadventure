@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence, cast
@@ -173,6 +174,73 @@ class AdventureQualityReport:
         """Return ``True`` when any potential quality issue was detected."""
 
         return self.issue_count > 0
+
+
+@dataclass(frozen=True)
+class ItemSource:
+    """Location describing where an item can be acquired."""
+
+    scene: str
+    command: str
+
+
+@dataclass(frozen=True)
+class ItemRequirement:
+    """Location describing where an item is required but not consumed."""
+
+    scene: str
+    command: str
+
+
+@dataclass(frozen=True)
+class ItemConsumption:
+    """Location describing where an item is consumed and removed."""
+
+    scene: str
+    command: str
+
+
+@dataclass(frozen=True)
+class ItemFlowDetails:
+    """Summary of how a specific item flows through an adventure."""
+
+    item: str
+    sources: tuple[ItemSource, ...]
+    requirements: tuple[ItemRequirement, ...]
+    consumptions: tuple[ItemConsumption, ...]
+
+    @property
+    def is_orphaned(self) -> bool:
+        """Return ``True`` when the item can be acquired but never used."""
+
+        return bool(self.sources) and not (self.requirements or self.consumptions)
+
+    @property
+    def is_missing_source(self) -> bool:
+        """Return ``True`` when the item is required or consumed but never awarded."""
+
+        return bool(
+            (not self.sources) and (self.requirements or self.consumptions)
+        )
+
+
+@dataclass(frozen=True)
+class ItemFlowReport:
+    """Aggregate summary describing how items circulate throughout an adventure."""
+
+    items: tuple[ItemFlowDetails, ...]
+
+    @property
+    def orphaned_items(self) -> tuple[str, ...]:
+        """Return item identifiers that can be acquired but are never referenced."""
+
+        return tuple(detail.item for detail in self.items if detail.is_orphaned)
+
+    @property
+    def items_missing_sources(self) -> tuple[str, ...]:
+        """Return item identifiers that are required or consumed without a source."""
+
+        return tuple(detail.item for detail in self.items if detail.is_missing_source)
 
 
 def _safe_average(total: int, count: int) -> float:
@@ -488,6 +556,81 @@ def assess_adventure_quality_from_file(
     return assess_adventure_quality(cast(Mapping[str, _SceneLike], scenes))
 
 
+def analyse_item_flow(scenes: Mapping[str, _SceneLike]) -> ItemFlowReport:
+    """Analyse where items originate and how they are referenced."""
+
+    sources_by_item: defaultdict[str, list[ItemSource]] = defaultdict(list)
+    requirements_by_item: defaultdict[str, list[ItemRequirement]] = defaultdict(list)
+    consumptions_by_item: defaultdict[str, list[ItemConsumption]] = defaultdict(list)
+
+    for scene_id, scene in scenes.items():
+        for command, transition in scene.transitions.items():
+            if transition.item:
+                sources_by_item[transition.item].append(
+                    ItemSource(scene=scene_id, command=command)
+                )
+            for requirement in transition.requires:
+                requirements_by_item[requirement].append(
+                    ItemRequirement(scene=scene_id, command=command)
+                )
+            for consumed in transition.consumes:
+                consumptions_by_item[consumed].append(
+                    ItemConsumption(scene=scene_id, command=command)
+                )
+
+    all_items = sorted(
+        {
+            *sources_by_item.keys(),
+            *requirements_by_item.keys(),
+            *consumptions_by_item.keys(),
+        }
+    )
+
+    def _sorted_sources(item: str) -> tuple[ItemSource, ...]:
+        events = sources_by_item.get(item, [])
+        return tuple(sorted(events, key=lambda event: (event.scene, event.command)))
+
+    def _sorted_requirements(item: str) -> tuple[ItemRequirement, ...]:
+        events = requirements_by_item.get(item, [])
+        return tuple(sorted(events, key=lambda event: (event.scene, event.command)))
+
+    def _sorted_consumptions(item: str) -> tuple[ItemConsumption, ...]:
+        events = consumptions_by_item.get(item, [])
+        return tuple(sorted(events, key=lambda event: (event.scene, event.command)))
+
+    details = [
+        ItemFlowDetails(
+            item=item,
+            sources=_sorted_sources(item),
+            requirements=_sorted_requirements(item),
+            consumptions=_sorted_consumptions(item),
+        )
+        for item in all_items
+    ]
+
+    return ItemFlowReport(items=tuple(details))
+
+
+def analyse_item_flow_from_definitions(
+    definitions: Mapping[str, Any],
+) -> ItemFlowReport:
+    """Parse scene definitions and analyse item flow."""
+
+    from .scripted_story_engine import load_scenes_from_mapping
+
+    scenes = load_scenes_from_mapping(definitions)
+    return analyse_item_flow(cast(Mapping[str, _SceneLike], scenes))
+
+
+def analyse_item_flow_from_file(path: str | Path) -> ItemFlowReport:
+    """Load scene definitions from ``path`` and analyse item flow."""
+
+    from .scripted_story_engine import load_scenes_from_file
+
+    scenes = load_scenes_from_file(path)
+    return analyse_item_flow(cast(Mapping[str, _SceneLike], scenes))
+
+
 def compute_scene_reachability(
     scenes: Mapping[str, _SceneLike],
     *,
@@ -599,6 +742,72 @@ def format_complexity_report(metrics: AdventureComplexityMetrics) -> str:
             + (", ".join(metrics.unique_history_records) or "(none)")
         ),
     ]
+    return "\n".join(lines)
+
+
+def format_item_flow_report(report: ItemFlowReport) -> str:
+    """Return a human-friendly report describing item sources and usage."""
+
+    lines = ["Adventure Item Flow", "==================="]
+
+    if not report.items:
+        lines.append("No items are awarded, required, or consumed in this adventure.")
+        return "\n".join(lines)
+
+    for detail in report.items:
+        lines.append(f"Item: {detail.item}")
+        if detail.sources:
+            lines.append("  Sources:")
+            lines.extend(
+                f"    - {source.scene} :: {source.command}" for source in detail.sources
+            )
+        else:
+            lines.append("  Sources: (none)")
+
+        if detail.requirements:
+            lines.append("  Required by:")
+            lines.extend(
+                f"    - {requirement.scene} :: {requirement.command}"
+                for requirement in detail.requirements
+            )
+        else:
+            lines.append("  Required by: (none)")
+
+        if detail.consumptions:
+            lines.append("  Consumed by:")
+            lines.extend(
+                f"    - {consumption.scene} :: {consumption.command}"
+                for consumption in detail.consumptions
+            )
+        else:
+            lines.append("  Consumed by: (none)")
+
+        lines.append("")
+
+    if lines[-1] == "":
+        lines.pop()
+
+    summary_added = False
+    if report.orphaned_items:
+        if not summary_added:
+            lines.append("")
+            summary_added = True
+        lines.append("Items awarded but never used:")
+        lines.extend(f"- {item}" for item in report.orphaned_items)
+
+    if report.items_missing_sources:
+        if not summary_added:
+            lines.append("")
+            summary_added = True
+        lines.append("Items referenced without a source:")
+        lines.extend(f"- {item}" for item in report.items_missing_sources)
+
+    if not summary_added:
+        lines.append("")
+        lines.append(
+            "All awarded items are referenced and every requirement has a source."
+        )
+
     return "\n".join(lines)
 
 
@@ -777,16 +986,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         scene_mapping, start_scene=args.start_scene
     )
     quality = assess_adventure_quality(scene_mapping)
+    item_flow = analyse_item_flow(scene_mapping)
 
     report = format_complexity_report(metrics)
     distribution_report = format_content_distribution_report(content_distribution)
     reachability_report = format_reachability_report(reachability)
+    item_flow_report = format_item_flow_report(item_flow)
     quality_report = format_quality_report(quality)
     print(report)
     print()
     print(distribution_report)
     print()
     print(reachability_report)
+    print()
+    print(item_flow_report)
     print()
     print(quality_report)
     return 0
