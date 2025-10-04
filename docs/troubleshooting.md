@@ -2,19 +2,33 @@
 
 This guide captures common issues encountered when running the text-adventure CLI or
 experimenting with the agent framework. Each section lists symptoms, likely causes,
-and recommended fixes so you can get back to exploring quickly.
+and recommended fixes so you can get back to exploring quickly. Skim the **General
+Diagnostics** checklist first—most issues are resolved by double-checking the local
+environment and running the automated quality gates. When a quick scan is not
+enough, jump to the section that matches the observed symptoms.
 
 ## General Diagnostics
 
-1. **Confirm dependencies** – Run `pip list` inside your virtual environment and
-   ensure every package from `requirements.txt` is installed. Re-run
+1. **Validate Python setup** – Confirm `python --version` reports 3.9 or newer and that
+   you are running commands from the virtual environment created for this project.
+   Activate it with `source .venv/bin/activate` (or `.venv\Scripts\activate` on Windows).
+2. **Confirm dependencies** – Run `pip list` inside your virtual environment and ensure
+   every package from `requirements.txt` is installed. Re-run
    `pip install -r requirements.txt` if anything is missing or outdated.
-2. **Run the automated checks** – Execute `pytest -q`, `mypy src`, `ruff check src tests`,
+3. **Run the automated checks** – Execute `pytest -q`, `mypy src`, `ruff check src tests`,
    and `black --check src tests` to catch regressions introduced by local changes.
-3. **Inspect logs** – When invoking the CLI, pass `--log-file path/to/transcript.jsonl`
+4. **Inspect logs** – When invoking the CLI, pass `--log-file path/to/transcript.jsonl`
    to capture narration, choices, and agent metadata for post-mortem analysis.
-4. **Reset session data** – Delete the directory used with `--session-dir` (defaults to
+5. **Reset session data** – Delete the directory used with `--session-dir` (defaults to
    `.textadventure_sessions`) to remove stale snapshots before restarting an adventure.
+6. **Compare against a clean repo** – If behaviour diverges significantly, run
+   `git status` and inspect local modifications. Temporarily stashing large or
+   experimental changes often isolates the regression quickly.
+
+For a structured walkthrough of the setup process, see
+[`docs/getting_started.md`](getting_started.md). The
+[`docs/feature_reference.md`](feature_reference.md) file includes a section that
+summarises the available CLI commands and flags mentioned throughout this guide.
 
 ## CLI Fails to Launch
 
@@ -43,6 +57,28 @@ and recommended fixes so you can get back to exploring quickly.
   - **Cause:** Persistence is disabled by default.
   - **Fix:** Launch the CLI with `--session-dir .textadventure_sessions --session-id demo`
     (or any preferred identifier) before issuing commands you want to resume later.
+
+## Tool and Knowledge Base Issues
+
+- **Symptom:** Invoking a scripted tool (for example, `lookup lore`) does nothing.
+  - **Cause:** The scripted engine only exposes tools that were registered for the
+    current scene or coordinator configuration.
+  - **Fix:** Check the scene definition to ensure the tool command is present. When
+    running custom adventures, verify `ScriptedStoryEngine` received the expected
+    tool registry during initialisation.
+
+- **Symptom:** Knowledge base responses repeat stale information.
+  - **Cause:** Session persistence restores the last cached tool results.
+  - **Fix:** Delete the relevant snapshot under the session directory or run the CLI
+    with a new `--session-id` to start from a clean slate. You can also disable
+    persistence temporarily to confirm the stale data is tied to the snapshot.
+
+- **Symptom:** Custom tools crash with `TypeError` or missing-argument errors.
+  - **Cause:** Tool implementations must conform to the `Tool` protocol and accept the
+    expected payload shape.
+  - **Fix:** Revisit `textadventure/tools.py` and update the custom tool signature to
+    match the interface. Add unit tests that exercise the tool via the coordinator to
+    catch mismatches earlier.
 
 ## LLM Integration Issues
 

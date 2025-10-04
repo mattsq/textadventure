@@ -358,7 +358,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Getting started guide *(Added `docs/getting_started.md` with step-by-step setup, quality gates, and troubleshooting tips, and linked it from the README.)*
       - [x] Feature reference *(Documented key capabilities in `docs/feature_reference.md` and linked the overview from the README.)*
       - [x] Advanced techniques *(Documented power-user workflows in `docs/advanced_techniques.md` and linked them from the README.)*
-      - [ ] Troubleshooting guide
+      - [x] Troubleshooting guide *(Expanded `docs/troubleshooting.md` with setup checks, tool diagnostics, and cross-references to related documentation.)*
     - [ ] Build developer documentation:
       - [x] API reference *(Documented key runtime modules in `docs/api_reference.md`.)*
       - [x] Extension guide *(Documented developer extension patterns in `docs/extension_guide.md` and linked it from the README.)*
