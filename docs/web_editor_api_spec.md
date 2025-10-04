@@ -382,6 +382,67 @@ each changed scene so editors can render inline previews.
 }
 ```
 
+### `POST /scenes/rollback`
+
+Preview how restoring a backup dataset would affect the currently bundled
+scenes. The endpoint performs the same schema migration and diff computation as
+the import workflow but always reports changes using the "replace" strategy so
+operators can confirm the impact before mutating any files.
+
+**Request body**
+
+```json
+{
+  "scenes": { /* Mapping of scene ids to definitions */ },
+  "schema_version": 2,
+  "generated_at": "2024-06-30T18:45:00Z"
+}
+```
+
+**Response – 200 OK**
+
+```json
+{
+  "current": {
+    "generated_at": "2024-07-05T08:00:00Z",
+    "version_id": "20240705T080000Z-1a2b3c4d",
+    "checksum": "f3a8…"
+  },
+  "target": {
+    "generated_at": "2024-06-30T18:45:00Z",
+    "version_id": "20240630T184500Z-5e6f7a8b",
+    "checksum": "4b91…"
+  },
+  "summary": {
+    "added_scene_ids": [],
+    "removed_scene_ids": ["market-square"],
+    "modified_scene_ids": ["village-square"],
+    "unchanged_scene_ids": ["forest-edge"]
+  },
+  "entries": [
+    {
+      "scene_id": "market-square",
+      "status": "removed",
+      "diff": "--- current/market-square\n@@\n-  \"description\": \"Merchants line the stalls.\"\n",
+      "diff_html": "<table class=\"diff\">…</table>"
+    }
+  ],
+  "plan": {
+    "strategy": "replace",
+    "new_scene_ids": [],
+    "updated_scene_ids": ["village-square"],
+    "unchanged_scene_ids": [],
+    "removed_scene_ids": ["market-square"]
+  }
+}
+```
+
+The `current` and `target` blocks summarise the dataset timestamps, version ids,
+and checksums so downstream tooling can display confirmation prompts and audit
+logs. Clients can reuse the `entries` array to render diff previews while the
+`plan` object highlights which scenes would be added, updated, or removed during
+the rollback.
+
 Clients can use the summary lists to power change indicators (e.g. sidebars or
 status badges) while rendering the unified diffs inline for detailed review. The
 `diff_html` payload offers a ready-to-render table produced by

@@ -302,7 +302,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Provide HTML-rendered diff fragments from the API for changed scenes.
         - [x] Document the diff visualisation field in the API specification.
         - [x] Add regression tests covering the HTML diff output.
-      - [ ] Rollback capabilities
+      - [x] Rollback capabilities *(Added `/api/scenes/rollback` planning endpoint with version metadata, diffs, and replace strategy coverage.)*
       - [ ] Branch management for different storylines
     - [ ] Create project management features:
       - [ ] Multiple adventure projects
