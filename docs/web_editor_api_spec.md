@@ -245,6 +245,56 @@ helps with file naming and integrity verification.
 }
 ```
 
+
+### `POST /import/scenes`
+
+Validate an uploaded dataset prior to applying it to the live store. The
+endpoint performs structural validation, reachability analysis, and analytics
+checks without mutating the bundled JSON file. It also accepts legacy
+``schema_version`` payloads and migrates them to the current structure so older
+editor exports remain compatible.
+
+**Request body**
+
+```json
+{
+  "scenes": { /* Mapping of scene ids to definitions */ },
+  "schema_version": 1,
+  "start_scene": "village-square"
+}
+```
+
+**Fields**
+
+- `scenes` *(required)* – Mapping of identifiers to scene definitions.
+- `schema_version` *(optional)* – Positive integer indicating the schema the
+  payload conforms to. When omitted it defaults to the current server version.
+  Legacy datasets (currently version `1`) are migrated automatically. Requests
+  specifying a newer schema version than the server supports result in a
+  `400 Bad Request` response with a descriptive message.
+- `start_scene` *(optional)* – Scene identifier to seed reachability
+  calculations. Defaults to the first scene in the payload when omitted.
+
+**Response – 200 OK**
+
+```json
+{
+  "scene_count": 42,
+  "start_scene": "village-square",
+  "validation": {
+    "generated_at": "2024-04-01T09:00:00Z",
+    "reachability": {
+      "start_scene": "village-square",
+      "reachable_count": 42,
+      "unreachable": []
+    },
+    "quality": { /* See validation report definition */ },
+    "item_flow": { /* Item flow summary */ }
+  }
+}
+```
+
+
 ### `POST /scenes`
 
 Create a new scene. Requests provide the full scene payload except timestamps,

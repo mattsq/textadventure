@@ -10,7 +10,7 @@ from typing import Any, Mapping
 from fastapi.testclient import TestClient
 
 from textadventure.api import create_app
-from textadventure.api.app import SceneService
+from textadventure.api.app import CURRENT_SCENE_SCHEMA_VERSION, SceneService
 
 
 def _client() -> TestClient:
@@ -610,5 +610,56 @@ def test_import_endpoint_returns_400_for_invalid_payload() -> None:
     response = client.post(
         "/api/import/scenes",
         json={"scenes": invalid_dataset},
+    )
+    assert response.status_code == 400
+
+
+def test_import_endpoint_migrates_legacy_schema_version_one() -> None:
+    client = _client()
+    legacy_dataset = {
+        "alpha": {
+            "description": "Alpha",
+            "choices": {
+                "forward": {"description": "Advance"},
+                "rest": "Take a break",
+            },
+            "transitions": [
+                {"command": "forward", "narration": "Go", "target": "beta"},
+                {"command": "rest", "narration": "Pause"},
+            ],
+        },
+        "beta": {
+            "description": "Beta",
+            "choices": [
+                {"command": "return", "description": "Return"},
+            ],
+            "transitions": [
+                {"command": "return", "narration": "Back", "target": "alpha"},
+            ],
+        },
+    }
+
+    response = client.post(
+        "/api/import/scenes",
+        json={
+            "scenes": legacy_dataset,
+            "schema_version": 1,
+            "start_scene": "alpha",
+        },
+    )
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["scene_count"] == len(legacy_dataset)
+    assert payload["start_scene"] == "alpha"
+
+
+def test_import_endpoint_rejects_newer_schema_version() -> None:
+    client = _client()
+    dataset = _import_dataset()
+
+    response = client.post(
+        "/api/import/scenes",
+        json={"scenes": dataset, "schema_version": CURRENT_SCENE_SCHEMA_VERSION + 1},
     )
     assert response.status_code == 400
