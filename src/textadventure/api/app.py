@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 from dataclasses import asdict, dataclass
@@ -34,6 +35,7 @@ from ..search import FieldType, SearchResults, _SceneLike, search_scene_text
 from ..scripted_story_engine import load_scenes_from_mapping
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
+DiffStatus = Literal["added", "removed", "modified"]
 
 
 class ExportFormat(str, Enum):
@@ -326,6 +328,52 @@ class SceneImportResponse(BaseModel):
     )
 
 
+class SceneDiffRequest(BaseModel):
+    """Request payload for computing a diff against the current dataset."""
+
+    scenes: dict[str, Any] = Field(
+        ...,
+        description=(
+            "Mapping of scene identifiers to their definitions mirroring the export format."
+        ),
+    )
+    schema_version: int | None = Field(
+        None,
+        ge=1,
+        description=(
+            "Optional schema version identifier for the uploaded dataset. "
+            "Legacy versions are automatically migrated when supported."
+        ),
+    )
+
+
+class SceneDiffEntry(BaseModel):
+    """Diff output for a single scene compared against the current dataset."""
+
+    scene_id: str
+    status: DiffStatus
+    diff: str = Field(
+        ...,
+        description="Unified diff describing the changes for the scene in Git-style format.",
+    )
+
+
+class SceneDiffSummary(BaseModel):
+    """High-level summary of scene-level differences."""
+
+    added_scene_ids: list[str] = Field(default_factory=list)
+    removed_scene_ids: list[str] = Field(default_factory=list)
+    modified_scene_ids: list[str] = Field(default_factory=list)
+    unchanged_scene_ids: list[str] = Field(default_factory=list)
+
+
+class SceneDiffResponse(BaseModel):
+    """Response payload containing scene diff output."""
+
+    summary: SceneDiffSummary
+    entries: list[SceneDiffEntry] = Field(default_factory=list)
+
+
 @dataclass(frozen=True)
 class SceneBackupResult:
     """Details about a backup snapshot created before importing scenes."""
@@ -539,6 +587,37 @@ def _normalise_scene_payload(payload: Mapping[str, Any]) -> Any:
         # Fall back to the raw payload when serialisation fails so comparisons
         # still have a best-effort chance of succeeding.
         return payload
+
+
+def _serialise_scene_lines(payload: Any) -> list[str]:
+    """Return indented JSON lines for ``payload`` suitable for unified diffs."""
+
+    try:
+        serialised = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        serialised = repr(payload)
+    return serialised.splitlines()
+
+
+def _format_scene_diff(
+    scene_id: str,
+    *,
+    current: Any | None,
+    incoming: Any | None,
+) -> str:
+    """Return a unified diff between ``current`` and ``incoming`` payloads."""
+
+    current_lines = _serialise_scene_lines(current) if current is not None else []
+    incoming_lines = _serialise_scene_lines(incoming) if incoming is not None else []
+
+    diff_lines = difflib.unified_diff(
+        current_lines,
+        incoming_lines,
+        fromfile=f"current/{scene_id}",
+        tofile=f"incoming/{scene_id}",
+        lineterm="",
+    )
+    return "\n".join(diff_lines)
 
 
 def _compute_import_plans(
@@ -874,6 +953,89 @@ class SceneService:
             plans=plans,
         )
 
+    def diff_scenes(
+        self,
+        *,
+        scenes: Mapping[str, Any],
+        schema_version: int | None = None,
+    ) -> SceneDiffResponse:
+        """Compute Git-style diffs between the current dataset and ``scenes``."""
+
+        if not scenes:
+            raise ValueError("At least one scene must be provided for diffing.")
+
+        existing_definitions, _ = self._repository.load()
+
+        try:
+            migrated_scenes = _migrate_scene_dataset(
+                scenes, schema_version=schema_version
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        existing_normalised = {
+            scene_id: _normalise_scene_payload(_ensure_scene_mapping(scene_id, payload))
+            for scene_id, payload in existing_definitions.items()
+        }
+        incoming_normalised = {
+            scene_id: _normalise_scene_payload(payload)
+            for scene_id, payload in migrated_scenes.items()
+        }
+
+        existing_ids = set(existing_normalised)
+        incoming_ids = set(incoming_normalised)
+        shared_ids = sorted(existing_ids & incoming_ids)
+
+        unchanged_ids: list[str] = []
+        modified_ids: list[str] = []
+        for scene_id in shared_ids:
+            if existing_normalised[scene_id] == incoming_normalised[scene_id]:
+                unchanged_ids.append(scene_id)
+            else:
+                modified_ids.append(scene_id)
+
+        added_ids = sorted(incoming_ids - existing_ids)
+        removed_ids = sorted(existing_ids - incoming_ids)
+
+        summary = SceneDiffSummary(
+            added_scene_ids=added_ids,
+            removed_scene_ids=removed_ids,
+            modified_scene_ids=modified_ids,
+            unchanged_scene_ids=unchanged_ids,
+        )
+
+        entries: list[SceneDiffEntry] = []
+
+        for scene_id in added_ids:
+            diff = _format_scene_diff(
+                scene_id,
+                current=None,
+                incoming=incoming_normalised[scene_id],
+            )
+            entries.append(SceneDiffEntry(scene_id=scene_id, status="added", diff=diff))
+
+        for scene_id in removed_ids:
+            diff = _format_scene_diff(
+                scene_id,
+                current=existing_normalised[scene_id],
+                incoming=None,
+            )
+            entries.append(
+                SceneDiffEntry(scene_id=scene_id, status="removed", diff=diff)
+            )
+
+        for scene_id in modified_ids:
+            diff = _format_scene_diff(
+                scene_id,
+                current=existing_normalised[scene_id],
+                incoming=incoming_normalised[scene_id],
+            )
+            entries.append(
+                SceneDiffEntry(scene_id=scene_id, status="modified", diff=diff)
+            )
+
+        return SceneDiffResponse(summary=summary, entries=entries)
+
     def create_backup(
         self,
         *,
@@ -1084,6 +1246,18 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
                 scenes=payload.scenes,
                 schema_version=payload.schema_version,
                 start_scene=payload.start_scene,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/api/scenes/diff", response_model=SceneDiffResponse)
+    def diff_scenes(payload: SceneDiffRequest) -> SceneDiffResponse:
+        try:
+            return service.diff_scenes(
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

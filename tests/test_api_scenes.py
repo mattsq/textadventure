@@ -764,6 +764,142 @@ def test_import_endpoint_reports_merge_and_replace_plans() -> None:
     assert replace_plan["removed_scene_ids"] == ["gamma"]
 
 
+def test_diff_scenes_reports_added_removed_and_modified_entries() -> None:
+    timestamp = datetime(2024, 7, 1, 8, 30, tzinfo=timezone.utc)
+    existing: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha original",
+            "choices": [
+                {"command": "wait", "description": "Wait patiently."},
+            ],
+            "transitions": {
+                "wait": {"narration": "You wait in silence.", "target": None}
+            },
+        },
+        "beta": {
+            "description": "Beta original",
+            "choices": [
+                {"command": "press", "description": "Press forward."},
+            ],
+            "transitions": {
+                "press": {
+                    "narration": "You advance cautiously.",
+                    "target": "alpha",
+                }
+            },
+        },
+        "gamma": {
+            "description": "Gamma to remove",
+            "choices": [],
+            "transitions": {},
+        },
+    }
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return existing, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    incoming = {
+        "alpha": json.loads(json.dumps(existing["alpha"])),
+        "beta": {
+            "description": "Beta updated",
+            "choices": [
+                {"command": "press", "description": "Press forward."},
+            ],
+            "transitions": {
+                "press": {
+                    "narration": "You advance boldly.",
+                    "target": "alpha",
+                }
+            },
+        },
+        "delta": {
+            "description": "Delta newly added",
+            "choices": [
+                {"command": "explore", "description": "Explore the surroundings."},
+            ],
+            "transitions": {
+                "explore": {
+                    "narration": "You set off on a fresh path.",
+                    "target": None,
+                }
+            },
+        },
+    }
+
+    response = client.post("/api/scenes/diff", json={"scenes": incoming})
+    assert response.status_code == 200
+
+    payload = response.json()
+    summary = payload["summary"]
+    assert summary["added_scene_ids"] == ["delta"]
+    assert summary["removed_scene_ids"] == ["gamma"]
+    assert summary["modified_scene_ids"] == ["beta"]
+    assert summary["unchanged_scene_ids"] == ["alpha"]
+
+    entries_by_scene = {entry["scene_id"]: entry for entry in payload["entries"]}
+    assert set(entries_by_scene) == {"beta", "gamma", "delta"}
+
+    beta_diff = entries_by_scene["beta"]
+    assert beta_diff["status"] == "modified"
+    assert "--- current/beta" in beta_diff["diff"]
+    assert "+++ incoming/beta" in beta_diff["diff"]
+    assert '-  "description": "Beta original"' in beta_diff["diff"]
+    assert '+  "description": "Beta updated"' in beta_diff["diff"]
+
+    gamma_diff = entries_by_scene["gamma"]
+    assert gamma_diff["status"] == "removed"
+    assert gamma_diff["diff"].startswith("--- current/gamma")
+
+    delta_diff = entries_by_scene["delta"]
+    assert delta_diff["status"] == "added"
+    assert "+++ incoming/delta" in delta_diff["diff"]
+
+
+def test_diff_scenes_returns_unchanged_summary_when_payload_matches() -> None:
+    timestamp = datetime(2024, 7, 2, 15, 45, tzinfo=timezone.utc)
+    existing: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha scene",
+            "choices": [
+                {"command": "look", "description": "Survey the area."},
+            ],
+            "transitions": {
+                "look": {"narration": "You take in the view.", "target": None}
+            },
+        },
+        "beta": {
+            "description": "Beta scene",
+            "choices": [],
+            "transitions": {},
+        },
+    }
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return existing, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.post(
+        "/api/scenes/diff",
+        json={"scenes": json.loads(json.dumps(existing))},
+    )
+    assert response.status_code == 200
+
+    payload = response.json()
+    summary = payload["summary"]
+    assert summary["added_scene_ids"] == []
+    assert summary["removed_scene_ids"] == []
+    assert summary["modified_scene_ids"] == []
+    assert summary["unchanged_scene_ids"] == sorted(existing)
+    assert payload["entries"] == []
+
+
 def test_scene_service_creates_pretty_backup(tmp_path) -> None:
     dataset: Mapping[str, Any] = {
         "alpha": {
