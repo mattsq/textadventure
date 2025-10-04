@@ -153,6 +153,43 @@ def test_run_cli_informs_when_saving_unavailable(monkeypatch, capsys) -> None:
     assert world.recent_actions() == ()
 
 
+def test_tutorial_command_walks_through_steps(monkeypatch, capsys) -> None:
+    """The tutorial command should provide an interactive walkthrough."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["tutorial", "", "", "", "", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world)
+
+    captured = capsys.readouterr().out
+    assert "=== Interactive Tutorial ===" in captured
+    assert "Step 1 of" in captured
+    assert "Use the CLI helpers" in captured
+    assert "Remember that 'help' and 'tutorial'" in captured
+    assert world.recent_actions() == ()
+
+
+def test_tutorial_command_mentions_saving_when_available(monkeypatch, capsys) -> None:
+    """When persistence is enabled, the tutorial should highlight save/load."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+    store = InMemorySessionStore()
+
+    inputs = iter(["tutorial", "", "", "", "", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world, session_store=store)
+
+    captured = capsys.readouterr().out
+    assert "Save your progress at any time" in captured
+    assert "also appear in the 'status' command." in captured
+    assert world.recent_actions() == ()
+
+
 def test_run_cli_autoloads_session(monkeypatch, capsys) -> None:
     """Providing autoload details should restore the world before the loop."""
 

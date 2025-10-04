@@ -9,7 +9,8 @@ the system for new adventures or agent behaviours.
 1. **Entry point** – `src/main.py` wires the world state, story engine, optional
    persistence, optional LLM providers, and an interactive CLI loop. It prints
    story events using `StoryEngine.format_event`, handles commands such as
-   `save`, `load`, and `status`, and records transcripts when requested.
+   `help`, `tutorial`, `save`, `load`, and `status`, and records transcripts when
+   requested.
 2. **World state** – `WorldState` stores the player's location, inventory,
    history, and a rolling `MemoryLog`. Helper methods validate inputs, record
    events, and expose recent actions/observations to agents.
