@@ -277,7 +277,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] File upload with validation *(Implemented `/api/import/scenes` to accept JSON uploads, validate structure, and surface reachability/quality reports for the uploaded dataset.)*
       - [x] Schema migration support *(Import endpoint accepts `schema_version` and migrates legacy v1 datasets before validation.)*
       - [x] Conflict resolution (merge vs replace) *(Import validation now reports merge vs replace change plans to highlight updates, additions, and removals.)*
-      - [ ] Backup creation before import
+      - [x] Backup creation before import *(Added a `SceneService.create_backup` helper that writes scene snapshots to disk with configurable formatting and returns metadata for operator logs, covered by unit tests and documented in the API spec.)*
     - [ ] Implement export options:
       - [x] Full scene export *(Added `/api/export/scenes` endpoint returning the bundled dataset with timestamps.)*
       - [x] Selective scene export

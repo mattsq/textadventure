@@ -326,6 +326,16 @@ class SceneImportResponse(BaseModel):
     )
 
 
+@dataclass(frozen=True)
+class SceneBackupResult:
+    """Details about a backup snapshot created before importing scenes."""
+
+    path: Path
+    version_id: str
+    checksum: str
+    generated_at: datetime
+
+
 CURRENT_SCENE_SCHEMA_VERSION = 2
 
 
@@ -862,6 +872,33 @@ class SceneService:
             start_scene=selected_start_scene,
             validation=report,
             plans=plans,
+        )
+
+    def create_backup(
+        self,
+        *,
+        destination_dir: Path,
+        export_format: ExportFormat = ExportFormat.PRETTY,
+    ) -> SceneBackupResult:
+        """Write the current scene dataset to ``destination_dir``."""
+
+        export = self.export_scenes()
+        destination_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = export.metadata.suggested_filename
+        backup_path = destination_dir / filename
+
+        dumps = _dumps_for_export_format(export_format)
+        serialisable = json.loads(json.dumps(export.scenes, ensure_ascii=False))
+
+        with backup_path.open("w", encoding="utf-8") as handle:
+            handle.write(dumps(serialisable))
+
+        return SceneBackupResult(
+            path=backup_path,
+            version_id=export.metadata.version_id,
+            checksum=export.metadata.checksum,
+            generated_at=export.generated_at,
         )
 
     def _build_validation_report(

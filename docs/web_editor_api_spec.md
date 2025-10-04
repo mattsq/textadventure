@@ -321,6 +321,17 @@ store for each supported conflict resolution strategy:
 Clients can present these plans to authors before committing the import so
 they can choose the most appropriate strategy for their project.
 
+#### Backup workflow prior to import
+
+Before mutating the live dataset, the backend now exposes a helper for
+capturing a point-in-time backup of the existing scenes. Call
+``SceneService.create_backup(destination_dir=...)`` to materialise the current
+dataset to disk using the same ``scene-backup-<version>.json`` filename format
+surfaced by the export endpoint. The helper writes either pretty-printed or
+minified JSON depending on the ``export_format`` argument and returns metadata
+about the saved snapshot (version id, checksum, and timestamp) so operators can
+log or display confirmation to authors.
+
 
 ### `POST /scenes`
 
