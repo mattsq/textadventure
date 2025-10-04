@@ -153,15 +153,21 @@ Running the CLI with this engine lets designers iterate on adventures without
 changing the Python source. See
 [`docs/data_driven_scenes.md`](docs/data_driven_scenes.md) for a full breakdown
 of the JSON schema, validation rules, and tips for wiring custom files into the
-demo. [`docs/best_practices.md`](docs/best_practices.md) captures field-tested
-guidance for structuring scenes, gating progression, and preparing analytics
-reports. [`docs/multi_agent_orchestration.md`](docs/multi_agent_orchestration.md)
+demo.
+[`docs/best_practices.md`](docs/best_practices.md) captures field-tested guidance
+for structuring scenes, gating progression, and preparing analytics reports.
+[`docs/multi_agent_orchestration.md`](docs/multi_agent_orchestration.md)
 describes how the coordinator hands off turns between scripted and LLM-backed
-agents. [`docs/advanced_techniques.md`](docs/advanced_techniques.md) collects
-power-user workflows for composing multi-agent setups, wiring tools, tuning
-memory, and automating analytics. [`docs/llm_capabilities.md`](docs/llm_capabilities.md)
-documents the capability schema that LLM adapters use to advertise streaming,
-function calling, and tool support.
+agents.
+[`docs/advanced_techniques.md`](docs/advanced_techniques.md) collects power-user
+workflows for composing multi-agent setups, wiring tools, tuning memory, and
+automating analytics.
+The [extension guide](docs/extension_guide.md) walks through concrete recipes
+for introducing new story engines, agents, tools, persistence backends, and CLI
+helpers on top of the existing runtime.
+[`docs/llm_capabilities.md`](docs/llm_capabilities.md) documents the capability
+schema that LLM adapters use to advertise streaming, function calling, and tool
+support.
 
 Looking for a quick catalogue of everything the framework currently supports?
 See the [feature reference](docs/feature_reference.md) for an overview of the
