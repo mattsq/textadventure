@@ -258,7 +258,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] State tracking (location, inventory, history)
       - [ ] Reset and restart capabilities
     - [ ] Create testing toolkit:
-      - [ ] State manipulation tools (set inventory, history)
+      - [x] State manipulation tools (set inventory, history). *(Introduced `testing_toolkit` helpers for resetting inventory and history with regression tests.)*
       - [ ] Jump to specific scenes
       - [ ] Debug mode showing internal state
       - [ ] Step-by-step execution
