@@ -361,3 +361,36 @@ def test_validate_endpoint_rejects_unknown_start_scene() -> None:
         "/api/scenes/validate", params={"start_scene": "unknown-scene"}
     )
     assert response.status_code == 400
+
+
+def test_export_endpoint_returns_full_dataset() -> None:
+    definitions: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha description",
+            "choices": [
+                {"command": "look", "description": "Look around"},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You see the alpha ruins.",
+                    "records": ["looked"],
+                }
+            },
+        }
+    }
+    timestamp = datetime(2024, 1, 2, 12, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/export/scenes")
+    assert response.status_code == 200
+
+    payload = response.json()
+    exported_timestamp = datetime.fromisoformat(payload["generated_at"])
+    assert exported_timestamp == timestamp
+    assert payload["scenes"] == definitions
