@@ -71,6 +71,9 @@ is available and where to look next.
 - Run `python -m textadventure.analytics` to compute complexity metrics,
   content distribution summaries, reachability, item flow, and quality checks
   for any JSON scene file (defaulting to the bundled demo).【F:src/textadventure/analytics.py†L1011-L1072】
+- Use `compare_adventure_variants` with `format_ab_test_report` to A/B test two
+  scene collections, surfacing metric deltas plus added/removed items and
+  history records between variants.【F:src/textadventure/analytics.py†L889-L1034】
 
 Refer back to the README and the other documents in `docs/` for deep dives on
 getting started, best practices, multi-agent orchestration, and troubleshooting.

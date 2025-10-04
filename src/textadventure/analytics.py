@@ -6,7 +6,7 @@ import argparse
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Protocol, Sequence, cast
+from typing import Any, Callable, Mapping, Protocol, Sequence, cast
 
 from .story_engine import StoryChoice
 
@@ -291,6 +291,71 @@ class ItemFlowReport:
         )
 
 
+@dataclass(frozen=True)
+class AdventureABMetricDelta:
+    """Difference between numeric metrics for two narrative variants."""
+
+    metric: str
+    variant_a_value: float
+    variant_b_value: float
+    absolute_difference: float
+    relative_difference: float | None
+
+    @property
+    def variant_b_is_higher(self) -> bool:
+        """Return ``True`` when variant B increased the metric."""
+
+        return self.absolute_difference > 0
+
+    @property
+    def variant_b_is_lower(self) -> bool:
+        """Return ``True`` when variant B decreased the metric."""
+
+        return self.absolute_difference < 0
+
+
+@dataclass(frozen=True)
+class AdventureABCollectionDifference:
+    """Difference summary describing added/removed identifiers between variants."""
+
+    added: tuple[str, ...]
+    removed: tuple[str, ...]
+
+    @property
+    def has_changes(self) -> bool:
+        """Return ``True`` when either variant introduced or removed identifiers."""
+
+        return bool(self.added or self.removed)
+
+
+@dataclass(frozen=True)
+class AdventureABTestReport:
+    """Aggregate report describing how two narrative variants compare."""
+
+    variant_a_name: str
+    variant_b_name: str
+    metric_deltas: tuple[AdventureABMetricDelta, ...]
+    awarded_item_changes: AdventureABCollectionDifference
+    consumed_item_changes: AdventureABCollectionDifference
+    history_record_changes: AdventureABCollectionDifference
+
+    @property
+    def changed_metrics(self) -> tuple[AdventureABMetricDelta, ...]:
+        """Return metric deltas where the variants differ."""
+
+        return tuple(
+            delta for delta in self.metric_deltas if delta.absolute_difference != 0
+        )
+
+    @property
+    def unchanged_metrics(self) -> tuple[AdventureABMetricDelta, ...]:
+        """Return metric deltas where the variants match."""
+
+        return tuple(
+            delta for delta in self.metric_deltas if delta.absolute_difference == 0
+        )
+
+
 def _safe_average(total: int, count: int) -> float:
     if count == 0:
         return 0.0
@@ -306,6 +371,80 @@ def _count_words(value: str) -> int:
     if not stripped:
         return 0
     return len(stripped.split())
+
+
+_COMPLEXITY_METRIC_ACCESSORS: tuple[
+    tuple[str, Callable[[AdventureComplexityMetrics], float]], ...
+] = (
+    ("scene_count", lambda metrics: float(metrics.scene_count)),
+    ("choice_count", lambda metrics: float(metrics.choice_count)),
+    ("transition_count", lambda metrics: float(metrics.transition_count)),
+    (
+        "interactive_choice_count",
+        lambda metrics: float(metrics.interactive_choice_count),
+    ),
+    (
+        "commands_without_transitions",
+        lambda metrics: float(metrics.commands_without_transitions),
+    ),
+    (
+        "average_choices_per_scene",
+        lambda metrics: float(metrics.average_choices_per_scene),
+    ),
+    (
+        "average_transitions_per_scene",
+        lambda metrics: float(metrics.average_transitions_per_scene),
+    ),
+    ("max_choices_in_scene", lambda metrics: float(metrics.max_choices_in_scene)),
+    (
+        "max_transitions_in_scene",
+        lambda metrics: float(metrics.max_transitions_in_scene),
+    ),
+    (
+        "terminal_transition_count",
+        lambda metrics: float(metrics.terminal_transition_count),
+    ),
+    (
+        "gated_transition_count",
+        lambda metrics: float(metrics.gated_transition_count),
+    ),
+    (
+        "conditional_transition_count",
+        lambda metrics: float(metrics.conditional_transition_count),
+    ),
+    ("item_reward_count", lambda metrics: float(metrics.item_reward_count)),
+    (
+        "unique_item_reward_count",
+        lambda metrics: float(metrics.unique_item_reward_count),
+    ),
+    (
+        "unique_item_consumption_count",
+        lambda metrics: float(metrics.unique_item_consumption_count),
+    ),
+    (
+        "unique_history_record_count",
+        lambda metrics: float(metrics.unique_history_record_count),
+    ),
+)
+
+
+def _compute_relative_delta(old: float, new: float) -> float | None:
+    if old == 0.0:
+        if new == 0.0:
+            return 0.0
+        return None
+    return (new - old) / old
+
+
+def _compare_identifier_collections(
+    identifiers_a: Sequence[str],
+    identifiers_b: Sequence[str],
+) -> AdventureABCollectionDifference:
+    set_a = set(identifiers_a)
+    set_b = set(identifiers_b)
+    added = tuple(sorted(set_b - set_a))
+    removed = tuple(sorted(set_a - set_b))
+    return AdventureABCollectionDifference(added=added, removed=removed)
 
 
 def _summarise_texts(entries: Sequence[str]) -> TextDistributionSummary:
@@ -749,6 +888,149 @@ def compute_scene_reachability_from_file(
     return compute_scene_reachability(
         cast(Mapping[str, _SceneLike], scenes), start_scene=start_scene
     )
+
+
+def compare_adventure_variants(
+    metrics_a: AdventureComplexityMetrics,
+    metrics_b: AdventureComplexityMetrics,
+    *,
+    variant_a_name: str = "Variant A",
+    variant_b_name: str = "Variant B",
+) -> AdventureABTestReport:
+    """Compare two adventures and summarise how their metrics differ."""
+
+    metric_deltas: list[AdventureABMetricDelta] = []
+    for metric_name, accessor in _COMPLEXITY_METRIC_ACCESSORS:
+        a_value = accessor(metrics_a)
+        b_value = accessor(metrics_b)
+        delta = b_value - a_value
+        relative = _compute_relative_delta(a_value, b_value)
+        metric_deltas.append(
+            AdventureABMetricDelta(
+                metric=metric_name,
+                variant_a_value=a_value,
+                variant_b_value=b_value,
+                absolute_difference=delta,
+                relative_difference=relative,
+            )
+        )
+
+    awarded_diff = _compare_identifier_collections(
+        metrics_a.unique_items_awarded, metrics_b.unique_items_awarded
+    )
+    consumed_diff = _compare_identifier_collections(
+        metrics_a.unique_items_consumed, metrics_b.unique_items_consumed
+    )
+    history_diff = _compare_identifier_collections(
+        metrics_a.unique_history_records, metrics_b.unique_history_records
+    )
+
+    return AdventureABTestReport(
+        variant_a_name=variant_a_name,
+        variant_b_name=variant_b_name,
+        metric_deltas=tuple(metric_deltas),
+        awarded_item_changes=awarded_diff,
+        consumed_item_changes=consumed_diff,
+        history_record_changes=history_diff,
+    )
+
+
+def compare_adventure_variants_from_definitions(
+    definitions_a: Mapping[str, Any],
+    definitions_b: Mapping[str, Any],
+    *,
+    variant_a_name: str = "Variant A",
+    variant_b_name: str = "Variant B",
+) -> AdventureABTestReport:
+    """Parse scene definitions and compare the resulting adventure variants."""
+
+    from .scripted_story_engine import load_scenes_from_mapping
+
+    scenes_a = load_scenes_from_mapping(definitions_a)
+    scenes_b = load_scenes_from_mapping(definitions_b)
+    metrics_a = compute_adventure_complexity(cast(Mapping[str, _SceneLike], scenes_a))
+    metrics_b = compute_adventure_complexity(cast(Mapping[str, _SceneLike], scenes_b))
+    return compare_adventure_variants(
+        metrics_a,
+        metrics_b,
+        variant_a_name=variant_a_name,
+        variant_b_name=variant_b_name,
+    )
+
+
+def compare_adventure_variants_from_file(
+    path_a: str | Path,
+    path_b: str | Path,
+    *,
+    variant_a_name: str = "Variant A",
+    variant_b_name: str = "Variant B",
+) -> AdventureABTestReport:
+    """Load scene files and compare the resulting adventure variants."""
+
+    from .scripted_story_engine import load_scenes_from_file
+
+    scenes_a = load_scenes_from_file(path_a)
+    scenes_b = load_scenes_from_file(path_b)
+    metrics_a = compute_adventure_complexity(cast(Mapping[str, _SceneLike], scenes_a))
+    metrics_b = compute_adventure_complexity(cast(Mapping[str, _SceneLike], scenes_b))
+    return compare_adventure_variants(
+        metrics_a,
+        metrics_b,
+        variant_a_name=variant_a_name,
+        variant_b_name=variant_b_name,
+    )
+
+
+def format_ab_test_report(
+    report: AdventureABTestReport, *, include_zero_deltas: bool = False
+) -> str:
+    """Return a human-friendly summary comparing two adventure variants."""
+
+    title = f"A/B Test Comparison: {report.variant_a_name} vs {report.variant_b_name}"
+    lines = [title, "=" * len(title), ""]
+
+    metric_lines = []
+    for delta in report.metric_deltas:
+        if not include_zero_deltas and delta.absolute_difference == 0:
+            continue
+
+        change_details = f"Δ {delta.absolute_difference:+g}"
+        if delta.relative_difference is not None:
+            change_details += f" ({delta.relative_difference * 100:+.1f}%)"
+
+        metric_lines.append(
+            (
+                f"- {delta.metric}: {report.variant_a_name} "
+                f"{delta.variant_a_value:g} -> {report.variant_b_name} "
+                f"{delta.variant_b_value:g} [{change_details}]"
+            )
+        )
+
+    lines.append("Metric changes:")
+    if metric_lines:
+        lines.extend(metric_lines)
+    else:
+        lines.append("- No numeric differences detected.")
+
+    collection_sections = [
+        ("Unique items awarded", report.awarded_item_changes),
+        ("Unique items consumed", report.consumed_item_changes),
+        ("History records", report.history_record_changes),
+    ]
+
+    for label, difference in collection_sections:
+        lines.append("")
+        lines.append(f"{label}:")
+        if difference.added:
+            lines.append(f"- Added in {report.variant_b_name}:")
+            lines.extend(f"  - {item}" for item in difference.added)
+        if difference.removed:
+            lines.append(f"- Removed in {report.variant_b_name}:")
+            lines.extend(f"  - {item}" for item in difference.removed)
+        if not difference.has_changes:
+            lines.append("- No changes")
+
+    return "\n".join(lines)
 
 
 def format_complexity_report(metrics: AdventureComplexityMetrics) -> str:

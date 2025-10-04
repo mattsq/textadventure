@@ -270,7 +270,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Session recording and replay
       - [ ] Path tracking and analytics
       - [ ] Playtester feedback collection
-      - [ ] A/B testing for narrative variants
+      - [x] A/B testing for narrative variants *(Added analytics comparison helpers, reporting formatters, documentation, and regression coverage for variant deltas.)*
+        - [x] Provide analytics utilities to compare two scene collections and summarise metric deltas.
+        - [x] Add reporting helpers/CLI output for variant comparisons.
+        - [x] Document the workflow and cover it with regression tests.
 
   - [ ] **Phase 7: Import/Export & File Management**
     - [ ] Build robust JSON import system:

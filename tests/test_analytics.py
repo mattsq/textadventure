@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import pytest
 
 from textadventure.analytics import (
+    AdventureABCollectionDifference,
+    AdventureABTestReport,
     AdventureReachabilityReport,
     ItemConsumption,
     ItemFlowDetails,
@@ -17,6 +19,8 @@ from textadventure.analytics import (
     analyse_item_flow_from_definitions,
     assess_adventure_quality,
     assess_adventure_quality_from_definitions,
+    compare_adventure_variants,
+    compare_adventure_variants_from_definitions,
     compute_adventure_complexity,
     compute_adventure_complexity_from_definitions,
     compute_adventure_content_distribution,
@@ -24,6 +28,7 @@ from textadventure.analytics import (
     compute_scene_reachability,
     compute_scene_reachability_from_definitions,
     format_item_flow_report,
+    format_ab_test_report,
     format_complexity_report,
     format_content_distribution_report,
     format_quality_report,
@@ -274,6 +279,127 @@ _ITEM_FLOW_SCENE_DEFINITIONS = {
             "return": {
                 "narration": "You stroll back to the herb garden.",
                 "target": "garden",
+            },
+        },
+    },
+}
+
+
+_AB_TEST_BASELINE_DEFINITIONS = {
+    "start": {
+        "description": "The antechamber is lit by flickering braziers.",
+        "choices": [
+            {"command": "take-torch", "description": "Lift a torch from the wall."},
+            {"command": "proceed", "description": "Advance toward the hall."},
+        ],
+        "transitions": {
+            "take-torch": {
+                "narration": "You lift the torch and feel its warmth.",
+                "item": "torch",
+                "records": ["torch-collected"],
+            },
+            "proceed": {
+                "narration": "You enter the hall cautiously.",
+                "target": "hall",
+                "requires": ["torch"],
+                "failure_narration": "It is too dark to continue without a torch.",
+            },
+        },
+    },
+    "hall": {
+        "description": "An echoing hall lined with statues.",
+        "choices": [
+            {"command": "listen", "description": "Listen for distant echoes."},
+            {"command": "return", "description": "Retreat to the antechamber."},
+        ],
+        "transitions": {
+            "listen": {
+                "narration": "A faint melody drifts from below.",
+                "records": ["heard-melody"],
+            },
+            "return": {
+                "narration": "You step back into the antechamber.",
+                "target": "start",
+            },
+        },
+    },
+}
+
+
+_AB_TEST_EXPERIMENT_DEFINITIONS = {
+    "start": {
+        "description": "The antechamber is lit by flickering braziers.",
+        "choices": [
+            {"command": "take-torch", "description": "Lift a torch from the wall."},
+            {"command": "inspect", "description": "Inspect the mosaic for clues."},
+            {"command": "proceed", "description": "Advance toward the hall."},
+        ],
+        "transitions": {
+            "take-torch": {
+                "narration": "You lift the torch and feel its warmth.",
+                "item": "torch",
+                "records": ["torch-collected"],
+            },
+            "inspect": {
+                "narration": "Behind the mosaic you uncover a crystal lens.",
+                "item": "lens",
+                "records": ["found-lens"],
+            },
+            "proceed": {
+                "narration": "The hall's murals shimmer as the lens focuses the light.",
+                "target": "hall",
+                "requires": ["torch"],
+                "failure_narration": "It is too dark to continue without a torch.",
+                "narration_overrides": [
+                    {
+                        "narration": "With the lens in hand you note hidden carvings.",
+                        "requires_history_any": ["found-lens"],
+                        "records": ["studied-carvings"],
+                    }
+                ],
+            },
+        },
+    },
+    "hall": {
+        "description": "An echoing hall lined with statues.",
+        "choices": [
+            {"command": "listen", "description": "Listen for distant echoes."},
+            {"command": "descend", "description": "Descend toward the vault."},
+            {"command": "return", "description": "Retreat to the antechamber."},
+        ],
+        "transitions": {
+            "listen": {
+                "narration": "A faint melody drifts from below.",
+                "records": ["heard-melody"],
+            },
+            "descend": {
+                "narration": "You unlock the stairwell using the lens as a key.",
+                "target": "vault",
+                "requires": ["lens"],
+                "consumes": ["lens"],
+                "records": ["vault-opened"],
+            },
+            "return": {
+                "narration": "You step back into the antechamber.",
+                "target": "start",
+            },
+        },
+    },
+    "vault": {
+        "description": "The vault glitters with sigils etched into the walls.",
+        "choices": [
+            {"command": "claim", "description": "Claim the resonant sigil."},
+            {"command": "exit", "description": "Return to the hall."},
+        ],
+        "transitions": {
+            "claim": {
+                "narration": "You claim the sigil which hums with potential.",
+                "item": "sigil",
+                "records": ["claimed-sigil"],
+            },
+            "exit": {
+                "narration": "You ascend back to the hall.",
+                "target": "hall",
             },
         },
     },
@@ -595,6 +721,98 @@ def test_format_item_flow_report_includes_balance_summary() -> None:
         in formatted
     )
     assert "- deficit" in formatted
+
+
+def test_compare_adventure_variants_highlights_metric_deltas() -> None:
+    baseline_metrics = compute_adventure_complexity_from_definitions(
+        _AB_TEST_BASELINE_DEFINITIONS
+    )
+    experiment_metrics = compute_adventure_complexity_from_definitions(
+        _AB_TEST_EXPERIMENT_DEFINITIONS
+    )
+
+    report = compare_adventure_variants(
+        baseline_metrics,
+        experiment_metrics,
+        variant_a_name="Baseline",
+        variant_b_name="Experiment",
+    )
+
+    assert isinstance(report, AdventureABTestReport)
+    delta_by_metric = {delta.metric: delta for delta in report.metric_deltas}
+
+    scene_delta = delta_by_metric["scene_count"]
+    assert scene_delta.absolute_difference == pytest.approx(1.0)
+    assert scene_delta.relative_difference == pytest.approx(0.5)
+
+    choice_delta = delta_by_metric["choice_count"]
+    assert choice_delta.absolute_difference == pytest.approx(4.0)
+
+    reward_delta = delta_by_metric["unique_item_reward_count"]
+    assert reward_delta.absolute_difference == pytest.approx(2.0)
+    assert reward_delta.relative_difference == pytest.approx(2.0)
+
+    consumption_delta = delta_by_metric["unique_item_consumption_count"]
+    assert consumption_delta.relative_difference is None
+
+    assert report.awarded_item_changes == AdventureABCollectionDifference(
+        added=("lens", "sigil"),
+        removed=(),
+    )
+    assert report.consumed_item_changes == AdventureABCollectionDifference(
+        added=("lens",),
+        removed=(),
+    )
+    assert report.history_record_changes.added == (
+        "claimed-sigil",
+        "found-lens",
+        "studied-carvings",
+        "vault-opened",
+    )
+    assert report.history_record_changes.removed == ()
+
+
+def test_compare_adventure_variants_from_definitions_matches_direct() -> None:
+    baseline_metrics = compute_adventure_complexity_from_definitions(
+        _AB_TEST_BASELINE_DEFINITIONS
+    )
+    experiment_metrics = compute_adventure_complexity_from_definitions(
+        _AB_TEST_EXPERIMENT_DEFINITIONS
+    )
+
+    direct_report = compare_adventure_variants(
+        baseline_metrics,
+        experiment_metrics,
+        variant_a_name="Baseline",
+        variant_b_name="Experiment",
+    )
+    via_definitions = compare_adventure_variants_from_definitions(
+        _AB_TEST_BASELINE_DEFINITIONS,
+        _AB_TEST_EXPERIMENT_DEFINITIONS,
+        variant_a_name="Baseline",
+        variant_b_name="Experiment",
+    )
+
+    assert via_definitions == direct_report
+
+
+def test_format_ab_test_report_lists_changes() -> None:
+    report = compare_adventure_variants_from_definitions(
+        _AB_TEST_BASELINE_DEFINITIONS,
+        _AB_TEST_EXPERIMENT_DEFINITIONS,
+        variant_a_name="Baseline",
+        variant_b_name="Experiment",
+    )
+
+    formatted = format_ab_test_report(report)
+
+    assert "A/B Test Comparison: Baseline vs Experiment" in formatted
+    assert "- scene_count: Baseline 2 -> Experiment 3 [Δ +1 (+50.0%)]" in formatted
+    assert "Unique items awarded:" in formatted
+    assert "- Added in Experiment:" in formatted
+    assert "  - lens" in formatted
+    assert "History records:" in formatted
+    assert "studied-carvings" in formatted
 
 
 def test_compute_scene_reachability_raises_for_unknown_start() -> None:
