@@ -360,7 +360,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Advanced techniques *(Documented power-user workflows in `docs/advanced_techniques.md` and linked them from the README.)*
       - [ ] Troubleshooting guide
     - [ ] Build developer documentation:
-      - [ ] API reference
+      - [x] API reference *(Documented key runtime modules in `docs/api_reference.md`.)*
       - [ ] Extension guide
       - [ ] Contributing guidelines
       - [x] Architecture overview *(Documented the module layout and extension points in `docs/architecture_overview.md`.)*
