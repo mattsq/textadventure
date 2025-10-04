@@ -276,7 +276,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Build robust JSON import system:
       - [x] File upload with validation *(Implemented `/api/import/scenes` to accept JSON uploads, validate structure, and surface reachability/quality reports for the uploaded dataset.)*
       - [x] Schema migration support *(Import endpoint accepts `schema_version` and migrates legacy v1 datasets before validation.)*
-      - [ ] Conflict resolution (merge vs replace)
+      - [x] Conflict resolution (merge vs replace) *(Import validation now reports merge vs replace change plans to highlight updates, additions, and removals.)*
       - [ ] Backup creation before import
     - [ ] Implement export options:
       - [x] Full scene export *(Added `/api/export/scenes` endpoint returning the bundled dataset with timestamps.)*
