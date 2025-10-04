@@ -282,9 +282,13 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Full scene export *(Added `/api/export/scenes` endpoint returning the bundled dataset with timestamps.)*
       - [x] Selective scene export
         - [x] Support filtering `/api/export/scenes` by a comma-separated `ids` query parameter so only matching scenes are included.
-        - [x] Document the new selective export behaviour in the API specification.
-        - [x] Add regression tests covering filtered exports and error handling.
-      - [ ] Minified vs pretty-printed JSON
+      - [x] Document the new selective export behaviour in the API specification.
+      - [x] Add regression tests covering filtered exports and error handling.
+      - [x] Minified vs pretty-printed JSON
+        - [x] Add an API option to request minified or pretty-printed payloads.
+        - [x] Ensure the service layer produces the requested formatting.
+        - [x] Document the formatting option in the API reference.
+        - [x] Add automated tests covering both formatting modes.
       - [ ] Backup and versioning
     - [ ] Add version control integration:
       - [ ] Git-style change tracking
