@@ -290,9 +290,36 @@ editor exports remain compatible.
     },
     "quality": { /* See validation report definition */ },
     "item_flow": { /* Item flow summary */ }
-  }
+  },
+  "plans": [
+    {
+      "strategy": "merge",
+      "new_scene_ids": ["market-square"],
+      "updated_scene_ids": ["village-square"],
+      "unchanged_scene_ids": ["forest-edge"],
+      "removed_scene_ids": []
+    },
+    {
+      "strategy": "replace",
+      "new_scene_ids": ["market-square"],
+      "updated_scene_ids": ["village-square"],
+      "unchanged_scene_ids": ["forest-edge"],
+      "removed_scene_ids": ["docks"]
+    }
+  ]
 }
 ```
+
+The `plans` array outlines how the uploaded dataset would affect the current
+store for each supported conflict resolution strategy:
+
+- `merge` retains scenes that are absent from the upload, highlighting which
+  existing scenes would be updated by the incoming data.
+- `replace` swaps the entire dataset, listing which scenes would be removed in
+  the process.
+
+Clients can present these plans to authors before committing the import so
+they can choose the most appropriate strategy for their project.
 
 
 ### `POST /scenes`

@@ -277,12 +277,53 @@ class SceneImportRequest(BaseModel):
     )
 
 
+class ImportStrategy(str, Enum):
+    """Supported strategies for applying uploaded scene datasets."""
+
+    MERGE = "merge"
+    REPLACE = "replace"
+
+
+class SceneImportPlan(BaseModel):
+    """Summary of the changes that would occur for a given import strategy."""
+
+    strategy: ImportStrategy
+    new_scene_ids: list[str] = Field(
+        default_factory=list,
+        description="Scenes that are only present in the uploaded dataset.",
+    )
+    updated_scene_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Scenes that exist in both datasets but whose definitions would change."
+        ),
+    )
+    unchanged_scene_ids: list[str] = Field(
+        default_factory=list,
+        description="Scenes that exist in both datasets with identical definitions.",
+    )
+    removed_scene_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Scenes from the current dataset that would be removed when applying the"
+            " strategy."
+        ),
+    )
+
+
 class SceneImportResponse(BaseModel):
     """Response describing the outcome of validating an uploaded dataset."""
 
     scene_count: int = Field(..., ge=0)
     start_scene: str
     validation: SceneValidationReport
+    plans: list[SceneImportPlan] = Field(
+        default_factory=list,
+        description=(
+            "Summaries of how the uploaded dataset would affect the existing scenes"
+            " when applying supported import strategies."
+        ),
+    )
 
 
 CURRENT_SCENE_SCHEMA_VERSION = 2
@@ -475,6 +516,66 @@ class SceneSummaryData:
     has_terminal_transition: bool
     validation_status: ValidationStatus
     updated_at: datetime
+
+
+def _normalise_scene_payload(payload: Mapping[str, Any]) -> Any:
+    """Return a canonical representation for comparing scene payloads."""
+
+    try:
+        # Serialise with sorted keys to ensure deterministic ordering before
+        # parsing back into basic Python types for equality comparison.
+        return json.loads(json.dumps(payload, sort_keys=True, ensure_ascii=False))
+    except (TypeError, ValueError):
+        # Fall back to the raw payload when serialisation fails so comparisons
+        # still have a best-effort chance of succeeding.
+        return payload
+
+
+def _compute_import_plans(
+    existing: Mapping[str, Any], incoming: Mapping[str, Any]
+) -> list[SceneImportPlan]:
+    """Compute change summaries for merge and replace import strategies."""
+
+    existing_normalised = {
+        scene_id: _normalise_scene_payload(payload)
+        for scene_id, payload in existing.items()
+    }
+    incoming_normalised = {
+        scene_id: _normalise_scene_payload(payload)
+        for scene_id, payload in incoming.items()
+    }
+
+    existing_ids = set(existing_normalised)
+    incoming_ids = set(incoming_normalised)
+    shared_ids = sorted(existing_ids & incoming_ids)
+
+    unchanged: list[str] = []
+    updated: list[str] = []
+    for scene_id in shared_ids:
+        if existing_normalised[scene_id] == incoming_normalised[scene_id]:
+            unchanged.append(scene_id)
+        else:
+            updated.append(scene_id)
+
+    new_ids = sorted(incoming_ids - existing_ids)
+    removed_ids = sorted(existing_ids - incoming_ids)
+
+    merge_plan = SceneImportPlan(
+        strategy=ImportStrategy.MERGE,
+        new_scene_ids=new_ids,
+        updated_scene_ids=updated,
+        unchanged_scene_ids=unchanged,
+        removed_scene_ids=[],
+    )
+    replace_plan = SceneImportPlan(
+        strategy=ImportStrategy.REPLACE,
+        new_scene_ids=new_ids,
+        updated_scene_ids=updated,
+        unchanged_scene_ids=unchanged,
+        removed_scene_ids=removed_ids,
+    )
+
+    return [merge_plan, replace_plan]
 
 
 class SceneRepository:
@@ -719,6 +820,8 @@ class SceneService:
         if not scenes:
             raise ValueError("At least one scene must be provided for import.")
 
+        existing_definitions, _ = self._repository.load()
+
         try:
             migrated_scenes = _migrate_scene_dataset(
                 scenes, schema_version=schema_version
@@ -752,10 +855,13 @@ class SceneService:
             start_scene=selected_start_scene,
         )
 
+        plans = _compute_import_plans(existing_definitions, migrated_scenes)
+
         return SceneImportResponse(
             scene_count=len(parsed_scenes),
             start_scene=selected_start_scene,
             validation=report,
+            plans=plans,
         )
 
     def _build_validation_report(

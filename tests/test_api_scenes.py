@@ -663,3 +663,98 @@ def test_import_endpoint_rejects_newer_schema_version() -> None:
         json={"scenes": dataset, "schema_version": CURRENT_SCENE_SCHEMA_VERSION + 1},
     )
     assert response.status_code == 400
+
+
+def test_import_endpoint_reports_merge_and_replace_plans() -> None:
+    timestamp = datetime(2024, 4, 12, 15, tzinfo=timezone.utc)
+
+    existing: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha existing",
+            "choices": [
+                {"command": "wait", "description": "Wait patiently."},
+            ],
+            "transitions": {
+                "wait": {"narration": "You remain still.", "target": None},
+            },
+        },
+        "beta": {
+            "description": "Beta original",
+            "choices": [
+                {"command": "advance", "description": "Advance cautiously."},
+            ],
+            "transitions": {
+                "advance": {
+                    "narration": "You follow the familiar path.",
+                    "target": "alpha",
+                }
+            },
+        },
+        "gamma": {
+            "description": "Gamma existing",
+            "choices": [
+                {"command": "depart", "description": "Leave the cavern."},
+            ],
+            "transitions": {
+                "depart": {
+                    "narration": "You depart without looking back.",
+                    "target": None,
+                }
+            },
+        },
+    }
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return existing, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    incoming = {
+        "alpha": existing["alpha"],
+        "beta": {
+            "description": "Beta updated",
+            "choices": [
+                {"command": "advance", "description": "Advance cautiously."},
+            ],
+            "transitions": {
+                "advance": {
+                    "narration": "You follow a new path forward.",
+                    "target": "alpha",
+                }
+            },
+        },
+        "delta": {
+            "description": "Delta new",
+            "choices": [
+                {"command": "observe", "description": "Look around carefully."},
+            ],
+            "transitions": {
+                "observe": {
+                    "narration": "You take in the surroundings.",
+                    "target": None,
+                }
+            },
+        },
+    }
+
+    response = client.post("/api/import/scenes", json={"scenes": incoming})
+    assert response.status_code == 200
+
+    payload = response.json()
+    plans = {entry["strategy"]: entry for entry in payload["plans"]}
+
+    assert set(plans) == {"merge", "replace"}
+
+    merge_plan = plans["merge"]
+    assert merge_plan["new_scene_ids"] == ["delta"]
+    assert merge_plan["updated_scene_ids"] == ["beta"]
+    assert merge_plan["unchanged_scene_ids"] == ["alpha"]
+    assert merge_plan["removed_scene_ids"] == []
+
+    replace_plan = plans["replace"]
+    assert replace_plan["new_scene_ids"] == ["delta"]
+    assert replace_plan["updated_scene_ids"] == ["beta"]
+    assert replace_plan["unchanged_scene_ids"] == ["alpha"]
+    assert replace_plan["removed_scene_ids"] == ["gamma"]
