@@ -74,7 +74,7 @@ from .persistence import (
 )
 from .memory import MemoryEntry, MemoryLog, MemoryRequest
 from .tools import KnowledgeBaseTool, Tool, ToolResponse
-from .testing_toolkit import set_history, set_inventory
+from .testing_toolkit import StepResult, set_history, set_inventory, step_through
 from .world_state import WorldState
 
 __all__ = [
@@ -136,6 +136,8 @@ __all__ = [
     "KnowledgeBaseTool",
     "set_inventory",
     "set_history",
+    "StepResult",
+    "step_through",
     "MemoryEntry",
     "MemoryLog",
     "MemoryRequest",
