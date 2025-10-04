@@ -362,7 +362,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Build developer documentation:
       - [x] API reference *(Documented key runtime modules in `docs/api_reference.md`.)*
       - [x] Extension guide *(Documented developer extension patterns in `docs/extension_guide.md` and linked it from the README.)*
-      - [ ] Contributing guidelines
+      - [x] Contributing guidelines *(Added `docs/contributing.md` outlining the development workflow, quality gates, and review expectations.)*
       - [x] Architecture overview *(Documented the module layout and extension points in `docs/architecture_overview.md`.)*
     - [ ] Establish community features:
       - [ ] Scene sharing marketplace
