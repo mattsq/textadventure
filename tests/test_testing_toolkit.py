@@ -1,11 +1,15 @@
 import pytest
 
+from textadventure.scripted_story_engine import ScriptedStoryEngine
+from textadventure.story_engine import StoryChoice, StoryEngine, StoryEvent
 from textadventure.testing_toolkit import (
+    StepResult,
     WorldDebugSnapshot,
     debug_snapshot,
     jump_to_scene,
     set_history,
     set_inventory,
+    step_through,
 )
 from textadventure.world_state import WorldState
 
@@ -88,3 +92,66 @@ def test_debug_snapshot_rejects_negative_limits() -> None:
 
     with pytest.raises(ValueError):
         debug_snapshot(world, observation_limit=-2)
+
+
+class _StubEngine(StoryEngine):
+    """Minimal story engine used for validating error handling."""
+
+    def __init__(self) -> None:
+        self.calls: list[str | None] = []
+
+    def propose_event(
+        self,
+        world_state: WorldState,
+        *,
+        player_input: str | None = None,
+    ) -> StoryEvent:
+        del world_state
+        self.calls.append(player_input)
+        if player_input is None:
+            return StoryEvent(
+                narration="Opening scene.",
+                choices=(StoryChoice("advance", "Move forward"),),
+            )
+        if player_input == "advance":
+            return StoryEvent(narration="The path ends.")
+        raise AssertionError(f"Unexpected command: {player_input}")
+
+
+def test_step_through_executes_command_sequence_and_records_memory() -> None:
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    steps = step_through(engine, world, ["explore", "look"])
+
+    assert [step.command for step in steps] == [None, "explore", "look"]
+    assert isinstance(steps[0], StepResult)
+    assert "forest trailhead" in steps[0].event.narration
+    assert "worn path" in steps[1].event.narration
+    assert world.location == "old-gate"
+    assert world.recent_actions() == ("explore", "look")
+    observations = world.recent_observations(limit=3)
+    assert len(observations) == 3
+    assert observations[0].startswith("Sunlight filters through tall trees")
+    assert observations[1].startswith("You follow the worn path")
+    assert observations[2].startswith("Time has scarred the gate")
+
+
+def test_step_through_rejects_unavailable_commands() -> None:
+    engine = _StubEngine()
+    world = WorldState()
+
+    with pytest.raises(ValueError, match="Command 'invalid' is not available"):
+        step_through(engine, world, ["invalid"])
+
+    assert engine.calls == [None]
+
+
+def test_step_through_requires_choices_to_continue() -> None:
+    engine = _StubEngine()
+    world = WorldState()
+
+    with pytest.raises(RuntimeError):
+        step_through(engine, world, ["advance", "again"])
+
+    assert engine.calls == [None, "advance"]

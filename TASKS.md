@@ -261,7 +261,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] State manipulation tools (set inventory, history). *(Introduced `testing_toolkit` helpers for resetting inventory and history with regression tests.)*
       - [x] Jump to specific scenes *(Added `jump_to_scene` helper for quickly moving the world state during tests with optional history recording.)*
       - [x] Debug mode showing internal state *(Introduced `debug_snapshot` helper returning a structured `WorldDebugSnapshot` for assertions.)*
-      - [ ] Step-by-step execution
+      - [x] Step-by-step execution *(Added `step_through` helper and tests for scripted command execution with memory tracking.)*
     - [ ] Add WebSocket integration for live updates:
       - [ ] Real-time scene updates in preview
       - [ ] Collaborative editing indicators

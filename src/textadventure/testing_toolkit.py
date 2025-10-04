@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from .world_state import WorldState
+from .story_engine import StoryEngine, StoryEvent
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,17 @@ __all__ = [
     "set_history",
     "jump_to_scene",
     "debug_snapshot",
+    "StepResult",
+    "step_through",
 ]
+
+
+@dataclass(frozen=True)
+class StepResult:
+    """Outcome of a single story engine step."""
+
+    command: str | None
+    event: StoryEvent
 
 
 def set_inventory(
@@ -120,3 +131,56 @@ def debug_snapshot(
         recent_actions=tuple(world.recent_actions(limit=action_limit)),
         recent_observations=tuple(world.recent_observations(limit=observation_limit)),
     )
+
+
+def step_through(
+    engine: StoryEngine,
+    world: WorldState,
+    commands: Iterable[str],
+    *,
+    record_memory: bool = True,
+) -> Sequence[StepResult]:
+    """Execute a series of player commands one step at a time."""
+
+    def _capture(event: StoryEvent, command: str | None) -> None:
+        if record_memory:
+            world.remember_observation(event.narration)
+        steps.append(StepResult(command=command, event=event))
+
+    steps: list[StepResult] = []
+
+    initial_event = engine.propose_event(world)
+    _capture(initial_event, None)
+    current_event = initial_event
+
+    for raw_command in commands:
+        if not current_event.has_choices:
+            raise RuntimeError(
+                "No further commands can be processed: the latest event offered no choices."
+            )
+        if not isinstance(raw_command, str):
+            raise TypeError(
+                "Commands must be strings when using step_through for scripted execution."
+            )
+
+        command = raw_command.strip()
+        if not command:
+            raise ValueError(
+                "Commands must be non-empty strings after trimming whitespace."
+            )
+
+        available_commands = current_event.iter_choice_commands()
+        lowered = command.lower()
+        if available_commands and lowered not in available_commands:
+            formatted = ", ".join(available_commands) or "(none)"
+            raise ValueError(
+                f"Command '{command}' is not available. Choose from: {formatted}."
+            )
+
+        if record_memory:
+            world.remember_action(command)
+
+        current_event = engine.propose_event(world, player_input=command)
+        _capture(current_event, command)
+
+    return tuple(steps)
