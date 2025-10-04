@@ -1060,6 +1060,105 @@ def test_scene_service_plans_rollback_to_backup_dataset() -> None:
     assert plan.removed_scene_ids == ["beta"]
 
 
+def test_scene_service_computes_branch_plan() -> None:
+    current_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        },
+        "beta": {
+            "description": "Beta current",
+            "choices": [
+                {"command": "proceed", "description": "Head forward."},
+            ],
+            "transitions": {
+                "proceed": {
+                    "narration": "You continue deeper into the cave.",
+                    "target": "gamma",
+                }
+            },
+        },
+    }
+    branch_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha branched",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait, spotting a hidden door.",
+                    "target": "hidden-door",
+                }
+            },
+        },
+        "beta": current_dataset["beta"],
+        "hidden-door": {
+            "description": "A narrow doorway leads into darkness.",
+            "choices": [
+                {"command": "enter", "description": "Step into the dark."},
+            ],
+            "transitions": {
+                "enter": {
+                    "narration": "You steel yourself and enter the unknown.",
+                    "target": None,
+                }
+            },
+        },
+    }
+    current_timestamp = datetime(2024, 7, 1, 12, 0, tzinfo=timezone.utc)
+    branch_timestamp = datetime(2024, 7, 2, 9, 15, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return current_dataset, current_timestamp
+
+    expected_current = _expected_metadata(current_dataset, current_timestamp)
+    expected_branch = _expected_metadata(branch_dataset, branch_timestamp)
+
+    service = SceneService(repository=_StubRepository())
+
+    response = service.plan_branch(
+        branch_name="  Hidden Door Path  ",
+        scenes=branch_dataset,
+        schema_version=CURRENT_SCENE_SCHEMA_VERSION,
+        generated_at=branch_timestamp,
+        expected_base_version=expected_current["version_id"],
+    )
+
+    assert response.branch_name == "Hidden Door Path"
+    assert response.base.version_id == expected_current["version_id"]
+    assert response.base.checksum == expected_current["checksum"]
+    assert response.base.generated_at == current_timestamp
+
+    assert response.expected_base_version_id == expected_current["version_id"]
+    assert response.base_version_matches is True
+
+    assert response.target.version_id == expected_branch["version_id"]
+    assert response.target.checksum == expected_branch["checksum"]
+    assert response.target.generated_at == branch_timestamp
+
+    assert response.summary.added_scene_ids == ["hidden-door"]
+    assert response.summary.modified_scene_ids == ["alpha"]
+    assert response.summary.removed_scene_ids == []
+
+    assert len(response.plans) == 2
+    merge_plan = next(
+        plan for plan in response.plans if plan.strategy is ImportStrategy.MERGE
+    )
+    assert merge_plan.new_scene_ids == ["hidden-door"]
+    assert merge_plan.updated_scene_ids == ["alpha"]
+    assert merge_plan.unchanged_scene_ids == ["beta"]
+
+
 def test_plan_rollback_endpoint_returns_expected_payload() -> None:
     current_dataset: Mapping[str, Any] = {
         "alpha": {
@@ -1124,6 +1223,84 @@ def test_plan_rollback_endpoint_returns_expected_payload() -> None:
     assert payload["summary"]["added_scene_ids"] == []
     assert payload["summary"]["modified_scene_ids"] == []
     assert payload["summary"]["removed_scene_ids"] == []
+
+
+def test_plan_branch_endpoint_reports_version_mismatch() -> None:
+    current_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    branch_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha expanded",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+                {"command": "explore", "description": "Explore the area."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait patiently.",
+                    "target": None,
+                },
+                "explore": {
+                    "narration": "You find a branching passage.",
+                    "target": "branching-passage",
+                },
+            },
+        },
+        "branching-passage": {
+            "description": "A new passage opens before you.",
+            "choices": [
+                {"command": "continue", "description": "Head deeper."},
+            ],
+            "transitions": {
+                "continue": {
+                    "narration": "You continue onward.",
+                    "target": None,
+                }
+            },
+        },
+    }
+    current_timestamp = datetime(2024, 7, 10, 14, 30, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return current_dataset, current_timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.post(
+        "/api/scenes/branches/plan",
+        json={
+            "branch_name": "New Passage",
+            "scenes": branch_dataset,
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "generated_at": datetime(
+                2024, 7, 11, 8, 45, tzinfo=timezone.utc
+            ).isoformat(),
+            "base_version_id": "outdated-version",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["branch_name"] == "New Passage"
+    assert payload["expected_base_version_id"] == "outdated-version"
+    assert payload["base_version_matches"] is False
+    assert payload["summary"]["added_scene_ids"] == ["branching-passage"]
+    assert payload["summary"]["modified_scene_ids"] == ["alpha"]
 
 
 def test_plan_rollback_endpoint_rejects_empty_payload() -> None:

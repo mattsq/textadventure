@@ -442,6 +442,69 @@ class SceneRollbackResponse(BaseModel):
     )
 
 
+class SceneBranchPlanRequest(BaseModel):
+    """Request payload describing a proposed storyline branch dataset."""
+
+    branch_name: str = Field(
+        ..., min_length=1, description="Human readable name for the new branch."
+    )
+    scenes: dict[str, Any] = Field(
+        ...,
+        description="Mapping of scene identifiers mirroring the export format.",
+    )
+    schema_version: int | None = Field(
+        None,
+        ge=1,
+        description=(
+            "Optional schema version for the uploaded dataset. Legacy payloads are"
+            " migrated automatically when supported."
+        ),
+    )
+    generated_at: datetime | None = Field(
+        None,
+        description=(
+            "Timestamp associated with the branch dataset. When omitted, the"
+            " current time is used in the plan metadata."
+        ),
+    )
+    base_version_id: str | None = Field(
+        None,
+        description=(
+            "Optional version identifier clients expect the branch to diverge"
+            " from. Allows the service to flag if the bundled dataset has"
+            " changed since the client exported it."
+        ),
+    )
+
+
+class SceneBranchPlanResponse(BaseModel):
+    """Response payload summarising how to spin off a new storyline branch."""
+
+    branch_name: str = Field(
+        ..., description="Normalised name that will identify the branch."
+    )
+    base: SceneVersionInfo = Field(
+        ..., description="Metadata describing the current bundled dataset."
+    )
+    target: SceneVersionInfo = Field(
+        ..., description="Metadata for the proposed branch dataset."
+    )
+    expected_base_version_id: str | None = Field(
+        None,
+        description=(
+            "Version id supplied by the client when preparing the branch plan."
+        ),
+    )
+    base_version_matches: bool = Field(
+        ..., description="Whether the expected base matches the bundled dataset."
+    )
+    summary: SceneDiffSummary
+    entries: list[SceneDiffEntry] = Field(default_factory=list)
+    plans: list[SceneImportPlan] = Field(
+        ..., description="Available import strategies for applying the branch."
+    )
+
+
 CURRENT_SCENE_SCHEMA_VERSION = 2
 
 
@@ -1221,6 +1284,89 @@ class SceneService:
             plan=replace_plan,
         )
 
+    def plan_branch(
+        self,
+        *,
+        branch_name: str,
+        scenes: Mapping[str, Any],
+        schema_version: int | None = None,
+        generated_at: datetime | None = None,
+        expected_base_version: str | None = None,
+    ) -> SceneBranchPlanResponse:
+        """Plan how a new storyline branch diverges from the bundled dataset."""
+
+        if not branch_name.strip():
+            raise ValueError("Branch name must not be empty.")
+        if not scenes:
+            raise ValueError("At least one scene must be provided for branch planning.")
+
+        normalised_name = branch_name.strip()
+
+        existing_definitions, current_timestamp = self._repository.load()
+
+        try:
+            migrated_scenes = _migrate_scene_dataset(
+                scenes, schema_version=schema_version
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        summary, entries = _compute_scene_diffs(existing_definitions, migrated_scenes)
+        plans = _compute_import_plans(existing_definitions, migrated_scenes)
+
+        try:
+            serialisable_current = json.loads(
+                json.dumps(existing_definitions, ensure_ascii=False)
+            )
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(
+                "Current scene data could not be serialised to JSON."
+            ) from exc
+
+        try:
+            serialisable_target = json.loads(
+                json.dumps(migrated_scenes, ensure_ascii=False)
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Scene data could not be serialised to JSON.") from exc
+
+        current_generated_at = _ensure_timezone(current_timestamp)
+        current_checksum = _compute_scene_checksum(serialisable_current)
+        current_version_id = _format_version_id(current_generated_at, current_checksum)
+
+        branch_generated_at = (
+            _ensure_timezone(generated_at)
+            if generated_at is not None
+            else datetime.now(timezone.utc)
+        )
+        target_checksum = _compute_scene_checksum(serialisable_target)
+        target_version_id = _format_version_id(branch_generated_at, target_checksum)
+
+        base_matches = (
+            True
+            if expected_base_version is None
+            else expected_base_version == current_version_id
+        )
+
+        return SceneBranchPlanResponse(
+            branch_name=normalised_name,
+            base=SceneVersionInfo(
+                generated_at=current_generated_at,
+                version_id=current_version_id,
+                checksum=current_checksum,
+            ),
+            target=SceneVersionInfo(
+                generated_at=branch_generated_at,
+                version_id=target_version_id,
+                checksum=target_checksum,
+            ),
+            expected_base_version_id=expected_base_version,
+            base_version_matches=base_matches,
+            summary=summary,
+            entries=entries,
+            plans=plans,
+        )
+
     def create_backup(
         self,
         *,
@@ -1444,6 +1590,24 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
                 scenes=payload.scenes,
                 schema_version=payload.schema_version,
                 generated_at=payload.generated_at,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/scenes/branches/plan",
+        response_model=SceneBranchPlanResponse,
+    )
+    def plan_branch(payload: SceneBranchPlanRequest) -> SceneBranchPlanResponse:
+        try:
+            return service.plan_branch(
+                branch_name=payload.branch_name,
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
+                generated_at=payload.generated_at,
+                expected_base_version=payload.base_version_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

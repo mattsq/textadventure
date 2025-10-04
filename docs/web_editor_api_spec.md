@@ -451,6 +451,94 @@ stylesheet. The response intentionally mirrors Git conventions so future
 tooling can extend it with syntax highlighting or patch application.
 
 
+
+### `POST /scenes/branches/plan`
+
+Analyse how a proposed storyline branch diverges from the bundled dataset
+without persisting any changes. Editors can use the response to preview which
+scenes are added, updated, or removed; confirm whether their working copy is in
+sync with the latest export; and choose between merge vs replace strategies
+before creating the branch.
+
+**Request body**
+
+```json
+{
+  "branch_name": "Hidden Door Path",
+  "scenes": { /* Mapping of scene ids to definitions */ },
+  "schema_version": 2,
+  "generated_at": "2024-07-02T09:15:00Z",
+  "base_version_id": "20240701T120000Z-1a2b3c4d"
+}
+```
+
+- `branch_name` – Human-friendly label used in editor UIs. Leading/trailing
+  whitespace is trimmed server-side.
+- `scenes` – Proposed branch dataset mirroring the export format.
+- `schema_version` *(optional)* – Enables migration of older payloads before
+  diffing.
+- `generated_at` *(optional)* – Timestamp associated with the branch dataset.
+  When omitted, the current server time is used.
+- `base_version_id` *(optional)* – Version identifier the client believes it is
+  branching from. The response flags mismatches so editors can rebase before
+  branching.
+
+**Response – 200 OK**
+
+```json
+{
+  "branch_name": "Hidden Door Path",
+  "base": {
+    "generated_at": "2024-07-01T12:00:00Z",
+    "version_id": "20240701T120000Z-1a2b3c4d",
+    "checksum": "f3a8…"
+  },
+  "target": {
+    "generated_at": "2024-07-02T09:15:00Z",
+    "version_id": "20240702T091500Z-5e6f7a8b",
+    "checksum": "4b91…"
+  },
+  "expected_base_version_id": "20240701T120000Z-1a2b3c4d",
+  "base_version_matches": true,
+  "summary": {
+    "added_scene_ids": ["hidden-door"],
+    "removed_scene_ids": [],
+    "modified_scene_ids": ["alpha"],
+    "unchanged_scene_ids": ["beta"]
+  },
+  "entries": [
+    {
+      "scene_id": "alpha",
+      "status": "modified",
+      "diff": "--- current/alpha\n+++ incoming/alpha\n@@\n-  \"description\": \"Alpha current\"\n+  \"description\": \"Alpha branched\"\n",
+      "diff_html": "<table class=\"diff\">…</table>"
+    },
+    {
+      "scene_id": "hidden-door",
+      "status": "added",
+      "diff": "+++ incoming/hidden-door\n@@\n+  \"description\": \"A narrow doorway leads into darkness.\"\n",
+      "diff_html": "<table class=\"diff\">…</table>"
+    }
+  ],
+  "plans": [
+    {
+      "strategy": "merge",
+      "new_scene_ids": ["hidden-door"],
+      "updated_scene_ids": ["alpha"],
+      "unchanged_scene_ids": ["beta"],
+      "removed_scene_ids": []
+    },
+    {
+      "strategy": "replace",
+      "new_scene_ids": ["hidden-door"],
+      "updated_scene_ids": ["alpha"],
+      "unchanged_scene_ids": ["beta"],
+      "removed_scene_ids": []
+    }
+  ]
+}
+```
+
 ### `POST /scenes`
 
 Create a new scene. Requests provide the full scene payload except timestamps,
