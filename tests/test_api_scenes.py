@@ -320,3 +320,44 @@ def test_search_endpoint_can_filter_by_validation_status() -> None:
     assert _fetch_ids("warnings") == {"warning-scene"}
     assert _fetch_ids("errors") == {"error-scene"}
     assert _fetch_ids("valid", "warnings") == {"valid-scene", "warning-scene"}
+
+
+def test_validate_endpoint_returns_combined_reports() -> None:
+    client = _client()
+
+    response = client.get("/api/scenes/validate")
+    assert response.status_code == 200
+
+    payload = response.json()
+    data = payload["data"]
+    generated_at = datetime.fromisoformat(data["generated_at"])
+    assert generated_at.tzinfo is not None
+
+    quality = data["quality"]
+    assert "issue_count" in quality
+    assert isinstance(quality["scenes_missing_description"], list)
+
+    reachability = data["reachability"]
+    assert reachability["start_scene"] == "starting-area"
+    assert reachability["total_scene_count"] >= reachability["reachable_count"]
+
+    item_flow = data["item_flow"]
+    assert isinstance(item_flow["items"], list)
+    if item_flow["items"]:
+        first = item_flow["items"][0]
+        assert set(first) >= {
+            "item",
+            "sources",
+            "requirements",
+            "consumptions",
+            "is_orphaned",
+        }
+
+
+def test_validate_endpoint_rejects_unknown_start_scene() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/scenes/validate", params={"start_scene": "unknown-scene"}
+    )
+    assert response.status_code == 400

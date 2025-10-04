@@ -12,7 +12,18 @@ from typing import Any, Iterable, Mapping, Literal, Sequence, cast, get_args
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field, field_serializer
 
-from ..analytics import assess_adventure_quality
+from ..analytics import (
+    AdventureQualityReport,
+    AdventureReachabilityReport,
+    ItemFlowReport,
+    ItemRequirement,
+    ItemSource,
+    ItemConsumption,
+    _SceneLike as _AnalyticsSceneLike,
+    assess_adventure_quality,
+    analyse_item_flow,
+    compute_scene_reachability,
+)
 from ..search import FieldType, SearchResults, _SceneLike, search_scene_text
 from ..scripted_story_engine import load_scenes_from_mapping
 
@@ -83,6 +94,101 @@ class SceneSearchResponse(BaseModel):
     total_results: int
     total_matches: int
     results: list[SceneSearchResultResource]
+
+
+class SceneCommandIssueResource(BaseModel):
+    """Issue descriptor referencing a scene command."""
+
+    scene_id: str
+    command: str
+
+
+class SceneOverrideIssueResource(BaseModel):
+    """Issue descriptor referencing a conditional narration override."""
+
+    scene_id: str
+    command: str
+    index: int = Field(..., ge=0)
+
+
+class QualityIssuesResource(BaseModel):
+    """Aggregated quality issues detected across the adventure."""
+
+    issue_count: int
+    scenes_missing_description: list[str] = Field(default_factory=list)
+    choices_missing_description: list[SceneCommandIssueResource] = Field(
+        default_factory=list
+    )
+    transitions_missing_narration: list[SceneCommandIssueResource] = Field(
+        default_factory=list
+    )
+    gated_transitions_missing_failure: list[SceneCommandIssueResource] = Field(
+        default_factory=list
+    )
+    conditional_overrides_missing_narration: list[SceneOverrideIssueResource] = Field(
+        default_factory=list
+    )
+
+
+class SceneReachabilityResource(BaseModel):
+    """Summary describing which scenes are reachable from the start."""
+
+    start_scene: str
+    reachable_scenes: list[str]
+    unreachable_scenes: list[str]
+    reachable_count: int
+    unreachable_count: int
+    total_scene_count: int
+    fully_reachable: bool
+
+
+class ItemReferenceResource(BaseModel):
+    """Location where an item is referenced within a scene."""
+
+    scene_id: str
+    command: str
+
+
+class ItemFlowDetailsResource(BaseModel):
+    """Summary describing how a specific item flows through the adventure."""
+
+    item: str
+    sources: list[ItemReferenceResource] = Field(default_factory=list)
+    requirements: list[ItemReferenceResource] = Field(default_factory=list)
+    consumptions: list[ItemReferenceResource] = Field(default_factory=list)
+    is_orphaned: bool
+    is_missing_source: bool
+    has_surplus_awards: bool
+    has_consumption_deficit: bool
+
+
+class ItemFlowSummaryResource(BaseModel):
+    """Aggregate view of item flow issues across the adventure."""
+
+    items: list[ItemFlowDetailsResource] = Field(default_factory=list)
+    orphaned_items: list[str] = Field(default_factory=list)
+    items_missing_sources: list[str] = Field(default_factory=list)
+    items_with_surplus_awards: list[str] = Field(default_factory=list)
+    items_with_consumption_deficit: list[str] = Field(default_factory=list)
+
+
+class SceneValidationReport(BaseModel):
+    """Combined validation output for the current adventure dataset."""
+
+    generated_at: datetime
+    quality: QualityIssuesResource
+    reachability: SceneReachabilityResource
+    item_flow: ItemFlowSummaryResource
+
+    @field_serializer("generated_at")
+    def _serialise_generated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class SceneValidationResponse(BaseModel):
+    """Response envelope for the validation endpoint."""
+
+    data: SceneValidationReport
 
 
 def _parse_field_type_filters(value: str | None) -> list[FieldType] | None:
@@ -321,6 +427,30 @@ class SceneService:
             allowed_scene_ids=allowed_scene_ids,
         )
 
+    def validate_scenes(
+        self,
+        *,
+        start_scene: str = "starting-area",
+    ) -> SceneValidationReport:
+        """Run comprehensive validation checks across all scenes."""
+
+        definitions, dataset_timestamp = self._repository.load()
+        scenes = load_scenes_from_mapping(definitions)
+        scene_mapping = cast(Mapping[str, _AnalyticsSceneLike], scenes)
+
+        quality_report = assess_adventure_quality(scene_mapping)
+        reachability_report = compute_scene_reachability(
+            scene_mapping, start_scene=start_scene
+        )
+        item_flow_report = analyse_item_flow(scene_mapping)
+
+        return SceneValidationReport(
+            generated_at=dataset_timestamp,
+            quality=_build_quality_resource(quality_report),
+            reachability=_build_reachability_resource(reachability_report),
+            item_flow=_build_item_flow_resource(item_flow_report),
+        )
+
 
 def create_app(scene_service: SceneService | None = None) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -417,6 +547,22 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         return _build_search_response(results, limit=limit)
+
+    @app.get("/api/scenes/validate", response_model=SceneValidationResponse)
+    def validate_scenes(
+        start_scene: str = Query(
+            "starting-area",
+            description="Scene identifier to use as the starting point for reachability analysis.",
+        ),
+    ) -> SceneValidationResponse:
+        try:
+            report = service.validate_scenes(start_scene=start_scene)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return SceneValidationResponse(data=report)
 
     return app
 
@@ -521,6 +667,81 @@ def _build_search_response(
         total_results=results.total_results,
         total_matches=results.total_match_count,
         results=scene_resources,
+    )
+
+
+def _build_quality_resource(report: AdventureQualityReport) -> QualityIssuesResource:
+    choices = [
+        SceneCommandIssueResource(scene_id=scene, command=command)
+        for scene, command in report.choices_missing_description
+    ]
+    transitions = [
+        SceneCommandIssueResource(scene_id=scene, command=command)
+        for scene, command in report.transitions_missing_narration
+    ]
+    gated = [
+        SceneCommandIssueResource(scene_id=scene, command=command)
+        for scene, command in report.gated_transitions_missing_failure
+    ]
+    overrides = [
+        SceneOverrideIssueResource(scene_id=scene, command=command, index=index)
+        for scene, command, index in report.conditional_overrides_missing_narration
+    ]
+
+    return QualityIssuesResource(
+        issue_count=report.issue_count,
+        scenes_missing_description=list(report.scenes_missing_description),
+        choices_missing_description=choices,
+        transitions_missing_narration=transitions,
+        gated_transitions_missing_failure=gated,
+        conditional_overrides_missing_narration=overrides,
+    )
+
+
+def _build_reachability_resource(
+    report: AdventureReachabilityReport,
+) -> SceneReachabilityResource:
+    return SceneReachabilityResource(
+        start_scene=report.start_scene,
+        reachable_scenes=list(report.reachable_scenes),
+        unreachable_scenes=list(report.unreachable_scenes),
+        reachable_count=report.reachable_count,
+        unreachable_count=report.unreachable_count,
+        total_scene_count=report.total_scene_count,
+        fully_reachable=report.fully_reachable,
+    )
+
+
+def _build_item_flow_resource(report: ItemFlowReport) -> ItemFlowSummaryResource:
+    def _convert_references(
+        entries: Iterable[ItemSource | ItemRequirement | ItemConsumption],
+    ) -> list[ItemReferenceResource]:
+        return [
+            ItemReferenceResource(scene_id=entry.scene, command=entry.command)
+            for entry in entries
+        ]
+
+    items: list[ItemFlowDetailsResource] = []
+    for detail in report.items:
+        items.append(
+            ItemFlowDetailsResource(
+                item=detail.item,
+                sources=_convert_references(detail.sources),
+                requirements=_convert_references(detail.requirements),
+                consumptions=_convert_references(detail.consumptions),
+                is_orphaned=detail.is_orphaned,
+                is_missing_source=detail.is_missing_source,
+                has_surplus_awards=detail.has_surplus_awards,
+                has_consumption_deficit=detail.has_consumption_deficit,
+            )
+        )
+
+    return ItemFlowSummaryResource(
+        items=items,
+        orphaned_items=list(report.orphaned_items),
+        items_missing_sources=list(report.items_missing_sources),
+        items_with_surplus_awards=list(report.items_with_surplus_awards),
+        items_with_consumption_deficit=list(report.items_with_consumption_deficit),
     )
 
 
