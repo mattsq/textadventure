@@ -289,7 +289,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Ensure the service layer produces the requested formatting.
         - [x] Document the formatting option in the API reference.
         - [x] Add automated tests covering both formatting modes.
-      - [ ] Backup and versioning
+      - [x] Backup and versioning *(Export payload now includes deterministic version ids, checksums, and suggested backup filenames.)*
     - [ ] Add version control integration:
       - [ ] Git-style change tracking
       - [ ] Diff visualization

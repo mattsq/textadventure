@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -230,11 +231,20 @@ class SceneValidationResponse(BaseModel):
     data: SceneValidationReport
 
 
+class SceneExportMetadata(BaseModel):
+    """Versioning and backup metadata for exported scene datasets."""
+
+    version_id: str
+    checksum: str
+    suggested_filename: str
+
+
 class SceneExportResponse(BaseModel):
     """Payload containing a full export of the current scene dataset."""
 
     generated_at: datetime
     scenes: dict[str, Any]
+    metadata: SceneExportMetadata
 
     @field_serializer("generated_at")
     def _serialise_generated_at(self, value: datetime) -> str:
@@ -545,9 +555,17 @@ class SceneService:
         except (TypeError, ValueError) as exc:
             raise ValueError("Scene data could not be serialised to JSON.") from exc
 
+        checksum = _compute_scene_checksum(serialisable)
+        version_id = _format_version_id(dataset_timestamp, checksum)
+
         return SceneExportResponse(
             generated_at=dataset_timestamp,
             scenes=serialisable,
+            metadata=SceneExportMetadata(
+                version_id=version_id,
+                checksum=checksum,
+                suggested_filename=_build_backup_filename(version_id),
+            ),
         )
 
 
@@ -1013,6 +1031,32 @@ def _build_scene_resource(
         created_at=dataset_timestamp,
         updated_at=dataset_timestamp,
     )
+
+
+def _compute_scene_checksum(scenes: Mapping[str, Any]) -> str:
+    """Return a deterministic checksum for the provided scene mapping."""
+
+    canonical = json.dumps(
+        scenes,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _format_version_id(timestamp: datetime, checksum: str) -> str:
+    """Derive a compact version identifier from the timestamp and checksum."""
+
+    timestamp_utc = _ensure_timezone(timestamp).astimezone(timezone.utc)
+    canonical = timestamp_utc.strftime("%Y%m%dT%H%M%SZ")
+    return f"{canonical}-{checksum[:8]}"
+
+
+def _build_backup_filename(version_id: str) -> str:
+    """Return the suggested filename for backing up the export payload."""
+
+    return f"scene-backup-{version_id}.json"
 
 
 def _collect_validation_issues(
