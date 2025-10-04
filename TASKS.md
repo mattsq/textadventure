@@ -274,7 +274,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 
   - [ ] **Phase 7: Import/Export & File Management**
     - [ ] Build robust JSON import system:
-      - [ ] File upload with validation
+      - [x] File upload with validation *(Implemented `/api/import/scenes` to accept JSON uploads, validate structure, and surface reachability/quality reports for the uploaded dataset.)*
       - [ ] Schema migration support
       - [ ] Conflict resolution (merge vs replace)
       - [ ] Backup creation before import

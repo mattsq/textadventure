@@ -251,6 +251,32 @@ class SceneExportResponse(BaseModel):
         return value.isoformat()
 
 
+class SceneImportRequest(BaseModel):
+    """Request payload for validating uploaded scene definitions."""
+
+    scenes: dict[str, Any] = Field(
+        ...,
+        description=(
+            "Mapping of scene identifiers to their definitions mirroring the export format."
+        ),
+    )
+    start_scene: str | None = Field(
+        None,
+        description=(
+            "Optional scene identifier to use as the reachability starting point. "
+            "Defaults to the first scene in the payload when omitted."
+        ),
+    )
+
+
+class SceneImportResponse(BaseModel):
+    """Response describing the outcome of validating an uploaded dataset."""
+
+    scene_count: int = Field(..., ge=0)
+    start_scene: str
+    validation: SceneValidationReport
+
+
 def _parse_field_type_filters(value: str | None) -> list[FieldType] | None:
     """Parse comma-separated field types into validated values."""
 
@@ -519,17 +545,10 @@ class SceneService:
         scenes = load_scenes_from_mapping(definitions)
         scene_mapping = cast(Mapping[str, _AnalyticsSceneLike], scenes)
 
-        quality_report = assess_adventure_quality(scene_mapping)
-        reachability_report = compute_scene_reachability(
-            scene_mapping, start_scene=start_scene
-        )
-        item_flow_report = analyse_item_flow(scene_mapping)
-
-        return SceneValidationReport(
+        return self._build_validation_report(
+            scene_mapping,
             generated_at=dataset_timestamp,
-            quality=_build_quality_resource(quality_report),
-            reachability=_build_reachability_resource(reachability_report),
-            item_flow=_build_item_flow_resource(item_flow_report),
+            start_scene=start_scene,
         )
 
     def export_scenes(self, *, ids: Sequence[str] | None = None) -> SceneExportResponse:
@@ -566,6 +585,69 @@ class SceneService:
                 checksum=checksum,
                 suggested_filename=_build_backup_filename(version_id),
             ),
+        )
+
+    def validate_import_payload(
+        self,
+        *,
+        scenes: Mapping[str, Any],
+        start_scene: str | None = None,
+    ) -> SceneImportResponse:
+        """Validate uploaded scene definitions without persisting them."""
+
+        if not scenes:
+            raise ValueError("At least one scene must be provided for import.")
+
+        try:
+            parsed_scenes = load_scenes_from_mapping(scenes)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        available_scene_ids = list(parsed_scenes)
+        if not available_scene_ids:
+            raise ValueError("At least one scene must be provided for import.")
+
+        if start_scene is None:
+            selected_start_scene = available_scene_ids[0]
+        else:
+            if start_scene not in parsed_scenes:
+                raise ValueError(
+                    f"Start scene '{start_scene}' is not defined in the uploaded data."
+                )
+            selected_start_scene = start_scene
+
+        scene_mapping = cast(Mapping[str, _AnalyticsSceneLike], parsed_scenes)
+        generated_at = datetime.now(timezone.utc)
+        report = self._build_validation_report(
+            scene_mapping,
+            generated_at=generated_at,
+            start_scene=selected_start_scene,
+        )
+
+        return SceneImportResponse(
+            scene_count=len(parsed_scenes),
+            start_scene=selected_start_scene,
+            validation=report,
+        )
+
+    def _build_validation_report(
+        self,
+        scene_mapping: Mapping[str, _AnalyticsSceneLike],
+        *,
+        generated_at: datetime,
+        start_scene: str,
+    ) -> SceneValidationReport:
+        quality_report = assess_adventure_quality(scene_mapping)
+        reachability_report = compute_scene_reachability(
+            scene_mapping, start_scene=start_scene
+        )
+        item_flow_report = analyse_item_flow(scene_mapping)
+
+        return SceneValidationReport(
+            generated_at=generated_at,
+            quality=_build_quality_resource(quality_report),
+            reachability=_build_reachability_resource(reachability_report),
+            item_flow=_build_item_flow_resource(item_flow_report),
         )
 
 
@@ -723,6 +805,17 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
             content=export.model_dump(),
             export_format=export_format,
         )
+
+    @app.post("/api/import/scenes", response_model=SceneImportResponse)
+    def import_scenes(payload: SceneImportRequest) -> SceneImportResponse:
+        try:
+            return service.validate_import_payload(
+                scenes=payload.scenes, start_scene=payload.start_scene
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return app
 
