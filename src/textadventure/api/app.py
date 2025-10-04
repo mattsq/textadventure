@@ -260,6 +260,14 @@ class SceneImportRequest(BaseModel):
             "Mapping of scene identifiers to their definitions mirroring the export format."
         ),
     )
+    schema_version: int | None = Field(
+        None,
+        ge=1,
+        description=(
+            "Optional schema version identifier for the uploaded dataset. "
+            "Legacy versions are automatically migrated when supported."
+        ),
+    )
     start_scene: str | None = Field(
         None,
         description=(
@@ -275,6 +283,118 @@ class SceneImportResponse(BaseModel):
     scene_count: int = Field(..., ge=0)
     start_scene: str
     validation: SceneValidationReport
+
+
+CURRENT_SCENE_SCHEMA_VERSION = 2
+
+
+def _migrate_scene_dataset(
+    scenes: Mapping[str, Any], *, schema_version: int | None
+) -> dict[str, Any]:
+    """Return a schema-compatible mapping for ``scenes``.
+
+    Legacy datasets can specify ``schema_version`` so the service can migrate the
+    structure before running validation. When ``schema_version`` is omitted or
+    matches :data:`CURRENT_SCENE_SCHEMA_VERSION`, the payload is returned as-is
+    (with shallow copies of the scene dictionaries). Unsupported versions raise
+    :class:`ValueError` to surface actionable feedback to API clients.
+    """
+
+    normalised: dict[str, Any] = {
+        scene_id: _ensure_scene_mapping(scene_id, payload)
+        for scene_id, payload in scenes.items()
+    }
+
+    if schema_version is None or schema_version == CURRENT_SCENE_SCHEMA_VERSION:
+        return normalised
+
+    if schema_version > CURRENT_SCENE_SCHEMA_VERSION:
+        raise ValueError("Uploaded schema version is newer than this server supports.")
+
+    if schema_version < 1:
+        raise ValueError("Schema version must be greater than or equal to 1.")
+
+    if schema_version == 1:
+        return {
+            scene_id: _migrate_scene_v1(scene_id, payload)
+            for scene_id, payload in normalised.items()
+        }
+
+    raise ValueError(
+        f"Unsupported schema version '{schema_version}'. Upgrade the dataset or "
+        "server before retrying."
+    )
+
+
+def _ensure_scene_mapping(scene_id: str, payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"Scene '{scene_id}' must be a JSON object.")
+    return dict(payload)
+
+
+def _migrate_scene_v1(scene_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert schema version 1 scenes to the current structure."""
+
+    migrated = dict(payload)
+
+    transitions = migrated.get("transitions")
+    if isinstance(transitions, list):
+        converted: dict[str, Any] = {}
+        for entry in transitions:
+            if not isinstance(entry, Mapping):
+                raise ValueError(
+                    f"Transition entries for scene '{scene_id}' must be objects."
+                )
+            command = entry.get("command")
+            if not isinstance(command, str) or not command:
+                raise ValueError(
+                    f"Legacy transition entries require a non-empty command for scene '{scene_id}'."
+                )
+            if command in converted:
+                raise ValueError(
+                    f"Duplicate transition command '{command}' in scene '{scene_id}'."
+                )
+            converted[command] = {
+                key: value for key, value in entry.items() if key != "command"
+            }
+        migrated["transitions"] = converted
+    elif isinstance(transitions, Mapping):
+        migrated["transitions"] = dict(transitions)
+    elif transitions is None:
+        migrated["transitions"] = {}
+    else:
+        raise ValueError(
+            f"Transitions for scene '{scene_id}' must be a list or object in legacy datasets."
+        )
+
+    choices = migrated.get("choices")
+    if isinstance(choices, Mapping):
+        converted_choices: list[dict[str, Any]] = []
+        for command, choice_payload in choices.items():
+            if not isinstance(command, str) or not command:
+                raise ValueError(
+                    f"Legacy choices require string commands for scene '{scene_id}'."
+                )
+            if any(choice.get("command") == command for choice in converted_choices):
+                raise ValueError(
+                    f"Duplicate choice command '{command}' in scene '{scene_id}'."
+                )
+            if isinstance(choice_payload, Mapping):
+                choice_data = {"command": command, **dict(choice_payload)}
+            else:
+                choice_data = {"command": command, "description": str(choice_payload)}
+            converted_choices.append(choice_data)
+        migrated["choices"] = converted_choices
+    elif isinstance(choices, list):
+        migrated["choices"] = list(choices)
+    elif choices is None:
+        migrated["choices"] = []
+    else:
+        raise ValueError(
+            f"Choices for scene '{scene_id}' must be a list or object in legacy datasets."
+        )
+
+    return migrated
 
 
 def _parse_field_type_filters(value: str | None) -> list[FieldType] | None:
@@ -591,6 +711,7 @@ class SceneService:
         self,
         *,
         scenes: Mapping[str, Any],
+        schema_version: int | None = None,
         start_scene: str | None = None,
     ) -> SceneImportResponse:
         """Validate uploaded scene definitions without persisting them."""
@@ -599,7 +720,14 @@ class SceneService:
             raise ValueError("At least one scene must be provided for import.")
 
         try:
-            parsed_scenes = load_scenes_from_mapping(scenes)
+            migrated_scenes = _migrate_scene_dataset(
+                scenes, schema_version=schema_version
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        try:
+            parsed_scenes = load_scenes_from_mapping(migrated_scenes)
         except ValueError as exc:
             raise ValueError(str(exc)) from exc
 
@@ -810,7 +938,9 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
     def import_scenes(payload: SceneImportRequest) -> SceneImportResponse:
         try:
             return service.validate_import_payload(
-                scenes=payload.scenes, start_scene=payload.start_scene
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
+                start_scene=payload.start_scene,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
