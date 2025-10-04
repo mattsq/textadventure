@@ -85,8 +85,9 @@ services.
 ## HTTP API Surface
 - **FastAPI application (`textadventure.api.app`)** – Offers programmatic access to
   bundled scene data and analytics. `SceneService` returns paginated summaries with
-  validation metadata, `SceneSearchResponse` powers full-text queries, and helper
-  parsers validate query parameters for field-type and validation filters.
+  validation metadata, produces Git-style diffs for uploaded datasets, `SceneSearchResponse`
+  powers full-text queries, and helper parsers validate query parameters for
+  field-type and validation filters.
 - **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`, and
   supporting models normalise the API payloads consumed by prospective web tools or
   external services.

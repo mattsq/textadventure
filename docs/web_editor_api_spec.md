@@ -333,6 +333,58 @@ about the saved snapshot (version id, checksum, and timestamp) so operators can
 log or display confirmation to authors.
 
 
+### `POST /scenes/diff`
+
+Generate a Git-style diff comparing an uploaded dataset against the currently
+bundled scenes. The endpoint returns both a machine-friendly summary of added,
+removed, modified, and unchanged scene identifiers plus unified diff strings for
+each changed scene so editors can render inline previews.
+
+**Request body**
+
+```json
+{
+  "scenes": { /* Mapping of scene ids to definitions */ },
+  "schema_version": 2
+}
+```
+
+**Response – 200 OK**
+
+```json
+{
+  "summary": {
+    "added_scene_ids": ["market-square"],
+    "removed_scene_ids": ["docks"],
+    "modified_scene_ids": ["village-square"],
+    "unchanged_scene_ids": ["forest-edge"]
+  },
+  "entries": [
+    {
+      "scene_id": "village-square",
+      "status": "modified",
+      "diff": "--- current/village-square\n+++ incoming/village-square\n@@\n-  \"description\": \"A quiet square.\"\n+  \"description\": \"The square buzzes with activity.\"\n"
+    },
+    {
+      "scene_id": "docks",
+      "status": "removed",
+      "diff": "--- current/docks\n@@\n-  \"description\": \"Ships bob in the harbour.\"\n"
+    },
+    {
+      "scene_id": "market-square",
+      "status": "added",
+      "diff": "+++ incoming/market-square\n@@\n+  \"description\": \"Merchants line the stalls.\"\n"
+    }
+  ]
+}
+```
+
+Clients can use the summary lists to power change indicators (e.g. sidebars or
+status badges) while rendering the unified diffs inline for detailed review. The
+response intentionally mirrors Git conventions so future tooling can extend it
+with syntax highlighting or patch application.
+
+
 ### `POST /scenes`
 
 Create a new scene. Requests provide the full scene payload except timestamps,

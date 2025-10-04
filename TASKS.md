@@ -294,7 +294,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Add automated tests covering both formatting modes.
       - [x] Backup and versioning *(Export payload now includes deterministic version ids, checksums, and suggested backup filenames.)*
     - [ ] Add version control integration:
-      - [ ] Git-style change tracking
+      - [x] Git-style change tracking
+        - [x] Add API endpoint providing scene dataset diff summaries
+        - [x] Document the diff workflow in the API reference
+        - [x] Cover diff computation with automated tests
       - [ ] Diff visualization
       - [ ] Rollback capabilities
       - [ ] Branch management for different storylines
