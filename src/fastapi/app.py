@@ -9,6 +9,8 @@ from types import NoneType, UnionType
 from typing import Any, Callable, Mapping, MutableMapping
 from typing import Union, get_args, get_origin, get_type_hints
 
+from pydantic import BaseModel
+
 
 class HTTPException(Exception):
     """Exception mirroring FastAPI's HTTPException signature."""
@@ -27,18 +29,19 @@ def Query(default: Any = None, **_: Any) -> Any:
 
 @dataclass
 class _Route:
+    method: str
     path: str
     endpoint: Callable[..., Any]
     response_model: Any | None
 
 
 class FastAPI:
-    """Extremely small FastAPI clone supporting declarative GET routes."""
+    """Extremely small FastAPI clone supporting declarative GET/POST routes."""
 
     def __init__(self, *, title: str = "", version: str = "") -> None:
         self.title = title
         self.version = version
-        self._routes: MutableMapping[str, _Route] = {}
+        self._routes: MutableMapping[tuple[str, str], _Route] = {}
 
     def get(
         self, path: str, response_model: Any | None = None
@@ -46,46 +49,79 @@ class FastAPI:
         """Register a handler for ``GET`` requests."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            self._routes[path] = _Route(
-                path=path, endpoint=func, response_model=response_model
+            self._routes[("GET", path)] = _Route(
+                method="GET", path=path, endpoint=func, response_model=response_model
             )
             return func
 
         return decorator
 
-    def _resolve_route(self, path: str) -> tuple[_Route, dict[str, str]]:
-        if path in self._routes:
-            return self._routes[path], {}
+    def post(
+        self, path: str, response_model: Any | None = None
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register a handler for ``POST`` requests."""
 
-        for route in self._routes.values():
-            params = _match_path(route.path, path)
-            if params is not None:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            self._routes[("POST", path)] = _Route(
+                method="POST", path=path, endpoint=func, response_model=response_model
+            )
+            return func
+
+        return decorator
+
+    def _resolve_route(self, method: str, path: str) -> tuple[_Route, dict[str, str]]:
+        key = (method, path)
+        if key in self._routes:
+            return self._routes[key], {}
+
+        candidate_methods: set[str] = set()
+        for (route_method, route_path), route in self._routes.items():
+            params = _match_path(route_path, path)
+            if params is None:
+                continue
+            if route_method == method:
                 return route, params
+            candidate_methods.add(route_method)
+
+        if candidate_methods:
+            allowed = ", ".join(sorted(candidate_methods))
+            raise HTTPException(
+                405,
+                f"Method '{method}' not allowed for path '{path}'. Allowed: {allowed}.",
+            )
 
         raise HTTPException(404, f"Route '{path}' is not registered")
 
-    def _dispatch(self, method: str, path: str, params: Mapping[str, Any]) -> Any:
-        if method.upper() != "GET":
-            raise HTTPException(405, f"Unsupported method '{method}'")
-
-        route, path_params = self._resolve_route(path)
+    def _dispatch(
+        self,
+        method: str,
+        path: str,
+        params: Mapping[str, Any],
+        body: Any | None = None,
+    ) -> Any:
+        route, path_params = self._resolve_route(method.upper(), path)
         combined_params: dict[str, Any] = dict(path_params)
         combined_params.update(params)
-        kwargs = _build_keyword_arguments(route.endpoint, combined_params)
+        kwargs = _build_keyword_arguments(route.endpoint, combined_params, body=body)
         return route.endpoint(**kwargs)
 
 
 def _build_keyword_arguments(
-    endpoint: Callable[..., Any], params: Mapping[str, Any]
+    endpoint: Callable[..., Any], params: Mapping[str, Any], *, body: Any | None = None
 ) -> dict[str, Any]:
     bound_params: dict[str, Any] = {}
     sig: Signature = signature(endpoint)
     type_hints = get_type_hints(endpoint)
+    body_assigned = False
 
     for name, param in sig.parameters.items():
         if name in params:
             annotation = type_hints.get(name, param.annotation)
             bound_params[name] = _convert_value(params[name], annotation)
+        elif not body_assigned and body is not None:
+            annotation = type_hints.get(name, param.annotation)
+            bound_params[name] = _convert_value(body, annotation)
+            body_assigned = True
         elif param.default is Parameter.empty:
             # Parameter is required and has not been supplied. We deliberately
             # skip here so that Python's call will raise the appropriate TypeError.
@@ -124,6 +160,13 @@ def _convert_value(value: Any, annotation: Any) -> Any:
 
     origin = get_origin(annotation)
     if origin is None:
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            if isinstance(value, annotation):
+                return value
+            if isinstance(value, Mapping):
+                return annotation(**value)
+        if annotation is dict and isinstance(value, Mapping):
+            return dict(value)
         return _convert_primitive(value, annotation)
 
     args = get_args(annotation)

@@ -17,6 +17,31 @@ def _client() -> TestClient:
     return TestClient(create_app())
 
 
+def _import_dataset() -> dict[str, Any]:
+    return {
+        "alpha": {
+            "description": "Alpha",
+            "choices": [
+                {"command": "forward", "description": "Move ahead."},
+                {"command": "rest", "description": "Pause to recover."},
+            ],
+            "transitions": {
+                "forward": {"narration": "You continue onward.", "target": "beta"},
+                "rest": {"narration": "You take a brief rest.", "target": None},
+            },
+        },
+        "beta": {
+            "description": "Beta",
+            "choices": [
+                {"command": "return", "description": "Head back."},
+            ],
+            "transitions": {
+                "return": {"narration": "You retrace your steps.", "target": "alpha"},
+            },
+        },
+    }
+
+
 def _expected_metadata(
     scenes: Mapping[str, Any], timestamp: datetime
 ) -> dict[str, str]:
@@ -523,3 +548,67 @@ def test_export_endpoint_supports_minified_formatting() -> None:
     assert response.text == json.dumps(
         expected, separators=(",", ":"), ensure_ascii=False
     )
+
+
+def test_import_endpoint_validates_uploaded_scenes() -> None:
+    client = _client()
+    dataset = _import_dataset()
+
+    response = client.post(
+        "/api/import/scenes",
+        json={"scenes": dataset, "start_scene": "alpha"},
+    )
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["scene_count"] == len(dataset)
+    assert payload["start_scene"] == "alpha"
+
+    validation = payload["validation"]
+    generated_at = datetime.fromisoformat(validation["generated_at"])
+    assert generated_at.tzinfo is not None
+    assert validation["reachability"]["start_scene"] == "alpha"
+    assert validation["reachability"]["reachable_count"] >= 1
+
+
+def test_import_endpoint_defaults_start_scene_to_first_entry() -> None:
+    client = _client()
+    dataset = _import_dataset()
+
+    response = client.post(
+        "/api/import/scenes",
+        json={"scenes": dataset},
+    )
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["start_scene"] == "alpha"
+    assert payload["scene_count"] == len(dataset)
+
+
+def test_import_endpoint_rejects_unknown_start_scene() -> None:
+    client = _client()
+    dataset = _import_dataset()
+
+    response = client.post(
+        "/api/import/scenes",
+        json={"scenes": dataset, "start_scene": "unknown"},
+    )
+    assert response.status_code == 400
+
+
+def test_import_endpoint_returns_400_for_invalid_payload() -> None:
+    client = _client()
+    invalid_dataset = {
+        "alpha": {
+            "description": "Alpha",
+            "choices": "not-a-list",
+            "transitions": {},
+        }
+    }
+
+    response = client.post(
+        "/api/import/scenes",
+        json={"scenes": invalid_dataset},
+    )
+    assert response.status_code == 400
