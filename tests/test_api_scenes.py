@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
@@ -449,3 +450,51 @@ def test_export_endpoint_rejects_empty_ids_filter() -> None:
 
     response = client.get("/api/export/scenes", params={"ids": "  ,  "})
     assert response.status_code == 400
+
+
+def test_export_endpoint_supports_pretty_formatting() -> None:
+    definitions: Mapping[str, Any] = {
+        "alpha": {"description": "Alpha"},
+    }
+    timestamp = datetime(2024, 4, 5, 10, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/export/scenes", params={"format": "pretty"})
+    assert response.status_code == 200
+
+    expected = {
+        "generated_at": timestamp.isoformat(),
+        "scenes": definitions,
+    }
+    assert response.text == json.dumps(expected, indent=2, ensure_ascii=False)
+
+
+def test_export_endpoint_supports_minified_formatting() -> None:
+    definitions: Mapping[str, Any] = {
+        "alpha": {"description": "Alpha"},
+    }
+    timestamp = datetime(2024, 4, 5, 10, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/export/scenes", params={"format": "minified"})
+    assert response.status_code == 200
+
+    expected = {
+        "generated_at": timestamp.isoformat(),
+        "scenes": definitions,
+    }
+    assert response.text == json.dumps(
+        expected, separators=(",", ":"), ensure_ascii=False
+    )

@@ -6,10 +6,15 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from importlib import resources
+from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Literal, Sequence, cast, get_args
+from typing import Any, Callable, Iterable, Mapping, Literal, Sequence, cast, get_args
 
 from fastapi import FastAPI, HTTPException, Query
+from functools import partial
+
+from starlette.background import BackgroundTask
+from starlette.responses import JSONResponse
 from pydantic import BaseModel, Field, field_serializer
 
 from ..analytics import (
@@ -28,6 +33,40 @@ from ..search import FieldType, SearchResults, _SceneLike, search_scene_text
 from ..scripted_story_engine import load_scenes_from_mapping
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
+
+
+class ExportFormat(str, Enum):
+    """Available formatting styles for exported scene JSON."""
+
+    MINIFIED = "minified"
+    PRETTY = "pretty"
+
+
+class FormattedJSONResponse(JSONResponse):
+    """JSON response that respects minified vs pretty-print formatting styles."""
+
+    def __init__(
+        self,
+        content: Any,
+        *,
+        export_format: ExportFormat,
+        status_code: int = 200,
+        headers: Mapping[str, str] | None = None,
+        media_type: str | None = "application/json",
+        background: BackgroundTask | None = None,
+    ) -> None:
+        self._export_format = export_format
+        super().__init__(
+            content=content,
+            status_code=status_code,
+            headers=headers,
+            media_type=media_type,
+            background=background,
+        )
+
+    def render(self, content: Any) -> bytes:
+        dumps = _dumps_for_export_format(self._export_format)
+        return dumps(content).encode("utf-8")
 
 
 class Pagination(BaseModel):
@@ -624,7 +663,7 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
 
         return SceneValidationResponse(data=report)
 
-    @app.get("/api/export/scenes", response_model=SceneExportResponse)
+    @app.get("/api/export/scenes", response_model=None)
     def export_scenes(
         ids: str | None = Query(
             None,
@@ -633,14 +672,28 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
                 "When omitted, the full dataset is returned."
             ),
         ),
-    ) -> SceneExportResponse:
+        format: ExportFormat = Query(
+            ExportFormat.MINIFIED,
+            description=(
+                "Serialisation style for the JSON payload. "
+                "Use 'pretty' for indented output or 'minified' for compact output."
+            ),
+        ),
+    ) -> FormattedJSONResponse:
         try:
             parsed_ids = _parse_scene_id_filter(ids)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         try:
-            return service.export_scenes(ids=parsed_ids)
+            export_format = (
+                format if isinstance(format, ExportFormat) else ExportFormat(format)
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            export = service.export_scenes(ids=parsed_ids)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -648,12 +701,24 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+        return FormattedJSONResponse(
+            content=export.model_dump(),
+            export_format=export_format,
+        )
+
     return app
 
 
 def _load_json(path: Path) -> Any:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _dumps_for_export_format(export_format: ExportFormat) -> Callable[[Any], str]:
+    if export_format is ExportFormat.PRETTY:
+        return partial(json.dumps, indent=2, ensure_ascii=False)
+
+    return partial(json.dumps, separators=(",", ":"), ensure_ascii=False)
 
 
 def _timestamp_for(path: Path) -> datetime:

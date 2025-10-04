@@ -206,11 +206,15 @@ the timestamp from the underlying resource.
 - `ids` – Optional comma-separated list of scene identifiers to export. When
   omitted the entire dataset is returned. Unknown identifiers result in a
   `404 Not Found` response.
+- `format` – Optional export formatting flag. Accepts `minified` (default) for
+  compact output or `pretty` for indented JSON that is easier to review
+  manually.
 
 **Examples**
 
 - `GET /export/scenes`
 - `GET /export/scenes?ids=starting-area,forest-edge`
+- `GET /export/scenes?format=pretty`
 
 **Response – 200 OK**
 
