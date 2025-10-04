@@ -356,6 +356,12 @@ class SceneDiffEntry(BaseModel):
         ...,
         description="Unified diff describing the changes for the scene in Git-style format.",
     )
+    diff_html: str = Field(
+        ...,
+        description=(
+            "HTML table representing the scene diff for visual rendering in UIs."
+        ),
+    )
 
 
 class SceneDiffSummary(BaseModel):
@@ -618,6 +624,29 @@ def _format_scene_diff(
         lineterm="",
     )
     return "\n".join(diff_lines)
+
+
+def _format_scene_diff_html(
+    scene_id: str,
+    *,
+    current: Any | None,
+    incoming: Any | None,
+) -> str:
+    """Return an HTML table representing the diff between scene payloads."""
+
+    current_lines = _serialise_scene_lines(current) if current is not None else []
+    incoming_lines = _serialise_scene_lines(incoming) if incoming is not None else []
+
+    html_diff = difflib.HtmlDiff(wrapcolumn=80)
+    table = html_diff.make_table(
+        current_lines,
+        incoming_lines,
+        fromdesc=f"current/{scene_id}",
+        todesc=f"incoming/{scene_id}",
+        context=True,
+        numlines=3,
+    )
+    return table.strip()
 
 
 def _compute_import_plans(
@@ -1012,7 +1041,19 @@ class SceneService:
                 current=None,
                 incoming=incoming_normalised[scene_id],
             )
-            entries.append(SceneDiffEntry(scene_id=scene_id, status="added", diff=diff))
+            diff_html = _format_scene_diff_html(
+                scene_id,
+                current=None,
+                incoming=incoming_normalised[scene_id],
+            )
+            entries.append(
+                SceneDiffEntry(
+                    scene_id=scene_id,
+                    status="added",
+                    diff=diff,
+                    diff_html=diff_html,
+                )
+            )
 
         for scene_id in removed_ids:
             diff = _format_scene_diff(
@@ -1021,7 +1062,16 @@ class SceneService:
                 incoming=None,
             )
             entries.append(
-                SceneDiffEntry(scene_id=scene_id, status="removed", diff=diff)
+                SceneDiffEntry(
+                    scene_id=scene_id,
+                    status="removed",
+                    diff=diff,
+                    diff_html=_format_scene_diff_html(
+                        scene_id,
+                        current=existing_normalised[scene_id],
+                        incoming=None,
+                    ),
+                )
             )
 
         for scene_id in modified_ids:
@@ -1031,7 +1081,16 @@ class SceneService:
                 incoming=incoming_normalised[scene_id],
             )
             entries.append(
-                SceneDiffEntry(scene_id=scene_id, status="modified", diff=diff)
+                SceneDiffEntry(
+                    scene_id=scene_id,
+                    status="modified",
+                    diff=diff,
+                    diff_html=_format_scene_diff_html(
+                        scene_id,
+                        current=existing_normalised[scene_id],
+                        incoming=incoming_normalised[scene_id],
+                    ),
+                )
             )
 
         return SceneDiffResponse(summary=summary, entries=entries)

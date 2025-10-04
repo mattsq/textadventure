@@ -849,14 +849,20 @@ def test_diff_scenes_reports_added_removed_and_modified_entries() -> None:
     assert "+++ incoming/beta" in beta_diff["diff"]
     assert '-  "description": "Beta original"' in beta_diff["diff"]
     assert '+  "description": "Beta updated"' in beta_diff["diff"]
+    assert beta_diff["diff_html"].startswith("<table")
+    assert "diff_chg" in beta_diff["diff_html"] or "diff_add" in beta_diff["diff_html"]
 
     gamma_diff = entries_by_scene["gamma"]
     assert gamma_diff["status"] == "removed"
     assert gamma_diff["diff"].startswith("--- current/gamma")
+    assert gamma_diff["diff_html"].startswith("<table")
+    assert "diff_sub" in gamma_diff["diff_html"]
 
     delta_diff = entries_by_scene["delta"]
     assert delta_diff["status"] == "added"
     assert "+++ incoming/delta" in delta_diff["diff"]
+    assert delta_diff["diff_html"].startswith("<table")
+    assert "diff_add" in delta_diff["diff_html"]
 
 
 def test_diff_scenes_returns_unchanged_summary_when_payload_matches() -> None:

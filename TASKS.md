@@ -298,7 +298,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Add API endpoint providing scene dataset diff summaries
         - [x] Document the diff workflow in the API reference
         - [x] Cover diff computation with automated tests
-      - [ ] Diff visualization
+      - [x] Diff visualization *(API now returns HTML diff tables alongside unified diffs with documentation and tests.)*
+        - [x] Provide HTML-rendered diff fragments from the API for changed scenes.
+        - [x] Document the diff visualisation field in the API specification.
+        - [x] Add regression tests covering the HTML diff output.
       - [ ] Rollback capabilities
       - [ ] Branch management for different storylines
     - [ ] Create project management features:

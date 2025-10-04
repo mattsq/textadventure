@@ -363,17 +363,20 @@ each changed scene so editors can render inline previews.
     {
       "scene_id": "village-square",
       "status": "modified",
-      "diff": "--- current/village-square\n+++ incoming/village-square\n@@\n-  \"description\": \"A quiet square.\"\n+  \"description\": \"The square buzzes with activity.\"\n"
+      "diff": "--- current/village-square\n+++ incoming/village-square\n@@\n-  \"description\": \"A quiet square.\"\n+  \"description\": \"The square buzzes with activity.\"\n",
+      "diff_html": "<table class=\"diff\">…</table>"
     },
     {
       "scene_id": "docks",
       "status": "removed",
-      "diff": "--- current/docks\n@@\n-  \"description\": \"Ships bob in the harbour.\"\n"
+      "diff": "--- current/docks\n@@\n-  \"description\": \"Ships bob in the harbour.\"\n",
+      "diff_html": "<table class=\"diff\">…</table>"
     },
     {
       "scene_id": "market-square",
       "status": "added",
-      "diff": "+++ incoming/market-square\n@@\n+  \"description\": \"Merchants line the stalls.\"\n"
+      "diff": "+++ incoming/market-square\n@@\n+  \"description\": \"Merchants line the stalls.\"\n",
+      "diff_html": "<table class=\"diff\">…</table>"
     }
   ]
 }
@@ -381,8 +384,10 @@ each changed scene so editors can render inline previews.
 
 Clients can use the summary lists to power change indicators (e.g. sidebars or
 status badges) while rendering the unified diffs inline for detailed review. The
-response intentionally mirrors Git conventions so future tooling can extend it
-with syntax highlighting or patch application.
+`diff_html` payload offers a ready-to-render table produced by
+`difflib.HtmlDiff`, making it easy to drop into the editor UI with a small CSS
+stylesheet. The response intentionally mirrors Git conventions so future
+tooling can extend it with syntax highlighting or patch application.
 
 
 ### `POST /scenes`
