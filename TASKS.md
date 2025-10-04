@@ -280,7 +280,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Backup creation before import
     - [ ] Implement export options:
       - [x] Full scene export *(Added `/api/export/scenes` endpoint returning the bundled dataset with timestamps.)*
-      - [ ] Selective scene export
+      - [x] Selective scene export
+        - [x] Support filtering `/api/export/scenes` by a comma-separated `ids` query parameter so only matching scenes are included.
+        - [x] Document the new selective export behaviour in the API specification.
+        - [x] Add regression tests covering filtered exports and error handling.
       - [ ] Minified vs pretty-printed JSON
       - [ ] Backup and versioning
     - [ ] Add version control integration:

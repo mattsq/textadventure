@@ -197,9 +197,20 @@ Fetch the canonical definition for a single scene.
 
 ### `GET /export/scenes`
 
-Download the full scripted scene dataset for offline editing, backup, or
-version control. The response mirrors the JSON structure stored on disk and
-includes the timestamp from the underlying resource.
+Download the scripted scene dataset for offline editing, backup, or version
+control. The response mirrors the JSON structure stored on disk and includes
+the timestamp from the underlying resource.
+
+**Query parameters**
+
+- `ids` – Optional comma-separated list of scene identifiers to export. When
+  omitted the entire dataset is returned. Unknown identifiers result in a
+  `404 Not Found` response.
+
+**Examples**
+
+- `GET /export/scenes`
+- `GET /export/scenes?ids=starting-area,forest-edge`
 
 **Response – 200 OK**
 
@@ -223,12 +234,6 @@ includes the timestamp from the underlying resource.
   }
 }
 ```
-
-**Notes**
-
-- Future enhancements may add query parameters for selective exports (scene
-  subsets, minified formatting) once the corresponding backlog items are
-  prioritised.
 
 ### `POST /scenes`
 

@@ -394,3 +394,58 @@ def test_export_endpoint_returns_full_dataset() -> None:
     exported_timestamp = datetime.fromisoformat(payload["generated_at"])
     assert exported_timestamp == timestamp
     assert payload["scenes"] == definitions
+
+
+def test_export_endpoint_filters_by_scene_ids() -> None:
+    definitions: Mapping[str, Any] = {
+        "alpha": {"description": "Alpha"},
+        "beta": {"description": "Beta"},
+        "gamma": {"description": "Gamma"},
+    }
+    timestamp = datetime(2024, 4, 5, 10, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/export/scenes", params={"ids": "gamma,alpha"})
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["scenes"] == {
+        "gamma": {"description": "Gamma"},
+        "alpha": {"description": "Alpha"},
+    }
+
+
+def test_export_endpoint_returns_404_for_unknown_scene_id() -> None:
+    definitions: Mapping[str, Any] = {"alpha": {"description": "Alpha"}}
+    timestamp = datetime(2024, 4, 5, 10, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/export/scenes", params={"ids": "alpha,unknown"})
+    assert response.status_code == 404
+
+
+def test_export_endpoint_rejects_empty_ids_filter() -> None:
+    definitions: Mapping[str, Any] = {"alpha": {"description": "Alpha"}}
+    timestamp = datetime(2024, 4, 5, 10, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return definitions, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/export/scenes", params={"ids": "  ,  "})
+    assert response.status_code == 400
