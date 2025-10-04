@@ -193,6 +193,8 @@ ruff src tests     # linting
 
 ## Contributing
 
-Read the detailed contributor guidelines in [Agents.md](Agents.md). Pull
-requests should include passing tests, type checks, and linting, and explain the
-motivation behind the change. Issues and design ideas are always welcome!
+Read the detailed contributor guidelines in
+[`docs/contributing.md`](docs/contributing.md) alongside the maintainer notes in
+[Agents.md](Agents.md). Pull requests should include passing tests, type checks,
+and linting, and explain the motivation behind the change. Issues and design
+ideas are always welcome!
