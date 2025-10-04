@@ -68,8 +68,8 @@ services.
 - **CLI runtime (`src/main.py`)** – `run_cli` wires together a story engine,
   world state, optional session store, and transcript logging. The embedded
   `TranscriptLogger` records narration, choices, metadata, and player commands for
-  debugging, while commands such as `help`, `status`, `save`, and `load` expose
-  runtime management features.
+  debugging, while commands such as `help`, `tutorial`, `status`, `save`, and `load`
+  expose runtime management features.
 
 ## Tooling, Analytics, and Search
 - **Tool abstractions (`textadventure.tools`)** – Define the base `Tool` interface

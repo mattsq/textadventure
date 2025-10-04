@@ -11,6 +11,8 @@ integration.
 - **Interactive CLI demo** – `src/main.py` wires the story engine, world state,
   persistence, optional transcript logging, and the LLM provider registry into a
   small playable loop.
+- **Guided onboarding** – Enter `tutorial` inside the CLI to walk through the
+  core commands, persistence options, and debugging tools at your own pace.
 - **Rich world modelling** – `WorldState` tracks locations, actors, inventory,
   remembered observations, and player actions.
 - **Story engines** – the `StoryEngine` protocol defines how narrative beats
@@ -77,7 +79,10 @@ TASKS.md                   # Planning notes and backlog ideas
   provider with repeated `--llm-option` flags (for example,
   `--llm-provider openai --llm-option api_key=...`). Alternatively pass
   `--llm-config path/to/config.json` to load the provider identifier and
-  options from a JSON file. A more detailed walkthrough covering environment
+  options from a JSON file. Once the adventure starts, type `help` for a
+  summary of system commands or `tutorial` to follow an interactive walkthrough
+  covering choices, status, saving, and quitting. A more detailed walkthrough
+  covering environment
   setup, optional features, and troubleshooting lives in
   [`docs/getting_started.md`](docs/getting_started.md).
 

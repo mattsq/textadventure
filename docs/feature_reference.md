@@ -7,10 +7,11 @@ is available and where to look next.
 ## Interactive CLI Adventure
 
 - The CLI welcomes players, prints the current story beat, and accepts free-form
-  input until the narrative reaches a natural ending.【F:src/main.py†L70-L215】
-- Built-in commands include `save <id>`, `load <id>`, and `status`, providing
-  quick persistence controls and a live snapshot of the world, queued agent
-  messages, and known save files.【F:src/main.py†L139-L212】
+  input until the narrative reaches a natural ending.【F:src/main.py†L208-L354】
+- Built-in commands include `save <id>`, `load <id>`, `status`, and `tutorial`,
+  providing quick persistence controls, a live snapshot of the world, queued
+  agent messages, known save files, and an interactive walkthrough for new
+  players.【F:src/main.py†L239-L363】
 - Command-line flags configure persistence, transcript logging, and LLM
   co-narrators (see `--session-dir`, `--log-file`, `--llm-provider`,
   `--llm-config`, and repeated `--llm-option key=value`).【F:src/main.py†L218-L268】

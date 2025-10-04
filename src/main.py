@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence, TextIO
 
@@ -67,6 +68,143 @@ class TranscriptLogger:
         self._stream.write(f"{text}\n")
 
 
+@dataclass(frozen=True)
+class TutorialStep:
+    """Single step within the interactive tutorial."""
+
+    title: str
+    lines: tuple[str, ...]
+
+
+class TutorialGuide:
+    """Guide players through the core CLI features interactively."""
+
+    def __init__(self, session_store: SessionStore | None) -> None:
+        self._session_store = session_store
+
+    def run(self) -> None:
+        """Render tutorial steps and await confirmation between them."""
+
+        steps = self._build_steps()
+        if not steps:
+            print("\nTutorial content is not available right now.\n")
+            return
+
+        total = len(steps)
+
+        print("\n=== Interactive Tutorial ===")
+        print(
+            "Type 'next' (or press Enter) to continue, or 'exit' to leave the "
+            "tutorial early.\n"
+        )
+
+        for index, step in enumerate(steps, start=1):
+            print(f"Step {index} of {total}: {step.title}")
+            for line in step.lines:
+                print(f"  {line}")
+
+            while True:
+                try:
+                    response = input("tutorial> ")
+                except EOFError:
+                    print("\nEnding the tutorial because input has closed.\n")
+                    return
+                except KeyboardInterrupt:
+                    print(
+                        "\nTutorial interrupted. Resume the adventure whenever "
+                        "you're ready.\n"
+                    )
+                    return
+
+                lowered = response.strip().lower()
+                if not lowered or lowered in {"next", "n"}:
+                    print()
+                    break
+                if lowered in {"exit", "quit"}:
+                    print(
+                        "\nTutorial closed. Use 'help' whenever you need a "
+                        "refresher.\n"
+                    )
+                    return
+                if lowered in {"help", "h"}:
+                    print(
+                        "Type 'next' (or press Enter) to continue, or 'exit' to "
+                        "leave the tutorial."
+                    )
+                    continue
+
+                print(
+                    "Type 'next' (or press Enter) to continue, or 'exit' to leave "
+                    "the tutorial."
+                )
+
+        print(
+            "You're ready to explore! Remember that 'help' and 'tutorial' are "
+            "always available.\n"
+        )
+
+    def _build_steps(self) -> list[TutorialStep]:
+        """Return the ordered steps describing core CLI workflows."""
+
+        steps: list[TutorialStep] = [
+            TutorialStep(
+                title="Read the narration and choices",
+                lines=(
+                    "Each turn begins with narration describing your surroundings",
+                    "and goals.",
+                    "Story choices appear as commands in square brackets (for",
+                    "example, [explore]). Type the command to follow that branch.",
+                ),
+            ),
+            TutorialStep(
+                title="Respond to the narrator",
+                lines=(
+                    "Enter the command exactly as shown to continue the story.",
+                    "If a phrase isn't recognised the scripted engine will nudge",
+                    "you back towards the available options.",
+                ),
+            ),
+            TutorialStep(
+                title="Use the CLI helpers",
+                lines=(
+                    "Type 'help' to list every system command or 'help <choice>'",
+                    "to learn more about a story option.",
+                    "The 'status' command prints your location, inventory, queued",
+                    "agent messages, and saved sessions. Use 'quit' to end the",
+                    "adventure at any time.",
+                ),
+            ),
+        ]
+
+        if self._session_store is None:
+            steps.append(
+                TutorialStep(
+                    title="Saving progress",
+                    lines=(
+                        "Saving is disabled for this run because no session",
+                        "directory was configured.",
+                        "Restart the CLI with '--session-dir <path>' (or without",
+                        "'--no-persistence') to enable 'save <name>' and",
+                        "'load <name>'.",
+                    ),
+                )
+            )
+        else:
+            steps.append(
+                TutorialStep(
+                    title="Saving progress",
+                    lines=(
+                        "Save your progress at any time with 'save <name>'. Pick",
+                        "memorable identifiers like 'camp' or 'chapter-2'.",
+                        "Restore a checkpoint with 'load <name>'. Saved sessions",
+                        "also appear in the 'status' command.",
+                    ),
+                )
+            )
+
+        return steps
+
+
 def run_cli(
     engine: StoryEngine,
     world: WorldState,
@@ -79,10 +217,10 @@ def run_cli(
 
     print("Welcome to the Text Adventure prototype!")
     print("Type 'quit' at any time to end the session.")
+    print("Type 'help' for a command overview or 'tutorial' for a guided tour.")
     if session_store is not None:
-        print("Type 'save <name>' or 'load <name>' to manage checkpoints.\n")
-    else:
-        print()
+        print("Type 'save <name>' or 'load <name>' to manage checkpoints.")
+    print()
 
     def _capture_event(new_event: StoryEvent) -> StoryEvent:
         world.remember_observation(new_event.narration)
@@ -120,6 +258,10 @@ def run_cli(
         command_help["help"] = (
             "help [command]",
             "Display help for available commands. Use 'help <command>' for details.",
+        )
+        command_help["tutorial"] = (
+            "tutorial",
+            "Start an interactive walkthrough covering the core CLI commands.",
         )
         command_help["status"] = (
             "status",
@@ -213,6 +355,10 @@ def run_cli(
         if command_lower == "help":
             topic = argument.strip()
             _print_help(topic if topic else None)
+            continue
+
+        if command_lower == "tutorial":
+            TutorialGuide(session_store).run()
             continue
 
         if command_lower == "save":

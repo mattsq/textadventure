@@ -47,7 +47,7 @@ Launch the scripted text adventure from the repository root:
 python src/main.py
 ```
 
-The CLI will print the current scene narration, available choices, and a prompt for your next command. Enter `help` to see built-in commands such as `save`, `load`, `status`, and `quit`.
+The CLI will print the current scene narration, available choices, and a prompt for your next command. Enter `help` to see built-in commands such as `save`, `load`, `status`, and `quit`, or type `tutorial` for an interactive walkthrough of the same features.
 
 ### Enable Persistence and Logging
 
