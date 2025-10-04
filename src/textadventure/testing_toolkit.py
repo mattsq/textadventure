@@ -7,7 +7,7 @@ from typing import Iterable
 from .world_state import WorldState
 
 
-__all__ = ["set_inventory", "set_history"]
+__all__ = ["set_inventory", "set_history", "jump_to_scene"]
 
 
 def set_inventory(
@@ -51,3 +51,20 @@ def set_history(world: WorldState, events: Iterable[str]) -> None:
 
     world.history.clear()
     world.extend_history(events)
+
+
+def jump_to_scene(
+    world: WorldState,
+    scene_id: str,
+    *,
+    record_event: bool = False,
+) -> None:
+    """Move ``world`` to ``scene_id`` without needing to play through choices.
+
+    The helper delegates to :meth:`WorldState.move_to` so validation rules are
+    preserved. Tests can opt-in to history tracking via ``record_event`` to
+    mirror real navigation, but the default leaves the history untouched so the
+    helper can be used for deterministic setup.
+    """
+
+    world.move_to(scene_id, record_event=record_event)

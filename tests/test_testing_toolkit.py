@@ -1,4 +1,8 @@
-from textadventure.testing_toolkit import set_history, set_inventory
+from textadventure.testing_toolkit import (
+    jump_to_scene,
+    set_history,
+    set_inventory,
+)
 from textadventure.world_state import WorldState
 
 
@@ -31,3 +35,21 @@ def test_set_history_replaces_event_log() -> None:
     set_history(world, ["  First action  ", "Second action"])
 
     assert world.history == ["First action", "Second action"]
+
+
+def test_jump_to_scene_updates_location_without_history() -> None:
+    world = WorldState()
+
+    jump_to_scene(world, "mysterious-cavern")
+
+    assert world.location == "mysterious-cavern"
+    assert world.history == []
+
+
+def test_jump_to_scene_can_record_history() -> None:
+    world = WorldState()
+
+    jump_to_scene(world, "sunlit-grove", record_event=True)
+
+    assert world.location == "sunlit-grove"
+    assert world.history == ["Moved to sunlit-grove"]
