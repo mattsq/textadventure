@@ -248,6 +248,27 @@ def _parse_validation_filters(value: str | None) -> list[ValidationStatus] | Non
     return [cast(ValidationStatus, candidate) for candidate in filtered]
 
 
+def _parse_scene_id_filter(value: str | None) -> list[str] | None:
+    """Parse comma-separated scene identifiers for export filtering."""
+
+    if value is None:
+        return None
+
+    parts = [candidate.strip() for candidate in value.split(",")]
+    filtered = [candidate for candidate in parts if candidate]
+    if not filtered:
+        raise ValueError("At least one scene id must be provided.")
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for candidate in filtered:
+        if candidate not in seen:
+            seen.add(candidate)
+            ordered.append(candidate)
+
+    return ordered
+
+
 @dataclass(frozen=True)
 class SceneSummaryData:
     """Internal representation of a scene summary prior to serialisation."""
@@ -462,13 +483,26 @@ class SceneService:
             item_flow=_build_item_flow_resource(item_flow_report),
         )
 
-    def export_all_scenes(self) -> SceneExportResponse:
-        """Return the full scene dataset for download."""
+    def export_scenes(self, *, ids: Sequence[str] | None = None) -> SceneExportResponse:
+        """Return the scene dataset for download, optionally filtered by id."""
 
         definitions, dataset_timestamp = self._repository.load()
 
+        export_definitions: Mapping[str, Any] = definitions
+
+        if ids is not None:
+            if not ids:
+                raise ValueError("At least one scene id must be provided.")
+
+            missing = [scene_id for scene_id in ids if scene_id not in definitions]
+            if missing:
+                formatted = ", ".join(sorted(set(missing)))
+                raise KeyError(f"Scene ids not defined: {formatted}.")
+
+            export_definitions = {scene_id: definitions[scene_id] for scene_id in ids}
+
         try:
-            serialisable: dict[str, Any] = json.loads(json.dumps(definitions))
+            serialisable: dict[str, Any] = json.loads(json.dumps(export_definitions))
         except (TypeError, ValueError) as exc:
             raise ValueError("Scene data could not be serialised to JSON.") from exc
 
@@ -591,9 +625,24 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
         return SceneValidationResponse(data=report)
 
     @app.get("/api/export/scenes", response_model=SceneExportResponse)
-    def export_scenes() -> SceneExportResponse:
+    def export_scenes(
+        ids: str | None = Query(
+            None,
+            description=(
+                "Comma-separated list of scene identifiers to export. "
+                "When omitted, the full dataset is returned."
+            ),
+        ),
+    ) -> SceneExportResponse:
         try:
-            return service.export_all_scenes()
+            parsed_ids = _parse_scene_id_filter(ids)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            return service.export_scenes(ids=parsed_ids)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         except RuntimeError as exc:
