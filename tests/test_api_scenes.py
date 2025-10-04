@@ -10,7 +10,11 @@ from typing import Any, Mapping
 from fastapi.testclient import TestClient
 
 from textadventure.api import create_app
-from textadventure.api.app import CURRENT_SCENE_SCHEMA_VERSION, SceneService
+from textadventure.api.app import (
+    CURRENT_SCENE_SCHEMA_VERSION,
+    ExportFormat,
+    SceneService,
+)
 
 
 def _client() -> TestClient:
@@ -758,3 +762,76 @@ def test_import_endpoint_reports_merge_and_replace_plans() -> None:
     assert replace_plan["updated_scene_ids"] == ["beta"]
     assert replace_plan["unchanged_scene_ids"] == ["alpha"]
     assert replace_plan["removed_scene_ids"] == ["gamma"]
+
+
+def test_scene_service_creates_pretty_backup(tmp_path) -> None:
+    dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha scene",
+            "choices": [{"command": "wait", "description": "Wait patiently."}],
+            "transitions": {
+                "wait": {
+                    "narration": "You bide your time.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    timestamp = datetime(2024, 5, 1, 12, 0, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return dataset, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    export = service.export_scenes()
+
+    backup_dir = tmp_path / "backups"
+    result = service.create_backup(destination_dir=backup_dir)
+
+    assert result.path.exists()
+    assert result.path.parent == backup_dir
+    assert backup_dir.is_dir()
+    assert result.version_id == export.metadata.version_id
+    assert result.checksum == export.metadata.checksum
+    assert result.generated_at == export.generated_at
+    assert result.path.name == export.metadata.suggested_filename
+
+    expected_content = json.dumps(export.scenes, indent=2, ensure_ascii=False)
+    assert result.path.read_text(encoding="utf-8") == expected_content
+    assert json.loads(result.path.read_text(encoding="utf-8")) == export.scenes
+
+
+def test_scene_service_creates_minified_backup(tmp_path) -> None:
+    dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha scene",
+            "choices": [{"command": "wait", "description": "Wait patiently."}],
+            "transitions": {
+                "wait": {
+                    "narration": "You bide your time.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    timestamp = datetime(2024, 6, 2, 9, 30, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return dataset, timestamp
+
+    service = SceneService(repository=_StubRepository())
+    export = service.export_scenes()
+
+    backup_dir = tmp_path / "minified"
+    result = service.create_backup(
+        destination_dir=backup_dir, export_format=ExportFormat.MINIFIED
+    )
+
+    assert result.path.parent == backup_dir
+    expected_content = json.dumps(
+        export.scenes, separators=(",", ":"), ensure_ascii=False
+    )
+    assert result.path.read_text(encoding="utf-8") == expected_content
+    assert json.loads(result.path.read_text(encoding="utf-8")) == export.scenes
