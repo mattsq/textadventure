@@ -279,7 +279,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Conflict resolution (merge vs replace)
       - [ ] Backup creation before import
     - [ ] Implement export options:
-      - [ ] Full scene export
+      - [x] Full scene export *(Added `/api/export/scenes` endpoint returning the bundled dataset with timestamps.)*
       - [ ] Selective scene export
       - [ ] Minified vs pretty-printed JSON
       - [ ] Backup and versioning

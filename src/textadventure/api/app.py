@@ -191,6 +191,17 @@ class SceneValidationResponse(BaseModel):
     data: SceneValidationReport
 
 
+class SceneExportResponse(BaseModel):
+    """Payload containing a full export of the current scene dataset."""
+
+    generated_at: datetime
+    scenes: dict[str, Any]
+
+    @field_serializer("generated_at")
+    def _serialise_generated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
 def _parse_field_type_filters(value: str | None) -> list[FieldType] | None:
     """Parse comma-separated field types into validated values."""
 
@@ -451,6 +462,21 @@ class SceneService:
             item_flow=_build_item_flow_resource(item_flow_report),
         )
 
+    def export_all_scenes(self) -> SceneExportResponse:
+        """Return the full scene dataset for download."""
+
+        definitions, dataset_timestamp = self._repository.load()
+
+        try:
+            serialisable: dict[str, Any] = json.loads(json.dumps(definitions))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Scene data could not be serialised to JSON.") from exc
+
+        return SceneExportResponse(
+            generated_at=dataset_timestamp,
+            scenes=serialisable,
+        )
+
 
 def create_app(scene_service: SceneService | None = None) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -563,6 +589,15 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         return SceneValidationResponse(data=report)
+
+    @app.get("/api/export/scenes", response_model=SceneExportResponse)
+    def export_scenes() -> SceneExportResponse:
+        try:
+            return service.export_all_scenes()
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return app
 

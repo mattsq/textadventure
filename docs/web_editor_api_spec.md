@@ -195,6 +195,41 @@ Fetch the canonical definition for a single scene.
 
 - `404 Not Found` – Scene id unknown.
 
+### `GET /export/scenes`
+
+Download the full scripted scene dataset for offline editing, backup, or
+version control. The response mirrors the JSON structure stored on disk and
+includes the timestamp from the underlying resource.
+
+**Response – 200 OK**
+
+```json
+{
+  "generated_at": "2024-03-18T12:34:56Z",
+  "scenes": {
+    "village-square": {
+      "description": "You stand in the heart of the village…",
+      "choices": [
+        { "command": "talk", "description": "Chat with the townsfolk." }
+      ],
+      "transitions": {
+        "talk": {
+          "narration": "Villagers share rumors about the forest.",
+          "target": "forest-edge",
+          "records": ["Spoke with villagers"]
+        }
+      }
+    }
+  }
+}
+```
+
+**Notes**
+
+- Future enhancements may add query parameters for selective exports (scene
+  subsets, minified formatting) once the corresponding backlog items are
+  prioritised.
+
 ### `POST /scenes`
 
 Create a new scene. Requests provide the full scene payload except timestamps,
