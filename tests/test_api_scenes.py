@@ -13,6 +13,7 @@ from textadventure.api import create_app
 from textadventure.api.app import (
     CURRENT_SCENE_SCHEMA_VERSION,
     ExportFormat,
+    ImportStrategy,
     SceneService,
 )
 
@@ -977,3 +978,157 @@ def test_scene_service_creates_minified_backup(tmp_path) -> None:
     )
     assert result.path.read_text(encoding="utf-8") == expected_content
     assert json.loads(result.path.read_text(encoding="utf-8")) == export.scenes
+
+
+def test_scene_service_plans_rollback_to_backup_dataset() -> None:
+    current_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        },
+        "beta": {
+            "description": "Beta current",
+            "choices": [
+                {"command": "proceed", "description": "Head forward."},
+            ],
+            "transitions": {
+                "proceed": {
+                    "narration": "You continue deeper into the cave.",
+                    "target": "gamma",
+                }
+            },
+        },
+    }
+    backup_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha legacy",
+            "choices": [
+                {"command": "wait", "description": "Wait patiently."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You recall a simpler path.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    current_timestamp = datetime(2024, 7, 1, 10, 0, tzinfo=timezone.utc)
+    backup_timestamp = datetime(2024, 6, 20, 9, 30, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return current_dataset, current_timestamp
+
+    service = SceneService(repository=_StubRepository())
+
+    response = service.plan_rollback(
+        scenes=backup_dataset, generated_at=backup_timestamp
+    )
+
+    expected_current = _expected_metadata(current_dataset, current_timestamp)
+    assert response.current.generated_at == current_timestamp
+    assert response.current.version_id == expected_current["version_id"]
+    assert response.current.checksum == expected_current["checksum"]
+
+    expected_target = _expected_metadata(backup_dataset, backup_timestamp)
+    assert response.target.generated_at == backup_timestamp
+    assert response.target.version_id == expected_target["version_id"]
+    assert response.target.checksum == expected_target["checksum"]
+
+    assert response.summary.added_scene_ids == []
+    assert response.summary.removed_scene_ids == ["beta"]
+    assert response.summary.modified_scene_ids == ["alpha"]
+
+    entries_by_scene = {entry.scene_id: entry for entry in response.entries}
+    assert set(entries_by_scene) == {"alpha", "beta"}
+    assert entries_by_scene["alpha"].status == "modified"
+    assert entries_by_scene["beta"].status == "removed"
+
+    plan = response.plan
+    assert plan.strategy is ImportStrategy.REPLACE
+    assert plan.new_scene_ids == []
+    assert plan.updated_scene_ids == ["alpha"]
+    assert plan.removed_scene_ids == ["beta"]
+
+
+def test_plan_rollback_endpoint_returns_expected_payload() -> None:
+    current_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    backup_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    current_timestamp = datetime(2024, 7, 5, 8, 0, tzinfo=timezone.utc)
+    backup_timestamp = datetime(2024, 6, 30, 18, 45, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return current_dataset, current_timestamp
+
+    service = SceneService(repository=_StubRepository())
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.post(
+        "/api/scenes/rollback",
+        json={
+            "scenes": backup_dataset,
+            "generated_at": backup_timestamp.isoformat(),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    expected_current = _expected_metadata(current_dataset, current_timestamp)
+    assert payload["current"]["version_id"] == expected_current["version_id"]
+    assert payload["current"]["checksum"] == expected_current["checksum"]
+    assert payload["current"]["generated_at"] == current_timestamp.isoformat()
+
+    expected_target = _expected_metadata(backup_dataset, backup_timestamp)
+    assert payload["target"]["version_id"] == expected_target["version_id"]
+    assert payload["target"]["checksum"] == expected_target["checksum"]
+    assert payload["target"]["generated_at"] == backup_timestamp.isoformat()
+
+    assert payload["plan"]["strategy"] == "replace"
+    assert payload["summary"]["added_scene_ids"] == []
+    assert payload["summary"]["modified_scene_ids"] == []
+    assert payload["summary"]["removed_scene_ids"] == []
+
+
+def test_plan_rollback_endpoint_rejects_empty_payload() -> None:
+    client = _client()
+
+    response = client.post("/api/scenes/rollback", json={"scenes": {}})
+
+    assert response.status_code == 400
