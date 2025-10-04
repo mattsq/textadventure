@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Iterable
 
 from .world_state import WorldState
 
 
-__all__ = ["set_inventory", "set_history", "jump_to_scene"]
+@dataclass(frozen=True)
+class WorldDebugSnapshot:
+    """Structured view of a world's internal state for debugging."""
+
+    location: str
+    inventory: tuple[str, ...]
+    history: tuple[str, ...]
+    recent_actions: tuple[str, ...]
+    recent_observations: tuple[str, ...]
+
+
+__all__ = [
+    "WorldDebugSnapshot",
+    "set_inventory",
+    "set_history",
+    "jump_to_scene",
+    "debug_snapshot",
+]
 
 
 def set_inventory(
@@ -68,3 +86,37 @@ def jump_to_scene(
     """
 
     world.move_to(scene_id, record_event=record_event)
+
+
+def debug_snapshot(
+    world: WorldState,
+    *,
+    action_limit: int = 5,
+    observation_limit: int = 5,
+) -> WorldDebugSnapshot:
+    """Capture a deterministic snapshot of ``world`` for debugging.
+
+    The snapshot summarises the player's location, inventory, and history along
+    with the most recent memories. Inventory entries are sorted to provide
+    stable comparisons in assertions or golden snapshots.
+
+    Args:
+        world: The ``WorldState`` instance to introspect.
+        action_limit: Maximum number of recent player actions to include. Must
+            be a non-negative integer.
+        observation_limit: Maximum number of recent observations to include.
+            Must be a non-negative integer.
+    """
+
+    if action_limit < 0:
+        raise ValueError("action_limit must be non-negative")
+    if observation_limit < 0:
+        raise ValueError("observation_limit must be non-negative")
+
+    return WorldDebugSnapshot(
+        location=world.location,
+        inventory=tuple(sorted(world.inventory)),
+        history=tuple(world.history),
+        recent_actions=tuple(world.recent_actions(limit=action_limit)),
+        recent_observations=tuple(world.recent_observations(limit=observation_limit)),
+    )
