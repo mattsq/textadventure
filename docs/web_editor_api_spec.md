@@ -198,8 +198,9 @@ Fetch the canonical definition for a single scene.
 ### `GET /export/scenes`
 
 Download the scripted scene dataset for offline editing, backup, or version
-control. The response mirrors the JSON structure stored on disk and includes
-the timestamp from the underlying resource.
+control. The response mirrors the JSON structure stored on disk, includes the
+timestamp from the underlying resource, and now surfaces backup metadata that
+helps with file naming and integrity verification.
 
 **Query parameters**
 
@@ -235,6 +236,11 @@ the timestamp from the underlying resource.
         }
       }
     }
+  },
+  "metadata": {
+    "version_id": "20240318T123456Z-1a2b3c4d",
+    "checksum": "0a1b2c3d4e5f67890123456789abcdef0a1b2c3d4e5f67890123456789abcdef",
+    "suggested_filename": "scene-backup-20240318T123456Z-1a2b3c4d.json"
   }
 }
 ```

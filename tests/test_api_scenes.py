@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
@@ -14,6 +15,25 @@ from textadventure.api.app import SceneService
 
 def _client() -> TestClient:
     return TestClient(create_app())
+
+
+def _expected_metadata(
+    scenes: Mapping[str, Any], timestamp: datetime
+) -> dict[str, str]:
+    canonical = json.dumps(
+        scenes,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    checksum = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    version_prefix = timestamp.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    version_id = f"{version_prefix}-{checksum[:8]}"
+    return {
+        "version_id": version_id,
+        "checksum": checksum,
+        "suggested_filename": f"scene-backup-{version_id}.json",
+    }
 
 
 def test_list_scenes_returns_expected_summary_fields() -> None:
@@ -395,6 +415,7 @@ def test_export_endpoint_returns_full_dataset() -> None:
     exported_timestamp = datetime.fromisoformat(payload["generated_at"])
     assert exported_timestamp == timestamp
     assert payload["scenes"] == definitions
+    assert payload["metadata"] == _expected_metadata(definitions, timestamp)
 
 
 def test_export_endpoint_filters_by_scene_ids() -> None:
@@ -416,10 +437,12 @@ def test_export_endpoint_filters_by_scene_ids() -> None:
     assert response.status_code == 200
 
     payload = response.json()
-    assert payload["scenes"] == {
+    expected_scenes = {
         "gamma": {"description": "Gamma"},
         "alpha": {"description": "Alpha"},
     }
+    assert payload["scenes"] == expected_scenes
+    assert payload["metadata"] == _expected_metadata(expected_scenes, timestamp)
 
 
 def test_export_endpoint_returns_404_for_unknown_scene_id() -> None:
@@ -471,6 +494,7 @@ def test_export_endpoint_supports_pretty_formatting() -> None:
     expected = {
         "generated_at": timestamp.isoformat(),
         "scenes": definitions,
+        "metadata": _expected_metadata(definitions, timestamp),
     }
     assert response.text == json.dumps(expected, indent=2, ensure_ascii=False)
 
@@ -494,6 +518,7 @@ def test_export_endpoint_supports_minified_formatting() -> None:
     expected = {
         "generated_at": timestamp.isoformat(),
         "scenes": definitions,
+        "metadata": _expected_metadata(definitions, timestamp),
     }
     assert response.text == json.dumps(
         expected, separators=(",", ":"), ensure_ascii=False
