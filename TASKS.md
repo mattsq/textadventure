@@ -361,7 +361,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Troubleshooting guide
     - [ ] Build developer documentation:
       - [x] API reference *(Documented key runtime modules in `docs/api_reference.md`.)*
-      - [ ] Extension guide
+      - [x] Extension guide *(Documented developer extension patterns in `docs/extension_guide.md` and linked it from the README.)*
       - [ ] Contributing guidelines
       - [x] Architecture overview *(Documented the module layout and extension points in `docs/architecture_overview.md`.)*
     - [ ] Establish community features:
