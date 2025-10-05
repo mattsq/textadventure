@@ -368,7 +368,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 
   - [ ] **Phase 9: Integration & Deployment**
     - [ ] Integrate editor with existing CLI workflow:
-      - [ ] File watching for automatic reloads
+      - [x] File watching for automatic reloads *(CLI can now load external scene files, watch them for changes, and ships with documentation plus regression tests.)*
+        - [x] Allow the CLI to load scripted scenes from an external JSON file so it shares data with the editor API.
+        - [x] Implement a lightweight watcher that detects changes to the external scene file and reloads the scripted story engine in-place.
+        - [x] Document the workflow and add automated coverage for the reload behaviour.
       - [x] CLI command to launch editor *(Added in-CLI `editor` command with lifecycle controls, host/port configuration flags, and documentation.)*
       - [ ] Development mode integration
     - [ ] Create deployment pipeline:

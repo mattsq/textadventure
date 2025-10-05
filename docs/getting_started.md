@@ -76,6 +76,12 @@ python src/main.py --editor-host 0.0.0.0 --editor-port 9000
 - `--editor-port` chooses the listening port (defaults to `8000`).
 - `--no-editor` disables the `editor` command entirely for environments where launching subprocesses is undesirable.
 
+When you want to iterate on the scripted scenes alongside the editor, start the
+CLI with `--scene-path path/to/scenes.json` (or set
+`TEXTADVENTURE_SCENE_PATH`). The adventure will load data from that file and
+watch it for changes between turns, so edits in the web UI or another editor
+appear immediately without restarting the session.
+
 ### Add an LLM Co-narrator
 
 To experiment with hybrid scripted + LLM storytelling, register an LLM provider via the registry flags:

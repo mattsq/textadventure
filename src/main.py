@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -23,7 +24,10 @@ from textadventure import (
     WorldState,
 )
 from textadventure.llm_providers import register_builtin_providers
-from textadventure.scripted_story_engine import ScriptedStoryEngine
+from textadventure.scripted_story_engine import (
+    ScriptedStoryEngine,
+    load_scenes_from_file,
+)
 
 
 class EditorLaunchError(RuntimeError):
@@ -132,6 +136,88 @@ class _EditorLauncherSentinel:
 
 
 _EDITOR_LAUNCHER_DEFAULT = _EditorLauncherSentinel()
+
+
+@dataclass(frozen=True)
+class SceneReloadOutcome:
+    """Result describing whether the scene dataset changed after polling."""
+
+    reloaded: bool
+    message: str | None = None
+
+
+class SceneDatasetMonitor:
+    """Watch a scene dataset on disk and refresh the scripted engine on change."""
+
+    def __init__(
+        self,
+        path: Path,
+        engine: ScriptedStoryEngine,
+        *,
+        initial_timestamp: int | None = None,
+    ) -> None:
+        self._path = path
+        self._engine = engine
+        self._last_timestamp = initial_timestamp
+        self._last_error_key: tuple[str, str] | None = None
+
+    def poll(self) -> SceneReloadOutcome:
+        """Reload scenes when the dataset file changes or becomes available."""
+
+        try:
+            stat = self._path.stat()
+        except FileNotFoundError:
+            return self._record_error(
+                "missing",
+                (
+                    f"Scene file '{self._path}' is missing. "
+                    "Retaining the previously loaded scenes."
+                ),
+            )
+        except OSError as exc:
+            return self._record_error(
+                "stat",
+                (
+                    f"Failed to access scene file '{self._path}': {exc}. "
+                    "Retaining the previously loaded scenes."
+                ),
+            )
+
+        timestamp = stat.st_mtime_ns
+        needs_reload = (
+            self._last_timestamp is None
+            or timestamp > self._last_timestamp
+            or self._last_error_key is not None
+        )
+        if not needs_reload:
+            return SceneReloadOutcome(reloaded=False)
+
+        try:
+            scenes = load_scenes_from_file(self._path)
+        except Exception as exc:
+            return self._record_error(
+                "load",
+                (
+                    f"Failed to reload scenes from '{self._path}': {exc}. "
+                    "Retaining the previously loaded scenes."
+                ),
+            )
+
+        self._engine.replace_scenes(scenes)
+        self._last_timestamp = timestamp
+        message = f"Reloaded scenes from '{self._path}'."
+
+        if self._last_error_key is not None:
+            message += " Previous load issues have been resolved."
+        self._last_error_key = None
+        return SceneReloadOutcome(reloaded=True, message=message)
+
+    def _record_error(self, kind: str, message: str) -> SceneReloadOutcome:
+        key = (kind, message)
+        if self._last_error_key == key:
+            return SceneReloadOutcome(reloaded=False)
+        self._last_error_key = key
+        return SceneReloadOutcome(reloaded=False, message=message)
 
 
 class TranscriptLogger:
@@ -326,6 +412,7 @@ def run_cli(
     editor_launcher: (
         EditorLauncher | None | _EditorLauncherSentinel
     ) = _EDITOR_LAUNCHER_DEFAULT,
+    dataset_monitor: SceneDatasetMonitor | None = None,
 ) -> None:
     """Drive a very small interactive loop using ``input``/``print``."""
 
@@ -348,6 +435,18 @@ def run_cli(
         return new_event
 
     event: StoryEvent | None = None
+
+    def _maybe_reload_dataset() -> None:
+        nonlocal event
+
+        if dataset_monitor is None:
+            return
+
+        outcome = dataset_monitor.poll()
+        if outcome.message:
+            print(f"\n[scene-watch] {outcome.message}\n")
+        if outcome.reloaded:
+            event = _capture_event(engine.propose_event(world))
 
     def _print_help(topic: str | None) -> None:
         if event is None:
@@ -453,6 +552,7 @@ def run_cli(
         event = _capture_event(engine.propose_event(world))
 
     while True:
+        _maybe_reload_dataset()
         print(engine.format_event(event))
         if not event.has_choices:
             print("\nThe story has reached a natural stopping point.")
@@ -653,6 +753,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--scene-path",
+        type=Path,
+        help=(
+            "Path to a JSON file containing scripted scenes. "
+            "Defaults to TEXTADVENTURE_SCENE_PATH when unset."
+        ),
+    )
+    parser.add_argument(
         "--editor-host",
         default="127.0.0.1",
         help="Host interface for the optional editor API server.",
@@ -702,7 +810,40 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     args = _parse_args(argv)
     world = WorldState()
-    scripted_engine = ScriptedStoryEngine()
+    scene_path: Path | None = args.scene_path
+    if scene_path is None:
+        env_scene_path = os.getenv("TEXTADVENTURE_SCENE_PATH")
+        if env_scene_path is not None:
+            trimmed = env_scene_path.strip()
+            if trimmed:
+                scene_path = Path(trimmed).expanduser()
+
+    dataset_monitor: SceneDatasetMonitor | None = None
+    if scene_path is not None:
+        try:
+            scenes = load_scenes_from_file(scene_path)
+        except Exception as exc:
+            print(f"Failed to load scenes from '{scene_path}': {exc}")
+            raise SystemExit(2) from exc
+
+        try:
+            timestamp = scene_path.stat().st_mtime_ns
+        except OSError:
+            timestamp = None
+
+        scripted_engine = ScriptedStoryEngine(scenes=scenes)
+        dataset_monitor = SceneDatasetMonitor(
+            scene_path,
+            scripted_engine,
+            initial_timestamp=timestamp,
+        )
+        print(
+            "Loaded scenes from '{path}'. Changes will reload automatically.".format(
+                path=scene_path
+            )
+        )
+    else:
+        scripted_engine = ScriptedStoryEngine()
     primary_agent = ScriptedStoryAgent("narrator", scripted_engine)
 
     if args.llm_config and args.llm_provider:
@@ -791,6 +932,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             autoload_session=autoload_session,
             transcript_logger=transcript_logger,
             editor_launcher=launcher,
+            dataset_monitor=dataset_monitor,
         )
     finally:
         if log_handle is not None:
