@@ -314,7 +314,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Support deleting saved branch definitions via the API with filesystem persistence cleanup.
         - [x] Document the retrieval and deletion workflows and add regression tests.
     - [ ] Create project management features:
-      - [ ] Multiple adventure projects
+    - [ ] Multiple adventure projects
+      - [x] Add a filesystem-backed project registry for discovering available adventure datasets.
+      - [x] Expose API endpoints for listing and retrieving registered projects.
+      - [x] Document the project workflow and cover it with automated tests.
       - [ ] Project templates
       - [ ] Asset organization
       - [ ] Collaborative permissions

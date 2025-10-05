@@ -40,6 +40,7 @@ class SceneApiSettings:
     scene_resource_name: str = "scripted_scenes.json"
     scene_path: Path | None = None
     branch_root: Path | None = None
+    project_root: Path | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "SceneApiSettings":
@@ -62,12 +63,14 @@ class SceneApiSettings:
         )
         scene_path = _normalise_path(source.get("TEXTADVENTURE_SCENE_PATH"))
         branch_root = _normalise_path(source.get("TEXTADVENTURE_BRANCH_ROOT"))
+        project_root = _normalise_path(source.get("TEXTADVENTURE_PROJECT_ROOT"))
 
         return cls(
             scene_package=scene_package,
             scene_resource_name=scene_resource,
             scene_path=scene_path,
             branch_root=branch_root,
+            project_root=project_root,
         )
 
 

@@ -87,15 +87,19 @@ services.
   bundled scene data and analytics. `SceneService` returns paginated summaries with
   validation metadata, produces Git-style diffs for uploaded datasets, `SceneSearchResponse`
   powers full-text queries, and helper parsers validate query parameters for
-  field-type and validation filters.
+  field-type and validation filters. The API also exposes project-management
+  endpoints backed by `ProjectService`, allowing tooling to discover registered
+  adventure datasets and retrieve their scene payloads alongside checksum and
+  version metadata.
 - **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`, and
   supporting models normalise the API payloads consumed by prospective web tools or
   external services.
 - **Deployment settings (`textadventure.api.settings.SceneApiSettings`)** – Reads
   environment variables such as `TEXTADVENTURE_SCENE_PATH`,
-  `TEXTADVENTURE_SCENE_PACKAGE`, `TEXTADVENTURE_SCENE_RESOURCE`, and
-  `TEXTADVENTURE_BRANCH_ROOT` so the API can target custom scene datasets and
-  branch storage directories without code changes.
+  `TEXTADVENTURE_SCENE_PACKAGE`, `TEXTADVENTURE_SCENE_RESOURCE`,
+  `TEXTADVENTURE_BRANCH_ROOT`, and `TEXTADVENTURE_PROJECT_ROOT` so the API can
+  target custom scene datasets, branch storage directories, and an optional
+  project registry without code changes.
 
 Use this reference alongside the architecture overview to dive deeper into specific
 modules when extending the engine or integrating new agent capabilities.

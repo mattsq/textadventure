@@ -576,6 +576,61 @@ class SceneBranchDetailResponse(SceneBranchResource):
     )
 
 
+class AdventureProjectResource(BaseModel):
+    """Metadata describing an adventure project and its scene dataset."""
+
+    id: str = Field(..., description="Stable identifier for the project.")
+    name: str = Field(..., description="Display name for the project.")
+    description: str | None = Field(
+        None, description="Optional human readable project summary."
+    )
+    scene_count: int = Field(
+        ..., ge=0, description="Number of scene definitions contained in the project."
+    )
+    created_at: datetime = Field(
+        ..., description="Timestamp when the project metadata was last updated."
+    )
+    updated_at: datetime = Field(
+        ..., description="Timestamp when the scene dataset was last updated."
+    )
+    version_id: str = Field(
+        ...,
+        description="Version identifier derived from the dataset timestamp and checksum.",
+    )
+    checksum: str = Field(
+        ..., description="SHA-256 checksum of the serialised scene dataset."
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("updated_at")
+    def _serialise_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class AdventureProjectListResponse(BaseModel):
+    """Response envelope describing available adventure projects."""
+
+    data: list[AdventureProjectResource] = Field(
+        default_factory=list,
+        description="Collection of registered projects ordered by identifier.",
+    )
+
+
+class AdventureProjectDetailResponse(BaseModel):
+    """Full project payload including the bundled scene dataset."""
+
+    data: AdventureProjectResource = Field(
+        ..., description="Metadata describing the requested project."
+    )
+    scenes: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Scene definitions contained within the project dataset.",
+    )
+
+
 @dataclass(frozen=True)
 class SceneBranchRecord:
     """Representation of a branch definition stored on disk."""
@@ -724,6 +779,147 @@ class SceneBranchStore:
         return self._root / f"{identifier}.json"
 
 
+@dataclass(frozen=True)
+class AdventureProjectRecord:
+    """Representation of a project definition stored on disk."""
+
+    identifier: str
+    name: str
+    description: str | None
+    scene_path: Path
+    created_at: datetime
+    updated_at: datetime
+
+
+class SceneProjectStore:
+    """Filesystem-backed registry for adventure projects."""
+
+    _METADATA_FILENAME = "project.json"
+    _DEFAULT_DATASET_NAME = "scenes.json"
+
+    def __init__(self, root: Path) -> None:
+        self._root = root
+
+    def list(self) -> list[AdventureProjectRecord]:
+        """Return all registered projects ordered by identifier."""
+
+        if not self._root.exists():
+            return []
+
+        records: list[AdventureProjectRecord] = []
+        for entry in sorted(self._root.iterdir(), key=lambda path: path.name):
+            if not entry.is_dir():
+                continue
+            records.append(self._record_from_directory(entry))
+
+        return records
+
+    def load(self, identifier: str) -> AdventureProjectRecord:
+        """Return the project definition identified by ``identifier``."""
+
+        if not identifier:
+            raise ValueError("Project identifier must be provided.")
+
+        directory = self._root / identifier
+        if not directory.is_dir():
+            raise FileNotFoundError(f"Project '{identifier}' does not exist.")
+
+        return self._record_from_directory(directory, identifier_override=identifier)
+
+    def _record_from_directory(
+        self, directory: Path, *, identifier_override: str | None = None
+    ) -> AdventureProjectRecord:
+        metadata_path = directory / self._METADATA_FILENAME
+        metadata: Mapping[str, Any]
+
+        if metadata_path.exists():
+            try:
+                loaded = _load_json(metadata_path)
+            except (OSError, ValueError) as exc:
+                raise ValueError(
+                    f"Failed to load project metadata from '{metadata_path}'."
+                ) from exc
+
+            if not isinstance(loaded, Mapping):
+                raise ValueError(
+                    f"Project metadata in '{metadata_path}' must be a mapping."
+                )
+
+            metadata = loaded
+        else:
+            metadata = {}
+
+        identifier = identifier_override or directory.name
+        name_raw = metadata.get("name")
+        description_raw = metadata.get("description")
+        scene_name_raw = metadata.get("scene_path", self._DEFAULT_DATASET_NAME)
+
+        if name_raw is None:
+            name = identifier
+        elif isinstance(name_raw, str) and name_raw.strip():
+            name = name_raw
+        else:
+            raise ValueError(
+                f"Project '{identifier}' metadata has an invalid 'name' field."
+            )
+
+        if description_raw is None:
+            description: str | None = None
+        elif isinstance(description_raw, str):
+            description = description_raw
+        else:
+            raise ValueError(
+                f"Project '{identifier}' metadata has an invalid 'description' field."
+            )
+
+        if not isinstance(scene_name_raw, str) or not scene_name_raw.strip():
+            raise ValueError(
+                f"Project '{identifier}' metadata has an invalid 'scene_path' field."
+            )
+
+        scene_path = directory / scene_name_raw
+        if not scene_path.exists():
+            raise FileNotFoundError(
+                f"Project '{identifier}' is missing scene dataset '{scene_name_raw}'."
+            )
+
+        dataset_timestamp = _timestamp_for(scene_path)
+        metadata_timestamp = (
+            _timestamp_for(metadata_path)
+            if metadata_path.exists()
+            else dataset_timestamp
+        )
+
+        created_at = min(metadata_timestamp, dataset_timestamp)
+
+        return AdventureProjectRecord(
+            identifier=identifier,
+            name=name,
+            description=description,
+            scene_path=scene_path,
+            created_at=created_at,
+            updated_at=dataset_timestamp,
+        )
+
+
+class ProjectService:
+    """Business logic supporting the project management endpoints."""
+
+    def __init__(self, store: SceneProjectStore) -> None:
+        self._store = store
+
+    def list_projects(self) -> AdventureProjectListResponse:
+        records = self._store.list()
+        return AdventureProjectListResponse(
+            data=[_build_project_resource(record) for record in records]
+        )
+
+    def get_project(self, identifier: str) -> AdventureProjectDetailResponse:
+        record = self._store.load(identifier)
+        resource, scenes = _build_project_detail(record)
+        return AdventureProjectDetailResponse(data=resource, scenes=scenes)
+
+
 def _build_branch_resource(record: SceneBranchRecord) -> SceneBranchResource:
     return SceneBranchResource(
         id=record.identifier,
@@ -753,6 +949,69 @@ def _build_branch_detail(record: SceneBranchRecord) -> SceneBranchDetailResponse
         plans=record.plan.plans,
         scenes=record.scenes,
     )
+
+
+def _build_project_resource(record: AdventureProjectRecord) -> AdventureProjectResource:
+    scenes, checksum, version_id = _load_project_dataset(record)
+    return AdventureProjectResource(
+        id=record.identifier,
+        name=record.name,
+        description=record.description,
+        scene_count=len(scenes),
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        version_id=version_id,
+        checksum=checksum,
+    )
+
+
+def _build_project_detail(
+    record: AdventureProjectRecord,
+) -> tuple[AdventureProjectResource, dict[str, Any]]:
+    scenes, checksum, version_id = _load_project_dataset(record)
+    resource = AdventureProjectResource(
+        id=record.identifier,
+        name=record.name,
+        description=record.description,
+        scene_count=len(scenes),
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        version_id=version_id,
+        checksum=checksum,
+    )
+    return resource, scenes
+
+
+def _load_project_dataset(
+    record: AdventureProjectRecord,
+) -> tuple[dict[str, Any], str, str]:
+    try:
+        payload = _load_json(record.scene_path)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(
+            f"Failed to load project scenes from '{record.scene_path}'."
+        ) from exc
+
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"Project scenes in '{record.scene_path}' must be a mapping.")
+
+    # Ensure the dataset can be parsed by the scripted story engine helpers.
+    load_scenes_from_mapping(payload)
+
+    try:
+        serialisable_any = json.loads(json.dumps(payload, ensure_ascii=False))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Project scenes in '{record.scene_path}' could not be serialised to JSON."
+        ) from exc
+
+    if not isinstance(serialisable_any, dict):
+        raise ValueError(f"Project scenes in '{record.scene_path}' must be a mapping.")
+
+    serialisable = cast(dict[str, Any], serialisable_any)
+    checksum = _compute_scene_checksum(serialisable)
+    version_id = _format_version_id(record.updated_at, checksum)
+    return serialisable, checksum, version_id
 
 
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
@@ -1799,13 +2058,15 @@ class SceneService:
 def create_app(
     scene_service: SceneService | None = None,
     *,
+    project_service: ProjectService | None = None,
     settings: SceneApiSettings | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
 
+    resolved_settings = settings or SceneApiSettings.from_env()
+
     service = scene_service
     if service is None:
-        resolved_settings = settings or SceneApiSettings.from_env()
         repository = SceneRepository(
             package=resolved_settings.scene_package,
             resource_name=resolved_settings.scene_resource_name,
@@ -1813,6 +2074,11 @@ def create_app(
         )
         branch_store = SceneBranchStore(root=resolved_settings.branch_root)
         service = SceneService(repository=repository, branch_store=branch_store)
+
+    project = project_service
+    if project is None and resolved_settings.project_root is not None:
+        project_store = SceneProjectStore(root=resolved_settings.project_root)
+        project = ProjectService(store=project_store)
 
     app = FastAPI(title="Text Adventure Scene API", version="0.1.0")
 
@@ -2071,6 +2337,35 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get("/api/projects", response_model=AdventureProjectListResponse)
+    def list_projects() -> AdventureProjectListResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.list_projects()
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/projects/{project_id}",
+        response_model=AdventureProjectDetailResponse,
+    )
+    def get_project(project_id: str) -> AdventureProjectDetailResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.get_project(project_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
