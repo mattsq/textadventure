@@ -34,6 +34,7 @@ from ..analytics import (
 )
 from ..search import FieldType, SearchResults, _SceneLike, search_scene_text
 from ..scripted_story_engine import load_scenes_from_mapping
+from .settings import SceneApiSettings
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
 DiffStatus = Literal["added", "removed", "modified"]
@@ -1165,23 +1166,36 @@ class SceneRepository:
         *,
         package: str = "textadventure.data",
         resource_name: str = "scripted_scenes.json",
+        path: Path | None = None,
     ) -> None:
         self._package = package
         self._resource_name = resource_name
+        self._path = path
 
     def load(self) -> tuple[Mapping[str, Any], datetime]:
         """Load scene definitions along with their last modified timestamp."""
 
-        data_resource = resources.files(self._package).joinpath(self._resource_name)
+        if self._path is not None:
+            try:
+                payload = _load_json(self._path)
+                updated_at = _timestamp_for(self._path)
+            except FileNotFoundError as exc:
+                raise RuntimeError("Configured scene data file is missing.") from exc
+            except OSError as exc:
+                raise RuntimeError(
+                    "Failed to read configured scene data file."
+                ) from exc
+        else:
+            data_resource = resources.files(self._package).joinpath(self._resource_name)
 
-        try:
-            with resources.as_file(data_resource) as path:
-                payload = _load_json(path)
-                updated_at = _timestamp_for(path)
-        except FileNotFoundError as exc:
-            raise RuntimeError("Bundled scene data is missing.") from exc
-        except OSError as exc:
-            raise RuntimeError("Failed to read bundled scene data.") from exc
+            try:
+                with resources.as_file(data_resource) as path:
+                    payload = _load_json(path)
+                    updated_at = _timestamp_for(path)
+            except FileNotFoundError as exc:
+                raise RuntimeError("Bundled scene data is missing.") from exc
+            except OSError as exc:
+                raise RuntimeError("Failed to read bundled scene data.") from exc
 
         if not isinstance(payload, Mapping):
             raise ValueError(
@@ -1782,10 +1796,24 @@ class SceneService:
         )
 
 
-def create_app(scene_service: SceneService | None = None) -> FastAPI:
+def create_app(
+    scene_service: SceneService | None = None,
+    *,
+    settings: SceneApiSettings | None = None,
+) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
 
-    service = scene_service or SceneService()
+    service = scene_service
+    if service is None:
+        resolved_settings = settings or SceneApiSettings.from_env()
+        repository = SceneRepository(
+            package=resolved_settings.scene_package,
+            resource_name=resolved_settings.scene_resource_name,
+            path=resolved_settings.scene_path,
+        )
+        branch_store = SceneBranchStore(root=resolved_settings.branch_root)
+        service = SceneService(repository=repository, branch_store=branch_store)
+
     app = FastAPI(title="Text Adventure Scene API", version="0.1.0")
 
     @app.get("/api/scenes", response_model=SceneListResponse)

@@ -364,7 +364,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Development mode integration
     - [ ] Create deployment pipeline:
       - [x] Docker containerization *(Added a Dockerfile and README instructions for running the API via Uvicorn in a container.)*
-      - [ ] Environment configuration
+      - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
       - [ ] Production build optimization
       - [ ] Static asset management
     - [ ] Add authentication and user management:
