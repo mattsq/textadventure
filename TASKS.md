@@ -323,7 +323,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Add an asset inventory endpoint that enumerates project directories and files with MIME hints and timestamps.
       - [x] Ensure new projects ship with a prepared `assets/` directory and cover the flow with automated tests.
       - [x] Document the asset listing API and response schema for editor tooling.
-    - [ ] Collaborative permissions
+    - [x] Collaborative permissions
+      - [x] Define collaborator roles and metadata persistence.
+      - [x] Add API endpoints for managing project collaborators.
+      - [x] Cover collaborator workflows with automated tests.
 
   - [ ] **Phase 8: Quality of Life & Polish**
     - [ ] Implement comprehensive search:
