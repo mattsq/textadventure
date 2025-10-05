@@ -5,6 +5,8 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
+import mimetypes
+import os
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -753,6 +755,60 @@ class AdventureProjectDetailResponse(BaseModel):
     )
 
 
+class ProjectAssetType(str, Enum):
+    """Enumerated asset kinds surfaced by the project API."""
+
+    FILE = "file"
+    DIRECTORY = "directory"
+
+
+class ProjectAssetResource(BaseModel):
+    """Metadata describing an individual asset within a project."""
+
+    path: str = Field(
+        ..., description="Path relative to the project's assets directory."
+    )
+    name: str = Field(..., description="Basename of the asset entry.")
+    type: ProjectAssetType = Field(
+        ..., description="Indicates whether the entry is a file or directory."
+    )
+    size: int | None = Field(
+        default=None,
+        ge=0,
+        description="File size in bytes when the asset is a file.",
+    )
+    content_type: str | None = Field(
+        default=None,
+        description="Best-effort MIME type derived from the filename.",
+    )
+    updated_at: datetime = Field(
+        ..., description="Timestamp when the asset was last modified."
+    )
+
+    @field_serializer("updated_at")
+    def _serialise_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class ProjectAssetListResponse(BaseModel):
+    """Response payload enumerating assets registered under a project."""
+
+    project_id: str = Field(..., description="Identifier for the requested project.")
+    root: str = Field(
+        ..., description="Directory anchoring asset lookups for the project."
+    )
+    generated_at: datetime = Field(
+        ..., description="Timestamp when the asset listing was generated."
+    )
+    assets: list[ProjectAssetResource] = Field(
+        default_factory=list, description="Ordered collection of project assets."
+    )
+
+    @field_serializer("generated_at")
+    def _serialise_generated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
 @dataclass(frozen=True)
 class SceneBranchRecord:
     """Representation of a branch definition stored on disk."""
@@ -1017,6 +1073,14 @@ class SceneProjectStore:
                     f"Failed to write project metadata for '{normalised_id}'."
                 ) from exc
 
+        assets_directory = directory / "assets"
+        try:
+            assets_directory.mkdir(exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare assets directory for project '{normalised_id}'."
+            ) from exc
+
         return self._record_from_directory(directory, identifier_override=normalised_id)
 
     def _record_from_directory(
@@ -1131,6 +1195,17 @@ class ProjectService:
         resource, created_scenes = _build_project_detail(record)
         return AdventureProjectDetailResponse(data=resource, scenes=created_scenes)
 
+    def list_project_assets(self, identifier: str) -> ProjectAssetListResponse:
+        record = self._store.load(identifier)
+        assets_root = record.scene_path.parent / "assets"
+        resources = _build_project_asset_listing(assets_root)
+        return ProjectAssetListResponse(
+            project_id=record.identifier,
+            root="assets",
+            generated_at=datetime.now(timezone.utc),
+            assets=resources,
+        )
+
 
 class ProjectTemplateService:
     """Service exposing project template listing and instantiation helpers."""
@@ -1208,6 +1283,59 @@ def _build_branch_detail(record: SceneBranchRecord) -> SceneBranchDetailResponse
         plans=record.plan.plans,
         scenes=record.scenes,
     )
+
+
+def _build_project_asset_listing(root: Path) -> list[ProjectAssetResource]:
+    if not root.exists():
+        return []
+
+    if not root.is_dir():
+        raise ValueError(
+            f"Project assets directory '{root}' must be a directory when present."
+        )
+
+    resources: list[ProjectAssetResource] = []
+
+    for current_root, dirnames, filenames in os.walk(root):
+        current_path = Path(current_root)
+        dirnames.sort()
+        filenames.sort()
+
+        for dirname in dirnames:
+            directory_path = current_path / dirname
+            relative_path = directory_path.relative_to(root).as_posix()
+            resources.append(
+                ProjectAssetResource(
+                    path=relative_path,
+                    name=dirname,
+                    type=ProjectAssetType.DIRECTORY,
+                    updated_at=_timestamp_for(directory_path),
+                )
+            )
+
+        for filename in filenames:
+            file_path = current_path / filename
+            relative_path = file_path.relative_to(root).as_posix()
+            try:
+                size = file_path.stat().st_size
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Failed to read project asset '{file_path}'."
+                ) from exc
+
+            content_type, _ = mimetypes.guess_type(file_path.name)
+            resources.append(
+                ProjectAssetResource(
+                    path=relative_path,
+                    name=filename,
+                    type=ProjectAssetType.FILE,
+                    size=size,
+                    content_type=content_type,
+                    updated_at=_timestamp_for(file_path),
+                )
+            )
+
+    return resources
 
 
 def _build_project_resource(record: AdventureProjectRecord) -> AdventureProjectResource:
@@ -2959,6 +3087,23 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/projects/{project_id}/assets",
+        response_model=ProjectAssetListResponse,
+    )
+    def list_project_assets(project_id: str) -> ProjectAssetListResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.list_project_assets(project_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

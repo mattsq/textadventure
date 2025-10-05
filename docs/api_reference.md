@@ -89,13 +89,16 @@ services.
   powers full-text queries, and helper parsers validate query parameters for
   field-type and validation filters. The API also exposes project-management
   endpoints backed by `ProjectService`, allowing tooling to discover registered
-  adventure datasets and retrieve their scene payloads alongside checksum and
-  version metadata. `ProjectTemplateService` lists reusable project templates and
-  provides an instantiation endpoint that materialises a new project directory by
-  copying the template scenes and metadata.
+  adventure datasets, retrieve their scene payloads alongside checksum and
+  version metadata, and enumerate project assets through structured listings.
+  `ProjectTemplateService` lists reusable project templates and provides an
+  instantiation endpoint that materialises a new project directory by copying the
+  template scenes and metadata.
 - **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`, and
   supporting models normalise the API payloads consumed by prospective web tools or
-  external services.
+  external services. Recent additions include `ProjectAssetResource` and
+  `ProjectAssetListResponse`, which document the assets bundled with a project so
+  editors can surface file metadata, MIME types, and modification timestamps.
 - **Deployment settings (`textadventure.api.settings.SceneApiSettings`)** – Reads
   environment variables such as `TEXTADVENTURE_SCENE_PATH`,
   `TEXTADVENTURE_SCENE_PACKAGE`, `TEXTADVENTURE_SCENE_RESOURCE`,

@@ -858,6 +858,123 @@ alongside the persisted timestamps:
 Clients treat warnings as advisory but block saves when any `severity="error"`
 issue appears.
 
+## Project management endpoints
+
+Projects bundle scene datasets together with metadata so that tooling can
+discover available adventures without parsing every JSON file. The API exposes
+lightweight read operations for listing registered projects, retrieving a
+project's dataset, and enumerating bundled assets for use in editors or runtime
+packaging.
+
+### `GET /projects`
+
+Return the registered projects under the configured project root. Entries expose
+metadata derived from the dataset timestamp and checksum so clients can surface
+version information in dashboards.
+
+**Response – 200 OK**
+
+```json
+{
+  "data": [
+    {
+      "id": "atlas",
+      "name": "Atlas",
+      "description": "Short demo adventure.",
+      "scene_count": 12,
+      "created_at": "2024-05-01T10:00:00Z",
+      "updated_at": "2024-05-01T10:00:00Z",
+      "version_id": "20240501T100000Z-9a1b2c3d",
+      "checksum": "d68f…"
+    }
+  ]
+}
+```
+
+### `GET /projects/{project_id}`
+
+Fetch the full scene dataset for a specific project. Useful when initialising an
+editor workspace or downloading a dataset for offline review.
+
+**Path parameters**
+
+- `project_id` – Identifier returned by `GET /projects`.
+
+**Response – 200 OK**
+
+```json
+{
+  "data": {
+    "id": "atlas",
+    "name": "Atlas",
+    "description": "Short demo adventure.",
+    "scene_count": 12,
+    "created_at": "2024-05-01T10:00:00Z",
+    "updated_at": "2024-05-01T10:00:00Z",
+    "version_id": "20240501T100000Z-9a1b2c3d",
+    "checksum": "d68f…"
+  },
+  "scenes": {
+    "start": {
+      "description": "The adventure begins…"
+    }
+  }
+}
+```
+
+### `GET /projects/{project_id}/assets`
+
+Enumerate static assets stored alongside a project. Responses list directories
+and files relative to the project's `assets/` folder, including MIME type hints,
+file sizes, and modification timestamps so editors can preview and manage
+supporting media.
+
+**Path parameters**
+
+- `project_id` – Identifier returned by `GET /projects`.
+
+**Response – 200 OK**
+
+```json
+{
+  "project_id": "atlas",
+  "root": "assets",
+  "generated_at": "2024-05-04T15:00:00Z",
+  "assets": [
+    {
+      "path": "images",
+      "name": "images",
+      "type": "directory",
+      "size": null,
+      "content_type": null,
+      "updated_at": "2024-05-02T09:00:00Z"
+    },
+    {
+      "path": "notes.txt",
+      "name": "notes.txt",
+      "type": "file",
+      "size": 28,
+      "content_type": "text/plain",
+      "updated_at": "2024-05-04T15:00:00Z"
+    },
+    {
+      "path": "images/logo.png",
+      "name": "logo.png",
+      "type": "file",
+      "size": 4,
+      "content_type": "image/png",
+      "updated_at": "2024-05-03T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Errors**
+
+- `404 Not Found` – Project identifier does not exist or project support is
+  disabled.
+- `400 Bad Request` – Project assets directory exists but is not a directory.
+
 ## Notes for Future Iterations
 
 - Introduce `PATCH /scenes/{scene_id}` for partial updates once concurrent edit

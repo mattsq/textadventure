@@ -183,6 +183,85 @@ def test_get_project_returns_scene_payload(tmp_path: Path) -> None:
     assert payload["scenes"] == scenes
 
 
+def test_list_project_assets_returns_files_and_directories(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You look around the room.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={"name": "Atlas"},
+        timestamp=datetime(2024, 5, 1, tzinfo=timezone.utc),
+    )
+
+    assets_root = tmp_path / "atlas" / "assets"
+    (assets_root / "images").mkdir(parents=True, exist_ok=True)
+
+    logo_bytes = b"\x89PNG"
+    logo_path = assets_root / "images" / "logo.png"
+    with logo_path.open("wb") as handle:
+        handle.write(logo_bytes)
+
+    notes_text = "Remember the hidden door."
+    notes_path = assets_root / "notes.txt"
+    notes_path.write_text(notes_text, encoding="utf-8")
+
+    image_dir_timestamp = datetime(2024, 5, 2, 9, tzinfo=timezone.utc)
+    logo_timestamp = datetime(2024, 5, 3, 12, tzinfo=timezone.utc)
+    notes_timestamp = datetime(2024, 5, 4, 15, tzinfo=timezone.utc)
+
+    os.utime(logo_path, (logo_timestamp.timestamp(), logo_timestamp.timestamp()))
+    os.utime(notes_path, (notes_timestamp.timestamp(), notes_timestamp.timestamp()))
+    os.utime(
+        assets_root / "images",
+        (image_dir_timestamp.timestamp(), image_dir_timestamp.timestamp()),
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/projects/atlas/assets")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["project_id"] == "atlas"
+    assert payload["root"] == "assets"
+
+    asset_paths = [asset["path"] for asset in payload["assets"]]
+    assert asset_paths == ["images", "notes.txt", "images/logo.png"]
+
+    directory_entry = payload["assets"][0]
+    assert directory_entry["type"] == "directory"
+    assert directory_entry["size"] is None
+    assert directory_entry["content_type"] is None
+    assert directory_entry["updated_at"] == image_dir_timestamp.isoformat()
+
+    notes_entry = payload["assets"][1]
+    assert notes_entry["type"] == "file"
+    assert notes_entry["size"] == len(notes_text.encode("utf-8"))
+    assert notes_entry["content_type"] == "text/plain"
+    assert notes_entry["updated_at"] == notes_timestamp.isoformat()
+
+    logo_entry = payload["assets"][2]
+    assert logo_entry["type"] == "file"
+    assert logo_entry["size"] == len(logo_bytes)
+    assert logo_entry["content_type"] == "image/png"
+    assert logo_entry["updated_at"] == logo_timestamp.isoformat()
+
+
 def test_projects_endpoints_return_404_when_disabled() -> None:
     client = TestClient(create_app(settings=SceneApiSettings()))
 
