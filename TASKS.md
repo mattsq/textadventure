@@ -303,13 +303,16 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Document the diff visualisation field in the API specification.
         - [x] Add regression tests covering the HTML diff output.
       - [x] Rollback capabilities *(Added `/api/scenes/rollback` planning endpoint with version metadata, diffs, and replace strategy coverage.)*
-      - [ ] Branch management for different storylines
+      - [x] Branch management for different storylines
         - [x] Add an API branch planning endpoint that surfaces diffs, version metadata, and merge vs replace strategies with tests.
         - [x] Document the branch planning workflow in the API specification.
         - [x] Persist branch definitions and expose listing/creation endpoints.
           - [x] Design a storage format and repository for saved branch definitions.
           - [x] Implement API endpoints to list and create branch definitions backed by the repository.
           - [x] Add automated tests and documentation updates covering the new branch persistence workflow.
+        - [x] Provide an API endpoint to retrieve saved branch definitions including metadata, plans, and scenes.
+        - [x] Support deleting saved branch definitions via the API with filesystem persistence cleanup.
+        - [x] Document the retrieval and deletion workflows and add regression tests.
     - [ ] Create project management features:
       - [ ] Multiple adventure projects
       - [ ] Project templates

@@ -558,6 +558,23 @@ class SceneBranchCreateRequest(SceneBranchPlanRequest):
     """Request payload for persisting a branch definition."""
 
 
+class SceneBranchDetailResponse(SceneBranchResource):
+    """Full branch definition payload including diff metadata and scenes."""
+
+    entries: list[SceneDiffEntry] = Field(
+        default_factory=list,
+        description="Detailed diff entries between the base and branch datasets.",
+    )
+    plans: list[SceneImportPlan] = Field(
+        default_factory=list,
+        description="Import strategies computed when the branch was saved.",
+    )
+    scenes: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Scene definitions contained within the saved branch.",
+    )
+
+
 @dataclass(frozen=True)
 class SceneBranchRecord:
     """Representation of a branch definition stored on disk."""
@@ -600,6 +617,25 @@ class SceneBranchStore:
         records.sort(key=lambda record: record.created_at, reverse=True)
         return records
 
+    def load(self, identifier: str) -> SceneBranchRecord:
+        """Return the stored branch definition identified by ``identifier``."""
+
+        path = self._path_for(identifier)
+        if not path.exists():
+            raise FileNotFoundError(f"Branch '{identifier}' does not exist.")
+
+        try:
+            payload = _load_json(path)
+        except (ValueError, OSError) as exc:
+            raise ValueError(
+                f"Failed to load branch definition from '{path}'."
+            ) from exc
+
+        try:
+            return self._record_from_payload(payload, path)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
     def save(self, record: SceneBranchRecord) -> None:
         """Persist ``record`` to disk, ensuring identifiers remain unique."""
 
@@ -627,6 +663,18 @@ class SceneBranchStore:
                 json.dump(serialisable, handle, ensure_ascii=False, indent=2)
         except OSError as exc:
             raise RuntimeError("Failed to persist branch definition.") from exc
+
+    def delete(self, identifier: str) -> None:
+        """Remove the stored branch definition identified by ``identifier``."""
+
+        path = self._path_for(identifier)
+        if not path.exists():
+            raise FileNotFoundError(f"Branch '{identifier}' does not exist.")
+
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise RuntimeError("Failed to delete branch definition.") from exc
 
     def _record_from_payload(self, payload: Any, path: Path) -> SceneBranchRecord:
         if not isinstance(payload, Mapping):
@@ -686,6 +734,23 @@ def _build_branch_resource(record: SceneBranchRecord) -> SceneBranchResource:
         base_version_matches=record.plan.base_version_matches,
         summary=record.plan.summary,
         scene_count=len(record.scenes),
+    )
+
+
+def _build_branch_detail(record: SceneBranchRecord) -> SceneBranchDetailResponse:
+    return SceneBranchDetailResponse(
+        id=record.identifier,
+        name=record.name,
+        created_at=record.created_at,
+        base=record.plan.base,
+        target=record.plan.target,
+        expected_base_version_id=record.plan.expected_base_version_id,
+        base_version_matches=record.plan.base_version_matches,
+        summary=record.plan.summary,
+        scene_count=len(record.scenes),
+        entries=record.plan.entries,
+        plans=record.plan.plans,
+        scenes=record.scenes,
     )
 
 
@@ -1647,6 +1712,28 @@ class SceneService:
             data=[_build_branch_resource(record) for record in records]
         )
 
+    def get_branch(self, identifier: str) -> SceneBranchDetailResponse:
+        """Return the persisted branch definition identified by ``identifier``."""
+
+        try:
+            record = self._branch_store.load(identifier)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(str(exc)) from exc
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        return _build_branch_detail(record)
+
+    def delete_branch(self, identifier: str) -> None:
+        """Remove the branch definition identified by ``identifier``."""
+
+        try:
+            self._branch_store.delete(identifier)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(str(exc)) from exc
+        except RuntimeError as exc:
+            raise RuntimeError(str(exc)) from exc
+
     def create_backup(
         self,
         *,
@@ -1883,6 +1970,18 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @app.get(
+        "/api/scenes/branches/{branch_id}",
+        response_model=SceneBranchDetailResponse,
+    )
+    def get_branch(branch_id: str) -> SceneBranchDetailResponse:
+        try:
+            return service.get_branch(branch_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @app.post(
         "/api/scenes/branches",
         response_model=SceneBranchResource,
@@ -1901,6 +2000,19 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except FileExistsError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.delete(
+        "/api/scenes/branches/{branch_id}",
+        response_model=None,
+        status_code=204,
+    )
+    def delete_branch(branch_id: str) -> None:
+        try:
+            service.delete_branch(branch_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

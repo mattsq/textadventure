@@ -86,6 +86,27 @@ class FastAPI:
 
         return decorator
 
+    def delete(
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register a handler for ``DELETE`` requests."""
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            self._routes[("DELETE", path)] = _Route(
+                method="DELETE",
+                path=path,
+                endpoint=func,
+                response_model=response_model,
+                status_code=status_code,
+            )
+            return func
+
+        return decorator
+
     def _resolve_route(self, method: str, path: str) -> tuple[_Route, dict[str, str]]:
         key = (method, path)
         if key in self._routes:
