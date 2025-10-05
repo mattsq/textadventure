@@ -319,7 +319,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Expose API endpoints for listing and retrieving registered projects.
     - [x] Document the project workflow and cover it with automated tests.
     - [x] Project templates *(Added template catalogue/listing endpoints plus an instantiation workflow that materialises new projects from reusable datasets, with documentation and regression tests.)*
-    - [ ] Asset organization
+    - [x] Asset organization
+      - [x] Add an asset inventory endpoint that enumerates project directories and files with MIME hints and timestamps.
+      - [x] Ensure new projects ship with a prepared `assets/` directory and cover the flow with automated tests.
+      - [x] Document the asset listing API and response schema for editor tooling.
     - [ ] Collaborative permissions
 
   - [ ] **Phase 8: Quality of Life & Polish**
