@@ -106,6 +106,47 @@ class SceneListResponse(BaseModel):
     pagination: Pagination
 
 
+class SceneGraphNodeResource(BaseModel):
+    """Node metadata describing a scene within the adventure graph."""
+
+    id: str
+    description: str
+    choice_count: int
+    transition_count: int
+    has_terminal_transition: bool
+    validation_status: ValidationStatus
+
+
+class SceneGraphEdgeResource(BaseModel):
+    """Edge metadata describing a transition between scenes."""
+
+    id: str
+    source: str
+    command: str
+    target: str | None = None
+    narration: str
+    is_terminal: bool
+    item: str | None = None
+    requires: list[str] = Field(default_factory=list)
+    consumes: list[str] = Field(default_factory=list)
+    records: list[str] = Field(default_factory=list)
+    failure_narration: str | None = None
+    override_count: int = Field(default=0, ge=0)
+
+
+class SceneGraphResponse(BaseModel):
+    """Response payload describing the connectivity graph for scenes."""
+
+    generated_at: datetime
+    start_scene: str
+    nodes: list[SceneGraphNodeResource] = Field(default_factory=list)
+    edges: list[SceneGraphEdgeResource] = Field(default_factory=list)
+
+    @field_serializer("generated_at")
+    def _serialise_generated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
 class TextSpanResource(BaseModel):
     """Range describing where a search hit occurred within text."""
 
@@ -1447,6 +1488,36 @@ def _parse_scene_id_filter(value: str | None) -> list[str] | None:
 
 
 @dataclass(frozen=True)
+class SceneGraphNodeData:
+    """Internal representation of a graph node prior to serialisation."""
+
+    id: str
+    description: str
+    choice_count: int
+    transition_count: int
+    has_terminal_transition: bool
+    validation_status: ValidationStatus
+
+
+@dataclass(frozen=True)
+class SceneGraphEdgeData:
+    """Internal representation of a graph edge prior to serialisation."""
+
+    id: str
+    source: str
+    command: str
+    target: str | None
+    narration: str
+    is_terminal: bool
+    item: str | None
+    requires: tuple[str, ...]
+    consumes: tuple[str, ...]
+    records: tuple[str, ...]
+    failure_narration: str | None
+    override_count: int
+
+
+@dataclass(frozen=True)
 class SceneSummaryData:
     """Internal representation of a scene summary prior to serialisation."""
 
@@ -1782,6 +1853,77 @@ class SceneService:
             ),
         )
         return response
+
+    def get_scene_graph(
+        self,
+        *,
+        start_scene: str | None = None,
+    ) -> SceneGraphResponse:
+        """Return a connectivity graph describing scene transitions."""
+
+        definitions, dataset_timestamp = self._repository.load()
+        scenes = load_scenes_from_mapping(definitions)
+
+        if not scenes:
+            raise ValueError("No scenes are defined in the current dataset.")
+
+        resolved_start = start_scene or "starting-area"
+        if resolved_start not in scenes:
+            if start_scene is None:
+                resolved_start = next(iter(sorted(scenes.keys())))
+            else:
+                raise ValueError(f"Start scene '{start_scene}' is not defined.")
+
+        validation_map = _compute_validation_statuses(cast(Mapping[str, Any], scenes))
+
+        node_entries: list[SceneGraphNodeData] = []
+        edge_entries: list[SceneGraphEdgeData] = []
+
+        for scene_id in sorted(scenes):
+            scene = scenes[scene_id]
+            transitions = scene.transitions
+
+            node_entries.append(
+                SceneGraphNodeData(
+                    id=scene_id,
+                    description=scene.description,
+                    choice_count=len(scene.choices),
+                    transition_count=len(transitions),
+                    has_terminal_transition=_has_terminal_transition(
+                        transitions.values()
+                    ),
+                    validation_status=validation_map.get(scene_id, "valid"),
+                )
+            )
+
+            for command in sorted(transitions):
+                transition = transitions[command]
+                edge_entries.append(
+                    SceneGraphEdgeData(
+                        id=f"{scene_id}:{command}",
+                        source=scene_id,
+                        command=command,
+                        target=transition.target,
+                        narration=transition.narration,
+                        is_terminal=transition.target is None,
+                        item=transition.item,
+                        requires=tuple(transition.requires),
+                        consumes=tuple(transition.consumes),
+                        records=tuple(transition.records),
+                        failure_narration=transition.failure_narration,
+                        override_count=len(transition.narration_overrides),
+                    )
+                )
+
+        nodes = [SceneGraphNodeResource(**asdict(entry)) for entry in node_entries]
+        edges = [SceneGraphEdgeResource(**asdict(entry)) for entry in edge_entries]
+
+        return SceneGraphResponse(
+            generated_at=dataset_timestamp,
+            start_scene=resolved_start,
+            nodes=nodes,
+            edges=edges,
+        )
 
     def get_scene_detail(
         self,
@@ -2392,6 +2534,23 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get("/api/scenes/graph", response_model=SceneGraphResponse)
+    def get_scene_graph(
+        start_scene: str | None = Query(
+            None,
+            description=(
+                "Optional scene identifier to treat as the starting node when "
+                "deriving graph metadata."
+            ),
+        ),
+    ) -> SceneGraphResponse:
+        try:
+            return service.get_scene_graph(start_scene=start_scene)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

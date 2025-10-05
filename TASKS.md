@@ -150,7 +150,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] `POST /api/scenes` - Create new scene
       - [ ] `DELETE /api/scenes/{scene_id}` - Delete scene (with dependency checks)
       - [x] `GET /api/scenes/validate` - Full integrity validation *(Added read-only endpoint returning quality, reachability, and item-flow summaries with test coverage.)*
-      - [ ] `GET /api/scenes/graph` - Scene connectivity graph data
+      - [x] `GET /api/scenes/graph` - Scene connectivity graph data *(returns node/edge metadata with transition details and start-scene selection.)*
       - [ ] `POST /api/scenes/import` - Import JSON scene data
       - [ ] `GET /api/scenes/export` - Export current scenes as JSON
     - [ ] Add comprehensive validation engine:
