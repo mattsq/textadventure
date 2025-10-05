@@ -382,7 +382,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Collaborative editing features
       - [ ] Access control
     - [ ] Implement backup and recovery:
-      - [ ] Automatic backups
+      - [x] Automatic backups
+        - [x] Add configurable automatic backup directory and retention settings.
+        - [x] Persist pre-mutation automatic backups with regression tests.
+        - [x] Document the automatic backup workflow and settings for operators.
       - [ ] Cloud storage integration
       - [ ] Disaster recovery procedures
       - [ ] Data export for migration

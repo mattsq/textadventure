@@ -102,10 +102,11 @@ services.
 - **Deployment settings (`textadventure.api.settings.SceneApiSettings`)** – Reads
   environment variables such as `TEXTADVENTURE_SCENE_PATH`,
   `TEXTADVENTURE_SCENE_PACKAGE`, `TEXTADVENTURE_SCENE_RESOURCE`,
-  `TEXTADVENTURE_BRANCH_ROOT`, `TEXTADVENTURE_PROJECT_ROOT`, and
+  `TEXTADVENTURE_BRANCH_ROOT`, `TEXTADVENTURE_AUTOMATIC_BACKUP_DIR`,
+  `TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION`, `TEXTADVENTURE_PROJECT_ROOT`, and
   `TEXTADVENTURE_PROJECT_TEMPLATE_ROOT` so the API can target custom scene
-  datasets, branch storage directories, a project registry, and an optional
-  template catalogue without code changes.
+  datasets, branch storage directories, automatic backup locations, a project
+  registry, and an optional template catalogue without code changes.
 
 Use this reference alongside the architecture overview to dive deeper into specific
 modules when extending the engine or integrating new agent capabilities.

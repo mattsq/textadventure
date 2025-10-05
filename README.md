@@ -200,6 +200,12 @@ where scene data and branch definitions are loaded from:
 - ``TEXTADVENTURE_BRANCH_ROOT`` – Directory where saved branch definitions and
   plans are stored. Defaults to ``./scene_branches`` relative to the current
   working directory.
+- ``TEXTADVENTURE_AUTOMATIC_BACKUP_DIR`` – Directory where automatic backups
+  are written before scene datasets are mutated. Leave unset to disable
+  automatic backups.
+- ``TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION`` – Optional positive integer
+  limiting how many automatic backups are kept. When unset all automatic
+  backups are retained.
 
 All values accept ``~`` prefixes, making it easy to redirect the service towards
 shared datasets or persistent storage locations.
