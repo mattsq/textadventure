@@ -36,12 +36,12 @@ class TestClient:
 
     def get(self, path: str, params: Mapping[str, Any] | None = None) -> _Response:
         try:
-            result = self._app._dispatch("GET", path, params or {})
+            result, status = self._app._dispatch("GET", path, params or {})
         except HTTPException as exc:
             return _Response(exc.status_code, {"detail": exc.detail})
 
         payload, text = _serialise(result)
-        return _Response(200, payload, text)
+        return _Response(status, payload, text)
 
     def post(
         self,
@@ -50,12 +50,12 @@ class TestClient:
         json: Any | None = None,
     ) -> _Response:
         try:
-            result = self._app._dispatch("POST", path, params or {}, json)
+            result, status = self._app._dispatch("POST", path, params or {}, json)
         except HTTPException as exc:
             return _Response(exc.status_code, {"detail": exc.detail})
 
         payload, text = _serialise(result)
-        return _Response(200, payload, text)
+        return _Response(status, payload, text)
 
 
 def _serialise(value: Any) -> tuple[Any, str | None]:
