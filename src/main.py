@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence, TextIO
+from typing import Sequence, TextIO, cast
 
 from textadventure import (
     FileSessionStore,
@@ -21,6 +24,114 @@ from textadventure import (
 )
 from textadventure.llm_providers import register_builtin_providers
 from textadventure.scripted_story_engine import ScriptedStoryEngine
+
+
+class EditorLaunchError(RuntimeError):
+    """Raised when the embedded editor server cannot be controlled."""
+
+
+def _format_host_for_url(host: str) -> str:
+    """Return a host suitable for inclusion in an HTTP URL."""
+
+    if ":" in host and not host.startswith("["):
+        return f"[{host}]"
+    return host
+
+
+class EditorLauncher:
+    """Manage a background ``uvicorn`` process hosting the editor API."""
+
+    def __init__(self, *, host: str = "127.0.0.1", port: int = 8000) -> None:
+        self.host = host
+        self.port = port
+        self._process: subprocess.Popen[bytes] | None = None
+
+    def base_url(self) -> str:
+        """Return the HTTP URL for the hosted editor."""
+
+        return f"http://{_format_host_for_url(self.host)}:{self.port}"
+
+    def is_running(self) -> bool:
+        """Return ``True`` when the editor process is currently active."""
+
+        process = self._process
+        if process is None:
+            return False
+        if process.poll() is not None:
+            # The process exited in the background; clear the handle so future
+            # launches can succeed cleanly.
+            self._process = None
+            return False
+        return True
+
+    def start(self) -> None:
+        """Launch the editor API if it is not already running."""
+
+        if self.is_running():
+            raise EditorLaunchError("Editor server is already running.")
+
+        command = [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "textadventure.api.app:create_app",
+            "--factory",
+            "--host",
+            self.host,
+            "--port",
+            str(self.port),
+        ]
+
+        try:
+            process = subprocess.Popen(command)
+        except OSError as exc:  # pragma: no cover - exercising OS failures is hard
+            raise EditorLaunchError(f"Failed to launch editor: {exc}") from exc
+
+        # Give the subprocess a brief moment to surface immediate launch
+        # failures (for example, when the port is already in use).
+        time.sleep(0.2)
+        if process.poll() is not None:
+            exit_code = process.wait()
+            raise EditorLaunchError(
+                "Editor server exited immediately. "
+                "Check the console output above for details. "
+                f"(exit status {exit_code})"
+            )
+
+        self._process = process
+
+    def stop(self) -> bool:
+        """Terminate the editor process if it is running."""
+
+        process = self._process
+        if process is None:
+            return False
+
+        self._process = None
+        if process.poll() is not None:
+            # The process already exited; reap it to avoid zombies.
+            process.wait()
+            return False
+
+        try:
+            process.terminate()
+        except OSError as exc:  # pragma: no cover - difficult to simulate
+            raise EditorLaunchError(f"Failed to stop editor: {exc}") from exc
+
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+        return True
+
+
+class _EditorLauncherSentinel:
+    """Sentinel value distinguishing auto-creation from explicit ``None``."""
+
+
+_EDITOR_LAUNCHER_DEFAULT = _EditorLauncherSentinel()
 
 
 class TranscriptLogger:
@@ -212,8 +323,16 @@ def run_cli(
     session_store: SessionStore | None = None,
     autoload_session: str | None = None,
     transcript_logger: TranscriptLogger | None = None,
+    editor_launcher: (
+        EditorLauncher | None | _EditorLauncherSentinel
+    ) = _EDITOR_LAUNCHER_DEFAULT,
 ) -> None:
     """Drive a very small interactive loop using ``input``/``print``."""
+
+    if isinstance(editor_launcher, _EditorLauncherSentinel):
+        launcher: EditorLauncher | None = EditorLauncher()
+    else:
+        launcher = cast(EditorLauncher | None, editor_launcher)
 
     print("Welcome to the Text Adventure prototype!")
     print("Type 'quit' at any time to end the session.")
@@ -267,6 +386,16 @@ def run_cli(
             "status",
             "Show your location, inventory, and queued agent messages.",
         )
+        if launcher is None:
+            command_help["editor"] = (
+                "editor",
+                "Unavailable: editor integration is disabled for this session.",
+            )
+        else:
+            command_help["editor"] = (
+                "editor [start|stop|status]",
+                "Launch or control the browser-based scene editor API.",
+            )
         command_help["quit"] = ("quit", "Exit the adventure immediately.")
 
         choice_map = {choice.command: choice.description for choice in event.choices}
@@ -433,11 +562,69 @@ def run_cli(
                 else:
                     print("Pending saves: (none)")
 
+            if launcher is None:
+                editor_status = "unavailable (disabled)"
+            elif launcher.is_running():
+                editor_status = f"running at {launcher.base_url()}"
+            else:
+                editor_status = "stopped"
+            print(f"Editor server: {editor_status}")
+
             print()
+            continue
+
+        if command_lower == "editor":
+            if launcher is None:
+                print(
+                    "\nEditor integration is unavailable for this session. "
+                    "Launch the CLI without --no-editor to enable it."
+                )
+                continue
+
+            action = argument.strip().lower() or "start"
+            if action == "start":
+                if launcher.is_running():
+                    print(f"\nEditor is already running at {launcher.base_url()}")
+                else:
+                    try:
+                        launcher.start()
+                    except EditorLaunchError as exc:
+                        print(f"\nFailed to start the editor: {exc}")
+                    else:
+                        print(f"\nEditor is running at {launcher.base_url()}")
+                continue
+            if action == "stop":
+                try:
+                    stopped = launcher.stop()
+                except EditorLaunchError as exc:
+                    print(f"\nFailed to stop the editor: {exc}")
+                else:
+                    if stopped:
+                        print("\nEditor stopped.")
+                    else:
+                        print("\nThe editor is not currently running.")
+                continue
+            if action == "status":
+                if launcher.is_running():
+                    print(f"\nEditor status: running at {launcher.base_url()}")
+                else:
+                    print("\nEditor status: stopped")
+                continue
+
+            print("\nUsage: editor [start|stop|status]")
+            print("  start  - Launch the local editor server")
+            print("  stop   - Terminate the editor server if it is running")
+            print("  status - Display whether the editor server is active")
             continue
 
         world.remember_action(player_input)
         event = _capture_event(engine.propose_event(world, player_input=player_input))
+
+    if launcher is not None:
+        try:
+            launcher.stop()
+        except EditorLaunchError:
+            pass
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -464,6 +651,22 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help=(
             "Path to a transcript log capturing narration, metadata, and player input."
         ),
+    )
+    parser.add_argument(
+        "--editor-host",
+        default="127.0.0.1",
+        help="Host interface for the optional editor API server.",
+    )
+    parser.add_argument(
+        "--editor-port",
+        type=int,
+        default=8000,
+        help="Port where the optional editor API server should listen.",
+    )
+    parser.add_argument(
+        "--no-editor",
+        action="store_true",
+        help="Disable the embedded editor command for this session.",
     )
     parser.add_argument(
         "--llm-provider",
@@ -568,6 +771,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             "The adventure will start fresh."
         )
 
+    if args.no_editor:
+        launcher: EditorLauncher | None = None
+    else:
+        launcher = EditorLauncher(host=args.editor_host, port=args.editor_port)
+
     transcript_logger: TranscriptLogger | None = None
     log_handle: TextIO | None = None
     try:
@@ -582,6 +790,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             session_store=session_store,
             autoload_session=autoload_session,
             transcript_logger=transcript_logger,
+            editor_launcher=launcher,
         )
     finally:
         if log_handle is not None:

@@ -369,7 +369,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] **Phase 9: Integration & Deployment**
     - [ ] Integrate editor with existing CLI workflow:
       - [ ] File watching for automatic reloads
-      - [ ] CLI command to launch editor
+      - [x] CLI command to launch editor *(Added in-CLI `editor` command with lifecycle controls, host/port configuration flags, and documentation.)*
       - [ ] Development mode integration
     - [ ] Create deployment pipeline:
       - [x] Docker containerization *(Added a Dockerfile and README instructions for running the API via Uvicorn in a container.)*

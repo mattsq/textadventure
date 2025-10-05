@@ -8,7 +8,7 @@ from pathlib import Path
 
 import builtins
 
-from main import TranscriptLogger, run_cli
+from main import EditorLaunchError, EditorLauncher, TranscriptLogger, run_cli
 from textadventure import InMemorySessionStore, SessionSnapshot, WorldState
 from textadventure.multi_agent import (
     Agent,
@@ -68,6 +68,32 @@ class _SequencedAgent(Agent):
                 f"no scripted result available for agent {self.name!r}"
             )
         return self._results.pop(0)
+
+
+class _StubEditorLauncher(EditorLauncher):
+    """Test double that tracks editor lifecycle commands without spawning processes."""
+
+    def __init__(self) -> None:
+        super().__init__(host="127.0.0.1", port=8123)
+        self.started = 0
+        self.stopped = 0
+        self._running = False
+
+    def is_running(self) -> bool:  # pragma: no cover - trivial override
+        return self._running
+
+    def start(self) -> None:
+        if self._running:
+            raise EditorLaunchError("already running")
+        self._running = True
+        self.started += 1
+
+    def stop(self) -> bool:
+        if not self._running:
+            return False
+        self._running = False
+        self.stopped += 1
+        return True
 
 
 def test_run_cli_handles_basic_command_sequence(monkeypatch, capsys) -> None:
@@ -374,3 +400,49 @@ def test_cli_walkthrough_matches_golden(monkeypatch, capsys) -> None:
     assert golden_path.is_file(), "Expected golden CLI transcript to be present."
     expected = golden_path.read_text(encoding="utf-8")
     assert captured == expected
+
+
+def test_editor_command_controls_launcher(monkeypatch, capsys) -> None:
+    """The editor command should control the launcher lifecycle."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+    launcher = _StubEditorLauncher()
+
+    inputs = iter(
+        [
+            "editor",
+            "editor",
+            "editor status",
+            "editor stop",
+            "editor stop",
+            "quit",
+        ]
+    )
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world, editor_launcher=launcher)
+
+    captured = capsys.readouterr().out
+    assert "Editor is running at http://127.0.0.1:8123" in captured
+    assert "Editor is already running" in captured
+    assert "Editor status: running at http://127.0.0.1:8123" in captured
+    assert "Editor stopped." in captured
+    assert "The editor is not currently running." in captured
+    assert launcher.started == 1
+    assert launcher.stopped == 1
+
+
+def test_editor_command_handles_disabled_launcher(monkeypatch, capsys) -> None:
+    """When the editor is disabled, the CLI should explain the limitation."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["editor", "status", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world, editor_launcher=None)
+
+    captured = capsys.readouterr().out
+    assert "Editor integration is unavailable" in captured
