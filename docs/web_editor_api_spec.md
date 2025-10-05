@@ -332,6 +332,13 @@ minified JSON depending on the ``export_format`` argument and returns metadata
 about the saved snapshot (version id, checksum, and timestamp) so operators can
 log or display confirmation to authors.
 
+Deployments can also configure `SceneService` to create these backups
+automatically before mutating scene data. Setting
+``TEXTADVENTURE_AUTOMATIC_BACKUP_DIR`` directs the API to snapshot the current
+dataset ahead of operations such as ``PUT /api/scenes/{scene_id}``, while
+``TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION`` limits how many automatic backups
+are kept on disk after each write.
+
 
 ### `POST /scenes/diff`
 

@@ -9,9 +9,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+import pytest
 from fastapi.testclient import TestClient
 
-from textadventure.api import create_app
+from textadventure.api import SceneApiSettings, create_app
 from textadventure.api.app import (
     CURRENT_SCENE_SCHEMA_VERSION,
     ExportFormat,
@@ -20,7 +21,6 @@ from textadventure.api.app import (
     SceneRepository,
     SceneService,
 )
-from textadventure.api import SceneApiSettings
 
 
 def _client() -> TestClient:
@@ -1040,6 +1040,149 @@ def test_scene_service_creates_minified_backup(tmp_path) -> None:
     assert json.loads(result.path.read_text(encoding="utf-8")) == export.scenes
 
 
+def test_update_scene_creates_automatic_backup(tmp_path: Path) -> None:
+    initial_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha original",
+            "choices": [
+                {"command": "wait", "description": "Wait for a moment."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You pause briefly.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    initial_timestamp = datetime(2024, 7, 1, 10, 30, tzinfo=timezone.utc)
+    updated_timestamp = datetime(2024, 7, 1, 11, 0, tzinfo=timezone.utc)
+
+    class _InMemoryRepository:
+        def __init__(self) -> None:
+            self._dataset = json.loads(json.dumps(initial_dataset))
+            self._timestamp = initial_timestamp
+
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return json.loads(json.dumps(self._dataset)), self._timestamp
+
+        def save(self, payload: Mapping[str, Any]) -> datetime:
+            self._dataset = json.loads(json.dumps(payload))
+            self._timestamp = updated_timestamp
+            return self._timestamp
+
+    repository = _InMemoryRepository()
+    backup_dir = tmp_path / "auto-backups"
+    service = SceneService(
+        repository=repository,
+        automatic_backup_dir=backup_dir,
+    )
+
+    updated_scene: Mapping[str, Any] = {
+        "description": "Alpha revised",
+        "choices": [
+            {"command": "wait", "description": "Hold steady."},
+        ],
+        "transitions": {
+            "wait": {
+                "narration": "You continue to wait.",
+                "target": None,
+            }
+        },
+    }
+
+    service.update_scene(
+        scene_id="alpha",
+        scene=updated_scene,
+        schema_version=CURRENT_SCENE_SCHEMA_VERSION,
+    )
+
+    backups = list(backup_dir.glob("scene-backup-*.json"))
+    assert len(backups) == 1
+
+    backup_path = backups[0]
+    expected_metadata = _expected_metadata(initial_dataset, initial_timestamp)
+    assert backup_path.name == expected_metadata["suggested_filename"]
+    assert json.loads(backup_path.read_text(encoding="utf-8")) == initial_dataset
+
+
+def test_automatic_backup_retention_prunes_old_backups(tmp_path: Path) -> None:
+    initial_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha original",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You stay put.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    initial_timestamp = datetime(2024, 7, 2, 9, 0, tzinfo=timezone.utc)
+
+    class _RollingRepository:
+        def __init__(self) -> None:
+            self._dataset = json.loads(json.dumps(initial_dataset))
+            self._timestamp = initial_timestamp
+
+        def snapshot(self) -> tuple[Mapping[str, Any], datetime]:
+            return json.loads(json.dumps(self._dataset)), self._timestamp
+
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return self.snapshot()
+
+        def save(self, payload: Mapping[str, Any]) -> datetime:
+            self._dataset = json.loads(json.dumps(payload))
+            self._timestamp = self._timestamp + timedelta(minutes=5)
+            return self._timestamp
+
+    repository = _RollingRepository()
+    backup_dir = tmp_path / "retained"
+    service = SceneService(
+        repository=repository,
+        automatic_backup_dir=backup_dir,
+        automatic_backup_retention=2,
+    )
+
+    expected_filenames: list[str] = []
+
+    for index in range(3):
+        snapshot_dataset, snapshot_timestamp = repository.snapshot()
+        expected = _expected_metadata(snapshot_dataset, snapshot_timestamp)[
+            "suggested_filename"
+        ]
+        expected_filenames.append(expected)
+
+        updated_scene = {
+            "description": f"Alpha iteration {index}",
+            "choices": [
+                {
+                    "command": "wait",
+                    "description": f"Wait iteration {index}.",
+                },
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": f"You wait through iteration {index}.",
+                    "target": None,
+                }
+            },
+        }
+
+        service.update_scene(
+            scene_id="alpha",
+            scene=updated_scene,
+            schema_version=CURRENT_SCENE_SCHEMA_VERSION,
+        )
+
+    backups = sorted(path.name for path in backup_dir.glob("scene-backup-*.json"))
+    assert len(backups) == 2
+    assert backups == sorted(expected_filenames[-2:])
+
+
 def test_scene_service_plans_rollback_to_backup_dataset() -> None:
     current_dataset: Mapping[str, Any] = {
         "alpha": {
@@ -1682,6 +1825,7 @@ def test_scene_api_settings_from_env(monkeypatch: Any, tmp_path: Path) -> None:
     data_path = tmp_path / "dataset.json"
     branch_root = tmp_path / "branches"
     template_root = tmp_path / "templates"
+    backup_root = tmp_path / "backups"
 
     monkeypatch.setenv("TEXTADVENTURE_SCENE_PACKAGE", "my.package")
     monkeypatch.setenv("TEXTADVENTURE_SCENE_RESOURCE", "dataset.json")
@@ -1689,6 +1833,8 @@ def test_scene_api_settings_from_env(monkeypatch: Any, tmp_path: Path) -> None:
     monkeypatch.setenv("TEXTADVENTURE_BRANCH_ROOT", str(branch_root))
     monkeypatch.setenv("TEXTADVENTURE_PROJECT_ROOT", str(tmp_path / "projects"))
     monkeypatch.setenv("TEXTADVENTURE_PROJECT_TEMPLATE_ROOT", str(template_root))
+    monkeypatch.setenv("TEXTADVENTURE_AUTOMATIC_BACKUP_DIR", str(backup_root))
+    monkeypatch.setenv("TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION", "5")
 
     settings = SceneApiSettings.from_env()
 
@@ -1698,6 +1844,8 @@ def test_scene_api_settings_from_env(monkeypatch: Any, tmp_path: Path) -> None:
     assert settings.branch_root == branch_root
     assert settings.project_root == tmp_path / "projects"
     assert settings.project_template_root == template_root
+    assert settings.automatic_backup_dir == backup_root
+    assert settings.automatic_backup_retention == 5
 
 
 def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
@@ -1707,6 +1855,8 @@ def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
     monkeypatch.setenv("TEXTADVENTURE_BRANCH_ROOT", "")
     monkeypatch.setenv("TEXTADVENTURE_PROJECT_ROOT", "   ")
     monkeypatch.setenv("TEXTADVENTURE_PROJECT_TEMPLATE_ROOT", "")
+    monkeypatch.setenv("TEXTADVENTURE_AUTOMATIC_BACKUP_DIR", " ")
+    monkeypatch.delenv("TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION", raising=False)
 
     settings = SceneApiSettings.from_env()
 
@@ -1716,6 +1866,18 @@ def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
     assert settings.branch_root is None
     assert settings.project_root is None
     assert settings.project_template_root is None
+    assert settings.automatic_backup_dir is None
+    assert settings.automatic_backup_retention is None
+
+
+def test_scene_api_settings_reject_invalid_backup_retention(monkeypatch: Any) -> None:
+    monkeypatch.setenv("TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION", "0")
+    with pytest.raises(ValueError):
+        SceneApiSettings.from_env()
+
+    monkeypatch.setenv("TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION", "not-a-number")
+    with pytest.raises(ValueError):
+        SceneApiSettings.from_env()
 
 
 def test_update_scene_persists_changes_and_returns_version(tmp_path: Path) -> None:

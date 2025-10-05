@@ -2326,9 +2326,18 @@ class SceneService:
         self,
         repository: SceneRepository | None = None,
         branch_store: SceneBranchStore | None = None,
+        *,
+        automatic_backup_dir: Path | None = None,
+        automatic_backup_retention: int | None = None,
+        automatic_backup_export_format: ExportFormat = ExportFormat.PRETTY,
     ) -> None:
         self._repository = repository or SceneRepository()
         self._branch_store = branch_store or SceneBranchStore()
+        if automatic_backup_retention is not None and automatic_backup_retention < 1:
+            raise ValueError("automatic_backup_retention must be greater than zero.")
+        self._automatic_backup_dir = automatic_backup_dir
+        self._automatic_backup_retention = automatic_backup_retention
+        self._automatic_backup_export_format = automatic_backup_export_format
 
     def list_scene_summaries(
         self,
@@ -2629,6 +2638,14 @@ class SceneService:
             and expected_version_id != current_version_id
         ):
             raise SceneVersionConflictError(current_version_id)
+
+        if self._automatic_backup_dir is not None:
+            self._maybe_create_automatic_backup(
+                dataset=current_serialisable,
+                generated_at=_ensure_timezone(dataset_timestamp),
+                version_id=current_version_id,
+                checksum=current_checksum,
+            )
 
         try:
             migrated = _migrate_scene_dataset(
@@ -3022,23 +3039,101 @@ class SceneService:
         """Write the current scene dataset to ``destination_dir``."""
 
         export = self.export_scenes()
+        return self._write_backup(
+            destination_dir=destination_dir,
+            dataset=export.scenes,
+            generated_at=export.generated_at,
+            version_id=export.metadata.version_id,
+            checksum=export.metadata.checksum,
+            export_format=export_format,
+        )
+
+    def _maybe_create_automatic_backup(
+        self,
+        *,
+        dataset: Mapping[str, Any],
+        generated_at: datetime,
+        version_id: str,
+        checksum: str,
+    ) -> None:
+        destination = self._automatic_backup_dir
+        if destination is None:
+            return
+
+        self._write_backup(
+            destination_dir=destination,
+            dataset=dataset,
+            generated_at=generated_at,
+            version_id=version_id,
+            checksum=checksum,
+            export_format=self._automatic_backup_export_format,
+        )
+
+        retention = self._automatic_backup_retention
+        if retention is not None:
+            self._prune_automatic_backups(destination, keep=retention)
+
+    def _write_backup(
+        self,
+        *,
+        destination_dir: Path,
+        dataset: Mapping[str, Any],
+        generated_at: datetime,
+        version_id: str,
+        checksum: str,
+        export_format: ExportFormat,
+    ) -> SceneBackupResult:
+        try:
+            serialisable = json.loads(json.dumps(dataset, ensure_ascii=False))
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Scene data could not be serialised to JSON.") from exc
+
+        if not isinstance(serialisable, dict):
+            raise RuntimeError("Scene data must be a JSON object.")
+
         destination_dir.mkdir(parents=True, exist_ok=True)
-
-        filename = export.metadata.suggested_filename
+        filename = _build_backup_filename(version_id)
         backup_path = destination_dir / filename
-
         dumps = _dumps_for_export_format(export_format)
-        serialisable = json.loads(json.dumps(export.scenes, ensure_ascii=False))
 
-        with backup_path.open("w", encoding="utf-8") as handle:
-            handle.write(dumps(serialisable))
+        try:
+            with backup_path.open("w", encoding="utf-8") as handle:
+                handle.write(dumps(serialisable))
+        except OSError as exc:
+            raise RuntimeError(f"Failed to write backup to '{backup_path}'.") from exc
 
         return SceneBackupResult(
             path=backup_path,
-            version_id=export.metadata.version_id,
-            checksum=export.metadata.checksum,
-            generated_at=export.generated_at,
+            version_id=version_id,
+            checksum=checksum,
+            generated_at=generated_at,
         )
+
+    def _prune_automatic_backups(self, destination: Path, *, keep: int) -> None:
+        if keep < 1:
+            return
+
+        backups: list[tuple[float, str, Path]] = []
+        for candidate in destination.glob("scene-backup-*.json"):
+            if not candidate.is_file():
+                continue
+            try:
+                mtime = candidate.stat().st_mtime
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Failed to inspect automatic backup '{candidate}'."
+                ) from exc
+            backups.append((mtime, candidate.name, candidate))
+
+        backups.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
+
+        for _, _, path in backups[keep:]:
+            try:
+                path.unlink()
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Failed to prune automatic backup '{path}'."
+                ) from exc
 
     def _build_validation_report(
         self,
@@ -3080,7 +3175,12 @@ def create_app(
             path=resolved_settings.scene_path,
         )
         branch_store = SceneBranchStore(root=resolved_settings.branch_root)
-        service = SceneService(repository=repository, branch_store=branch_store)
+        service = SceneService(
+            repository=repository,
+            branch_store=branch_store,
+            automatic_backup_dir=resolved_settings.automatic_backup_dir,
+            automatic_backup_retention=resolved_settings.automatic_backup_retention,
+        )
 
     project_store: SceneProjectStore | None = None
     if resolved_settings.project_root is not None:

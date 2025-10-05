@@ -42,6 +42,8 @@ class SceneApiSettings:
     branch_root: Path | None = None
     project_root: Path | None = None
     project_template_root: Path | None = None
+    automatic_backup_dir: Path | None = None
+    automatic_backup_retention: int | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "SceneApiSettings":
@@ -68,6 +70,26 @@ class SceneApiSettings:
         project_template_root = _normalise_path(
             source.get("TEXTADVENTURE_PROJECT_TEMPLATE_ROOT")
         )
+        automatic_backup_dir = _normalise_path(
+            source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_DIR")
+        )
+
+        automatic_backup_retention: int | None = None
+        retention_raw = source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION")
+        if retention_raw is not None:
+            trimmed_retention = retention_raw.strip()
+            if trimmed_retention:
+                try:
+                    parsed_retention = int(trimmed_retention)
+                except ValueError as exc:
+                    raise ValueError(
+                        "TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION must be a positive integer."
+                    ) from exc
+                if parsed_retention < 1:
+                    raise ValueError(
+                        "TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION must be greater than zero."
+                    )
+                automatic_backup_retention = parsed_retention
 
         return cls(
             scene_package=scene_package,
@@ -76,6 +98,8 @@ class SceneApiSettings:
             branch_root=branch_root,
             project_root=project_root,
             project_template_root=project_template_root,
+            automatic_backup_dir=automatic_backup_dir,
+            automatic_backup_retention=automatic_backup_retention,
         )
 
 
