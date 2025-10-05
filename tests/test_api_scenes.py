@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -1715,6 +1716,96 @@ def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
     assert settings.branch_root is None
     assert settings.project_root is None
     assert settings.project_template_root is None
+
+
+def test_update_scene_persists_changes_and_returns_version(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    initial_timestamp = datetime(2024, 3, 1, 12, tzinfo=timezone.utc)
+    os.utime(data_path, (initial_timestamp.timestamp(), initial_timestamp.timestamp()))
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    stored_definitions, stored_timestamp = repository.load()
+    metadata = _expected_metadata(stored_definitions, stored_timestamp)
+
+    updated_scene: dict[str, Any] = {
+        "description": "Alpha Revised",
+        "choices": [
+            {"command": "forward", "description": "Advance carefully."},
+            {"command": "rest", "description": "Take a breather."},
+        ],
+        "transitions": {
+            "forward": {"narration": "You advance with caution.", "target": "beta"},
+            "rest": {"narration": "You pause to recover.", "target": None},
+        },
+    }
+
+    response = client.put(
+        "/api/scenes/alpha",
+        json={
+            "scene": updated_scene,
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "expected_version_id": metadata["version_id"],
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["data"]["id"] == "alpha"
+    assert payload["data"]["description"] == "Alpha Revised"
+    assert payload["data"]["choices"][0]["description"] == "Advance carefully."
+    assert payload["validation"] is None
+
+    version = payload["version"]
+    updated_definitions, updated_timestamp = repository.load()
+    expected_metadata = _expected_metadata(updated_definitions, updated_timestamp)
+
+    assert version["version_id"] == expected_metadata["version_id"]
+    assert version["checksum"] == expected_metadata["checksum"]
+    assert datetime.fromisoformat(version["generated_at"]) == updated_timestamp
+
+    assert updated_definitions["alpha"]["description"] == "Alpha Revised"
+    assert updated_definitions["beta"] == dataset["beta"]
+
+
+def test_update_scene_rejects_version_conflicts(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    timestamp = datetime(2024, 4, 1, 9, tzinfo=timezone.utc)
+    os.utime(data_path, (timestamp.timestamp(), timestamp.timestamp()))
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    stored_definitions, stored_timestamp = repository.load()
+    metadata = _expected_metadata(stored_definitions, stored_timestamp)
+
+    response = client.put(
+        "/api/scenes/alpha",
+        json={
+            "scene": dataset["alpha"],
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "expected_version_id": "outdated-version",
+        },
+    )
+
+    assert response.status_code == 409
+
+    detail = response.json()["detail"]
+    assert detail["current_version_id"] == metadata["version_id"]
+    assert "message" in detail
+
+    persisted_definitions, _ = repository.load()
+    assert persisted_definitions == stored_definitions
 
 
 def test_create_app_uses_environment_scene_path(

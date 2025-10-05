@@ -57,6 +57,20 @@ class TestClient:
         payload, text = _serialise(result)
         return _Response(status, payload, text)
 
+    def put(
+        self,
+        path: str,
+        params: Mapping[str, Any] | None = None,
+        json: Any | None = None,
+    ) -> _Response:
+        try:
+            result, status = self._app._dispatch("PUT", path, params or {}, json)
+        except HTTPException as exc:
+            return _Response(exc.status_code, {"detail": exc.detail})
+
+        payload, text = _serialise(result)
+        return _Response(status, payload, text)
+
     def delete(self, path: str, params: Mapping[str, Any] | None = None) -> _Response:
         try:
             result, status = self._app._dispatch("DELETE", path, params or {})

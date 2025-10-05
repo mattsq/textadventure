@@ -1,4 +1,4 @@
-"""FastAPI application exposing read-only scene management endpoints."""
+"""FastAPI application exposing scene management endpoints."""
 
 from __future__ import annotations
 
@@ -367,6 +367,31 @@ class SceneImportResponse(BaseModel):
         description=(
             "Summaries of how the uploaded dataset would affect the existing scenes"
             " when applying supported import strategies."
+        ),
+    )
+
+
+class SceneUpdateRequest(BaseModel):
+    """Request payload for updating an existing scene definition."""
+
+    scene: dict[str, Any] = Field(
+        ...,
+        description="Scene definition matching the export format.",
+    )
+    schema_version: int | None = Field(
+        None,
+        ge=1,
+        description=(
+            "Optional schema version for the uploaded scene. Legacy formats are "
+            "migrated automatically when supported."
+        ),
+    )
+    expected_version_id: str | None = Field(
+        None,
+        description=(
+            "Optional optimistic concurrency token derived from the current "
+            "dataset version. When provided, updates are rejected if the dataset "
+            "has changed."
         ),
     )
 
@@ -1777,6 +1802,50 @@ class SceneRepository:
 
         return payload, updated_at
 
+    def save(self, scenes: Mapping[str, Any]) -> datetime:
+        """Persist ``scenes`` to disk and return the resulting timestamp."""
+
+        if self._path is None:
+            raise RuntimeError(
+                "Scene repository is read-only; configure TEXTADVENTURE_SCENE_PATH to enable editing."
+            )
+
+        try:
+            serialisable = json.loads(json.dumps(scenes, ensure_ascii=False))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Scene data could not be serialised to JSON.") from exc
+
+        if not isinstance(serialisable, dict):
+            raise ValueError("Scene data must be a JSON object.")
+
+        destination = self._path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+
+        temporary = (
+            destination.with_suffix(destination.suffix + ".tmp")
+            if destination.suffix
+            else destination.with_suffix(".tmp")
+        )
+
+        try:
+            with temporary.open("w", encoding="utf-8") as handle:
+                json.dump(serialisable, handle, ensure_ascii=False, indent=2)
+            temporary.replace(destination)
+        except OSError as exc:
+            raise RuntimeError("Failed to persist scene data.") from exc
+
+        return _timestamp_for(destination)
+
+
+class SceneVersionConflictError(RuntimeError):
+    """Raised when a dataset version check fails during a mutation."""
+
+    def __init__(self, current_version_id: str) -> None:
+        super().__init__(
+            "Scene dataset has changed since the provided version identifier."
+        )
+        self.current_version_id = current_version_id
+
 
 class SceneService:
     """Business logic supporting the API endpoints."""
@@ -2047,6 +2116,86 @@ class SceneService:
                 version_id=version_id,
                 checksum=checksum,
                 suggested_filename=_build_backup_filename(version_id),
+            ),
+        )
+
+    def update_scene(
+        self,
+        *,
+        scene_id: str,
+        scene: Mapping[str, Any],
+        schema_version: int | None = None,
+        expected_version_id: str | None = None,
+    ) -> SceneMutationResponse:
+        """Persist an updated definition for ``scene_id``."""
+
+        if not scene_id or not scene_id.strip():
+            raise ValueError("Scene identifier must be a non-empty string.")
+
+        normalised_id = scene_id.strip()
+
+        existing_definitions, dataset_timestamp = self._repository.load()
+
+        if normalised_id not in existing_definitions:
+            raise KeyError(f"Scene '{normalised_id}' does not exist.")
+
+        try:
+            current_serialisable = json.loads(
+                json.dumps(existing_definitions, ensure_ascii=False)
+            )
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Scene data could not be serialised to JSON.") from exc
+
+        if not isinstance(current_serialisable, dict):
+            raise RuntimeError("Scene data must be a JSON object.")
+
+        current_checksum = _compute_scene_checksum(current_serialisable)
+        current_version_id = _format_version_id(dataset_timestamp, current_checksum)
+
+        if (
+            expected_version_id is not None
+            and expected_version_id != current_version_id
+        ):
+            raise SceneVersionConflictError(current_version_id)
+
+        try:
+            migrated = _migrate_scene_dataset(
+                {normalised_id: scene}, schema_version=schema_version
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        migrated_scene = migrated[normalised_id]
+
+        updated_definitions = dict(existing_definitions)
+        updated_definitions[normalised_id] = migrated_scene
+
+        serialisable_dataset = _ensure_serialisable_scene_mapping(updated_definitions)
+
+        updated_timestamp = self._repository.save(serialisable_dataset)
+
+        checksum = _compute_scene_checksum(serialisable_dataset)
+        version_id = _format_version_id(updated_timestamp, checksum)
+
+        scenes = load_scenes_from_mapping(serialisable_dataset)
+        scene_object = scenes[normalised_id]
+
+        validation_issues = _collect_validation_issues(
+            normalised_id, cast(Mapping[str, Any], scenes)
+        )
+        validation = (
+            SceneValidation(issues=validation_issues) if validation_issues else None
+        )
+
+        resource = _build_scene_resource(normalised_id, scene_object, updated_timestamp)
+
+        return SceneMutationResponse(
+            data=resource,
+            validation=validation,
+            version=SceneVersionInfo(
+                generated_at=updated_timestamp,
+                version_id=version_id,
+                checksum=checksum,
             ),
         )
 
@@ -2534,6 +2683,32 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.put("/api/scenes/{scene_id}", response_model=SceneMutationResponse)
+    def update_scene_endpoint(
+        scene_id: str, payload: SceneUpdateRequest
+    ) -> SceneMutationResponse:
+        try:
+            return service.update_scene(
+                scene_id=scene_id,
+                scene=payload.scene,
+                schema_version=payload.schema_version,
+                expected_version_id=payload.expected_version_id,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SceneVersionConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "current_version_id": exc.current_version_id,
+                },
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -3089,6 +3264,14 @@ class SceneDetailResponse(BaseModel):
 
     data: SceneResource
     validation: SceneValidation | None = None
+
+
+class SceneMutationResponse(BaseModel):
+    """Response payload describing the outcome of a scene mutation."""
+
+    data: SceneResource
+    validation: SceneValidation | None = None
+    version: SceneVersionInfo
 
 
 def _build_scene_resource(
