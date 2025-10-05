@@ -196,6 +196,21 @@ black src tests    # code formatting
 ruff src tests     # linting
 ```
 
+### Running the API in Docker
+
+Build and run the FastAPI service inside a container to expose the authoring
+and analytics endpoints without installing the Python toolchain locally:
+
+```bash
+docker build -t textadventure-api .
+docker run --rm -p 8000:8000 textadventure-api
+```
+
+The image installs all runtime dependencies and launches Uvicorn with
+`textadventure.api.app:create_app`. Once the container is running, visit
+`http://localhost:8000/docs` to explore the automatically generated OpenAPI UI
+or hit `/api/scenes` to fetch the bundled demo scenes.
+
 ## Contributing
 
 Read the detailed contributor guidelines in

@@ -363,7 +363,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] CLI command to launch editor
       - [ ] Development mode integration
     - [ ] Create deployment pipeline:
-      - [ ] Docker containerization
+      - [x] Docker containerization *(Added a Dockerfile and README instructions for running the API via Uvicorn in a container.)*
       - [ ] Environment configuration
       - [ ] Production build optimization
       - [ ] Static asset management
