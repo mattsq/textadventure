@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from importlib import resources
@@ -17,7 +18,7 @@ from functools import partial
 
 from starlette.background import BackgroundTask
 from starlette.responses import JSONResponse
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, ValidationError, field_serializer
 
 from ..analytics import (
     AdventureQualityReport,
@@ -505,6 +506,199 @@ class SceneBranchPlanResponse(BaseModel):
     )
 
 
+class SceneBranchResource(BaseModel):
+    """Persisted branch definition metadata returned by the API."""
+
+    id: str = Field(..., description="Stable identifier for the branch definition.")
+    name: str = Field(..., description="Display name for the branch definition.")
+    created_at: datetime = Field(
+        ..., description="Timestamp when the branch definition was saved."
+    )
+    base: SceneVersionInfo = Field(
+        ...,
+        description="Metadata describing the base dataset the branch diverges from.",
+    )
+    target: SceneVersionInfo = Field(
+        ..., description="Metadata describing the branch dataset that was saved."
+    )
+    expected_base_version_id: str | None = Field(
+        None,
+        description="Version identifier supplied by the client when saving the branch.",
+    )
+    base_version_matches: bool = Field(
+        ...,
+        description=(
+            "Whether the expected base version matched the bundled dataset when the "
+            "branch was saved."
+        ),
+    )
+    summary: SceneDiffSummary = Field(
+        ...,
+        description="High-level change summary between the base and branch datasets.",
+    )
+    scene_count: int = Field(
+        ..., ge=0, description="Number of scene definitions contained in the branch."
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class SceneBranchListResponse(BaseModel):
+    """Response envelope describing persisted branch definitions."""
+
+    data: list[SceneBranchResource] = Field(
+        default_factory=list,
+        description="Collection of saved branch definitions ordered by recency.",
+    )
+
+
+class SceneBranchCreateRequest(SceneBranchPlanRequest):
+    """Request payload for persisting a branch definition."""
+
+
+@dataclass(frozen=True)
+class SceneBranchRecord:
+    """Representation of a branch definition stored on disk."""
+
+    identifier: str
+    name: str
+    created_at: datetime
+    plan: SceneBranchPlanResponse
+    scenes: dict[str, Any]
+
+
+class SceneBranchStore:
+    """Filesystem-backed store for persisted branch definitions."""
+
+    def __init__(self, root: Path | None = None) -> None:
+        self._root = root or Path.cwd() / "scene_branches"
+
+    def list(self) -> list[SceneBranchRecord]:
+        """Return all stored branch definitions ordered by recency."""
+
+        if not self._root.exists():
+            return []
+
+        records: list[SceneBranchRecord] = []
+        for path in sorted(self._root.glob("*.json")):
+            try:
+                payload = _load_json(path)
+            except (ValueError, OSError) as exc:
+                raise ValueError(
+                    f"Failed to load branch definition from '{path}'."
+                ) from exc
+
+            try:
+                record = self._record_from_payload(payload, path)
+            except ValueError as exc:
+                raise ValueError(str(exc)) from exc
+
+            records.append(record)
+
+        records.sort(key=lambda record: record.created_at, reverse=True)
+        return records
+
+    def save(self, record: SceneBranchRecord) -> None:
+        """Persist ``record`` to disk, ensuring identifiers remain unique."""
+
+        path = self._path_for(record.identifier)
+        if path.exists():
+            raise FileExistsError(f"Branch '{record.identifier}' already exists.")
+
+        payload = {
+            "id": record.identifier,
+            "name": record.name,
+            "created_at": record.created_at.isoformat(),
+            "plan": record.plan.model_dump(mode="json"),
+            "scenes": record.scenes,
+        }
+
+        try:
+            serialisable = json.loads(json.dumps(payload, ensure_ascii=False))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Branch data could not be serialised to JSON.") from exc
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with path.open("w", encoding="utf-8") as handle:
+                json.dump(serialisable, handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError("Failed to persist branch definition.") from exc
+
+    def _record_from_payload(self, payload: Any, path: Path) -> SceneBranchRecord:
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"Branch data in '{path}' is invalid.")
+
+        try:
+            identifier = str(payload["id"])
+            name = str(payload.get("name", identifier))
+            created_at_raw = payload["created_at"]
+            plan_payload = payload["plan"]
+            scenes_payload = payload["scenes"]
+        except KeyError as exc:
+            raise ValueError(f"Branch data in '{path}' is invalid.") from exc
+
+        try:
+            created_at = _ensure_timezone(datetime.fromisoformat(created_at_raw))
+        except ValueError as exc:
+            raise ValueError(f"Branch timestamp in '{path}' is invalid.") from exc
+
+        try:
+            plan = SceneBranchPlanResponse.model_validate(plan_payload)
+        except ValidationError as exc:
+            raise ValueError(f"Branch metadata in '{path}' is invalid.") from exc
+
+        if not isinstance(scenes_payload, Mapping):
+            raise ValueError(f"Branch scenes in '{path}' must be a mapping.")
+
+        try:
+            serialisable_scenes = json.loads(
+                json.dumps(scenes_payload, ensure_ascii=False)
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Branch scenes in '{path}' could not be serialised to JSON."
+            ) from exc
+
+        return SceneBranchRecord(
+            identifier=identifier,
+            name=name,
+            created_at=created_at,
+            plan=plan,
+            scenes=cast(dict[str, Any], serialisable_scenes),
+        )
+
+    def _path_for(self, identifier: str) -> Path:
+        return self._root / f"{identifier}.json"
+
+
+def _build_branch_resource(record: SceneBranchRecord) -> SceneBranchResource:
+    return SceneBranchResource(
+        id=record.identifier,
+        name=record.name,
+        created_at=record.created_at,
+        base=record.plan.base,
+        target=record.plan.target,
+        expected_base_version_id=record.plan.expected_base_version_id,
+        base_version_matches=record.plan.base_version_matches,
+        summary=record.plan.summary,
+        scene_count=len(record.scenes),
+    )
+
+
+_SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify_branch_name(name: str) -> str:
+    """Return a filesystem-friendly identifier derived from ``name``."""
+
+    slug = _SLUG_PATTERN.sub("-", name.strip().casefold()).strip("-")
+    return slug
+
+
 CURRENT_SCENE_SCHEMA_VERSION = 2
 
 
@@ -935,8 +1129,13 @@ class SceneRepository:
 class SceneService:
     """Business logic supporting the API endpoints."""
 
-    def __init__(self, repository: SceneRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: SceneRepository | None = None,
+        branch_store: SceneBranchStore | None = None,
+    ) -> None:
         self._repository = repository or SceneRepository()
+        self._branch_store = branch_store or SceneBranchStore()
 
     def list_scene_summaries(
         self,
@@ -1284,17 +1483,15 @@ class SceneService:
             plan=replace_plan,
         )
 
-    def plan_branch(
+    def _prepare_branch_plan(
         self,
         *,
         branch_name: str,
         scenes: Mapping[str, Any],
-        schema_version: int | None = None,
-        generated_at: datetime | None = None,
-        expected_base_version: str | None = None,
-    ) -> SceneBranchPlanResponse:
-        """Plan how a new storyline branch diverges from the bundled dataset."""
-
+        schema_version: int | None,
+        generated_at: datetime | None,
+        expected_base_version: str | None,
+    ) -> tuple[SceneBranchPlanResponse, dict[str, Any]]:
         if not branch_name.strip():
             raise ValueError("Branch name must not be empty.")
         if not scenes:
@@ -1324,11 +1521,16 @@ class SceneService:
             ) from exc
 
         try:
-            serialisable_target = json.loads(
+            serialisable_target_any = json.loads(
                 json.dumps(migrated_scenes, ensure_ascii=False)
             )
         except (TypeError, ValueError) as exc:
             raise ValueError("Scene data could not be serialised to JSON.") from exc
+
+        if not isinstance(serialisable_target_any, dict):
+            raise ValueError("Serialised branch data must be a mapping.")
+
+        serialisable_target = cast(dict[str, Any], serialisable_target_any)
 
         current_generated_at = _ensure_timezone(current_timestamp)
         current_checksum = _compute_scene_checksum(serialisable_current)
@@ -1348,7 +1550,7 @@ class SceneService:
             else expected_base_version == current_version_id
         )
 
-        return SceneBranchPlanResponse(
+        plan = SceneBranchPlanResponse(
             branch_name=normalised_name,
             base=SceneVersionInfo(
                 generated_at=current_generated_at,
@@ -1365,6 +1567,84 @@ class SceneService:
             summary=summary,
             entries=entries,
             plans=plans,
+        )
+
+        return plan, serialisable_target
+
+    def plan_branch(
+        self,
+        *,
+        branch_name: str,
+        scenes: Mapping[str, Any],
+        schema_version: int | None = None,
+        generated_at: datetime | None = None,
+        expected_base_version: str | None = None,
+    ) -> SceneBranchPlanResponse:
+        """Plan how a new storyline branch diverges from the bundled dataset."""
+
+        plan, _ = self._prepare_branch_plan(
+            branch_name=branch_name,
+            scenes=scenes,
+            schema_version=schema_version,
+            generated_at=generated_at,
+            expected_base_version=expected_base_version,
+        )
+        return plan
+
+    def create_branch(
+        self,
+        *,
+        branch_name: str,
+        scenes: Mapping[str, Any],
+        schema_version: int | None = None,
+        generated_at: datetime | None = None,
+        expected_base_version: str | None = None,
+    ) -> SceneBranchResource:
+        """Persist a branch definition and return its metadata."""
+
+        plan, serialisable_target = self._prepare_branch_plan(
+            branch_name=branch_name,
+            scenes=scenes,
+            schema_version=schema_version,
+            generated_at=generated_at,
+            expected_base_version=expected_base_version,
+        )
+
+        identifier = _slugify_branch_name(plan.branch_name)
+        if not identifier:
+            raise ValueError(
+                "Branch name must include alphanumeric characters to form an identifier."
+            )
+
+        record = SceneBranchRecord(
+            identifier=identifier,
+            name=plan.branch_name,
+            created_at=datetime.now(timezone.utc),
+            plan=plan,
+            scenes=serialisable_target,
+        )
+
+        try:
+            self._branch_store.save(record)
+        except FileExistsError as exc:
+            raise FileExistsError(f"Branch '{identifier}' already exists.") from exc
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        except RuntimeError as exc:
+            raise RuntimeError(str(exc)) from exc
+
+        return _build_branch_resource(record)
+
+    def list_branches(self) -> SceneBranchListResponse:
+        """Return persisted branch definitions."""
+
+        try:
+            records = self._branch_store.list()
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        return SceneBranchListResponse(
+            data=[_build_branch_resource(record) for record in records]
         )
 
     def create_backup(
@@ -1593,6 +1873,34 @@ def create_app(scene_service: SceneService | None = None) -> FastAPI:
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get("/api/scenes/branches", response_model=SceneBranchListResponse)
+    def list_branches() -> SceneBranchListResponse:
+        try:
+            return service.list_branches()
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/scenes/branches",
+        response_model=SceneBranchResource,
+        status_code=201,
+    )
+    def create_branch(payload: SceneBranchCreateRequest) -> SceneBranchResource:
+        try:
+            return service.create_branch(
+                branch_name=payload.branch_name,
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
+                generated_at=payload.generated_at,
+                expected_base_version=payload.base_version_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

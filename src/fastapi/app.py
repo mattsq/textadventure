@@ -33,6 +33,7 @@ class _Route:
     path: str
     endpoint: Callable[..., Any]
     response_model: Any | None
+    status_code: int | None = None
 
 
 class FastAPI:
@@ -44,26 +45,42 @@ class FastAPI:
         self._routes: MutableMapping[tuple[str, str], _Route] = {}
 
     def get(
-        self, path: str, response_model: Any | None = None
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a handler for ``GET`` requests."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._routes[("GET", path)] = _Route(
-                method="GET", path=path, endpoint=func, response_model=response_model
+                method="GET",
+                path=path,
+                endpoint=func,
+                response_model=response_model,
+                status_code=status_code,
             )
             return func
 
         return decorator
 
     def post(
-        self, path: str, response_model: Any | None = None
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a handler for ``POST`` requests."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._routes[("POST", path)] = _Route(
-                method="POST", path=path, endpoint=func, response_model=response_model
+                method="POST",
+                path=path,
+                endpoint=func,
+                response_model=response_model,
+                status_code=status_code,
             )
             return func
 
@@ -103,7 +120,9 @@ class FastAPI:
         combined_params: dict[str, Any] = dict(path_params)
         combined_params.update(params)
         kwargs = _build_keyword_arguments(route.endpoint, combined_params, body=body)
-        return route.endpoint(**kwargs)
+        result = route.endpoint(**kwargs)
+        status = route.status_code or 200
+        return result, status
 
 
 def _build_keyword_arguments(

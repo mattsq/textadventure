@@ -539,6 +539,88 @@ before creating the branch.
 }
 ```
 
+### `GET /scenes/branches`
+
+Return the list of branch definitions that have been saved through the API.
+Responses are sorted by creation time (most recent first) and surface summary
+metadata for rendering selection menus or project dashboards.
+
+**Response – 200 OK**
+
+```json
+{
+  "data": [
+    {
+      "id": "hidden-door-path",
+      "name": "Hidden Door Path",
+      "created_at": "2024-07-02T09:20:00Z",
+      "base": {
+        "generated_at": "2024-07-01T12:00:00Z",
+        "version_id": "20240701T120000Z-1a2b3c4d",
+        "checksum": "f3a8…"
+      },
+      "target": {
+        "generated_at": "2024-07-02T09:15:00Z",
+        "version_id": "20240702T091500Z-5e6f7a8b",
+        "checksum": "4b91…"
+      },
+      "expected_base_version_id": "20240701T120000Z-1a2b3c4d",
+      "base_version_matches": true,
+      "summary": {
+        "added_scene_ids": ["hidden-door"],
+        "removed_scene_ids": [],
+        "modified_scene_ids": ["alpha"],
+        "unchanged_scene_ids": ["beta"]
+      },
+      "scene_count": 2
+    }
+  ]
+}
+```
+
+### `POST /scenes/branches`
+
+Persist a branch definition so it can be revisited later or imported into a
+story project. The request mirrors `POST /scenes/branches/plan`, but storing the
+definition assigns it a stable identifier and records when it was saved.
+
+**Request body** – Same structure as `POST /scenes/branches/plan`.
+
+**Responses**
+
+- `201 Created`
+
+  ```json
+  {
+    "id": "hidden-door-path",
+    "name": "Hidden Door Path",
+    "created_at": "2024-07-02T09:20:00Z",
+    "base": {
+      "generated_at": "2024-07-01T12:00:00Z",
+      "version_id": "20240701T120000Z-1a2b3c4d",
+      "checksum": "f3a8…"
+    },
+    "target": {
+      "generated_at": "2024-07-02T09:15:00Z",
+      "version_id": "20240702T091500Z-5e6f7a8b",
+      "checksum": "4b91…"
+    },
+    "expected_base_version_id": "20240701T120000Z-1a2b3c4d",
+    "base_version_matches": true,
+    "summary": {
+      "added_scene_ids": ["hidden-door"],
+      "removed_scene_ids": [],
+      "modified_scene_ids": ["alpha"],
+      "unchanged_scene_ids": ["beta"]
+    },
+    "scene_count": 2
+  }
+  ```
+
+- `400 Bad Request` – Payload fails validation (missing branch name, invalid
+  schema version, or scene definitions that cannot be migrated).
+- `409 Conflict` – A branch with the derived identifier already exists.
+
 ### `POST /scenes`
 
 Create a new scene. Requests provide the full scene payload except timestamps,

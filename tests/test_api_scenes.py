@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from textadventure.api.app import (
     CURRENT_SCENE_SCHEMA_VERSION,
     ExportFormat,
     ImportStrategy,
+    SceneBranchStore,
     SceneService,
 )
 
@@ -1301,6 +1303,153 @@ def test_plan_branch_endpoint_reports_version_mismatch() -> None:
     assert payload["base_version_matches"] is False
     assert payload["summary"]["added_scene_ids"] == ["branching-passage"]
     assert payload["summary"]["modified_scene_ids"] == ["alpha"]
+
+
+def test_create_branch_endpoint_persists_definition(tmp_path: Path) -> None:
+    current_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    branch_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha expanded",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+                {"command": "explore", "description": "Explore the area."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait patiently.",
+                    "target": None,
+                },
+                "explore": {
+                    "narration": "You find a branching passage.",
+                    "target": "branching-passage",
+                },
+            },
+        },
+        "branching-passage": {
+            "description": "A new passage opens before you.",
+            "choices": [
+                {"command": "continue", "description": "Head deeper."},
+            ],
+            "transitions": {
+                "continue": {
+                    "narration": "You continue onward.",
+                    "target": None,
+                }
+            },
+        },
+    }
+    current_timestamp = datetime(2024, 7, 10, 14, 30, tzinfo=timezone.utc)
+    branch_timestamp = datetime(2024, 7, 11, 8, 45, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return current_dataset, current_timestamp
+
+    store = SceneBranchStore(root=tmp_path)
+    service = SceneService(repository=_StubRepository(), branch_store=store)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.post(
+        "/api/scenes/branches",
+        json={
+            "branch_name": "New Passage",
+            "scenes": branch_dataset,
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "generated_at": branch_timestamp.isoformat(),
+            "base_version_id": "outdated-version",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+
+    expected_current = _expected_metadata(current_dataset, current_timestamp)
+    expected_branch = _expected_metadata(branch_dataset, branch_timestamp)
+
+    assert payload["id"] == "new-passage"
+    assert payload["name"] == "New Passage"
+    assert payload["scene_count"] == len(branch_dataset)
+    assert payload["base"]["version_id"] == expected_current["version_id"]
+    assert payload["target"]["version_id"] == expected_branch["version_id"]
+    assert payload["expected_base_version_id"] == "outdated-version"
+    assert payload["base_version_matches"] is False
+    assert payload["summary"]["added_scene_ids"] == ["branching-passage"]
+    assert payload["summary"]["modified_scene_ids"] == ["alpha"]
+
+    listed = client.get("/api/scenes/branches")
+    assert listed.status_code == 200
+    listing = listed.json()
+    assert listing["data"][0]["id"] == "new-passage"
+
+    records = store.list()
+    assert len(records) == 1
+    record = records[0]
+    assert record.plan.summary.added_scene_ids == ["branching-passage"]
+    assert (
+        record.scenes["branching-passage"]["description"]
+        == branch_dataset["branching-passage"]["description"]
+    )
+
+
+def test_create_branch_endpoint_rejects_duplicate_identifier(tmp_path: Path) -> None:
+    dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    timestamp = datetime(2024, 7, 10, 14, 30, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return dataset, timestamp
+
+    store = SceneBranchStore(root=tmp_path)
+    service = SceneService(repository=_StubRepository(), branch_store=store)
+    client = TestClient(create_app(scene_service=service))
+
+    payload = {
+        "branch_name": "Duplicate",
+        "scenes": dataset,
+        "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+    }
+
+    first = client.post("/api/scenes/branches", json=payload)
+    assert first.status_code == 201
+
+    second = client.post("/api/scenes/branches", json=payload)
+    assert second.status_code == 409
+
+
+def test_list_branches_endpoint_returns_empty_collection(tmp_path: Path) -> None:
+    store = SceneBranchStore(root=tmp_path)
+    service = SceneService(branch_store=store)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/scenes/branches")
+    assert response.status_code == 200
+    assert response.json() == {"data": []}
 
 
 def test_plan_rollback_endpoint_rejects_empty_payload() -> None:

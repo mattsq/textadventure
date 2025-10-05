@@ -306,7 +306,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Branch management for different storylines
         - [x] Add an API branch planning endpoint that surfaces diffs, version metadata, and merge vs replace strategies with tests.
         - [x] Document the branch planning workflow in the API specification.
-        - [ ] Persist branch definitions and expose listing/creation endpoints.
+        - [x] Persist branch definitions and expose listing/creation endpoints.
+          - [x] Design a storage format and repository for saved branch definitions.
+          - [x] Implement API endpoints to list and create branch definitions backed by the repository.
+          - [x] Add automated tests and documentation updates covering the new branch persistence workflow.
     - [ ] Create project management features:
       - [ ] Multiple adventure projects
       - [ ] Project templates
