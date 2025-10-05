@@ -13,6 +13,8 @@ integration.
   small playable loop.
 - **Guided onboarding** – Enter `tutorial` inside the CLI to walk through the
   core commands, persistence options, and debugging tools at your own pace.
+- **In-CLI editor launcher** – Type `editor` to start or stop the scene editor
+  API server without leaving the adventure loop.
 - **Rich world modelling** – `WorldState` tracks locations, actors, inventory,
   remembered observations, and player actions.
 - **Story engines** – the `StoryEngine` protocol defines how narrative beats
@@ -72,16 +74,19 @@ TASKS.md                   # Planning notes and backlog ideas
    ```bash
    python src/main.py
  ```
-  Run `python src/main.py --help` to discover options for enabling persistence
+ Run `python src/main.py --help` to discover options for enabling persistence
   (`--session-dir`, `--session-id`, `--no-persistence`) and transcript logging
-  (`--log-file`). The CLI can also attach an LLM-backed secondary narrator via
-  `--llm-provider`, forwarding additional key/value pairs to the selected
+  (`--log-file`). Configure the embedded editor command with
+  `--editor-host`/`--editor-port`, or disable it entirely with `--no-editor`
+  when you do not need the API. The CLI can also attach an LLM-backed secondary
+  narrator via `--llm-provider`, forwarding additional key/value pairs to the selected
   provider with repeated `--llm-option` flags (for example,
   `--llm-provider openai --llm-option api_key=...`). Alternatively pass
   `--llm-config path/to/config.json` to load the provider identifier and
   options from a JSON file. Once the adventure starts, type `help` for a
-  summary of system commands or `tutorial` to follow an interactive walkthrough
-  covering choices, status, saving, and quitting. A more detailed walkthrough
+  summary of system commands, `tutorial` for an interactive walkthrough,
+  and `editor` to start or stop the scene editor API without leaving the
+  adventure. A more detailed walkthrough
   covering environment
   setup, optional features, and troubleshooting lives in
   [`docs/getting_started.md`](docs/getting_started.md).

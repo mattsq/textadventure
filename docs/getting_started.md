@@ -47,7 +47,7 @@ Launch the scripted text adventure from the repository root:
 python src/main.py
 ```
 
-The CLI will print the current scene narration, available choices, and a prompt for your next command. Enter `help` to see built-in commands such as `save`, `load`, `status`, and `quit`, or type `tutorial` for an interactive walkthrough of the same features.
+The CLI will print the current scene narration, available choices, and a prompt for your next command. Enter `help` to see built-in commands such as `save`, `load`, `status`, `editor`, and `quit`, or type `tutorial` for an interactive walkthrough of the same features.
 
 ### Enable Persistence and Logging
 
@@ -63,6 +63,18 @@ python src/main.py \
 - `--session-dir` sets the directory where save files are stored (it will be created if it does not exist).
 - `--session-id` controls the save-file prefix so multiple runs can coexist.
 - `--log-file` writes a structured transcript containing narration, player input, and agent metadata.
+
+### Launch the Scene Editor API
+
+Type `editor` inside the CLI to start the FastAPI application that powers the web-based scene editor. The command reports the local URL and supports `editor stop`/`editor status` for lifecycle control. Configure the binding with the following command-line flags when starting the CLI:
+
+```bash
+python src/main.py --editor-host 0.0.0.0 --editor-port 9000
+```
+
+- `--editor-host` selects the network interface exposed by the editor API (defaults to `127.0.0.1`).
+- `--editor-port` chooses the listening port (defaults to `8000`).
+- `--no-editor` disables the `editor` command entirely for environments where launching subprocesses is undesirable.
 
 ### Add an LLM Co-narrator
 
