@@ -16,8 +16,10 @@ from textadventure.api.app import (
     ExportFormat,
     ImportStrategy,
     SceneBranchStore,
+    SceneRepository,
     SceneService,
 )
+from textadventure.api import SceneApiSettings
 
 
 def _client() -> TestClient:
@@ -66,6 +68,11 @@ def _expected_metadata(
         "checksum": checksum,
         "suggested_filename": f"scene-backup-{version_id}.json",
     }
+
+
+def _write_dataset(path: Path, payload: Mapping[str, Any]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle)
 
 
 def test_list_scenes_returns_expected_summary_fields() -> None:
@@ -1606,3 +1613,90 @@ def test_plan_rollback_endpoint_rejects_empty_payload() -> None:
     response = client.post("/api/scenes/rollback", json={"scenes": {}})
 
     assert response.status_code == 400
+
+
+def test_scene_repository_loads_from_configured_path(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    definitions, timestamp = repository.load()
+
+    assert definitions == dataset
+    assert timestamp.tzinfo is not None
+
+
+def test_scene_api_settings_from_env(monkeypatch: Any, tmp_path: Path) -> None:
+    data_path = tmp_path / "dataset.json"
+    branch_root = tmp_path / "branches"
+
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_PACKAGE", "my.package")
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_RESOURCE", "dataset.json")
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_PATH", str(data_path))
+    monkeypatch.setenv("TEXTADVENTURE_BRANCH_ROOT", str(branch_root))
+
+    settings = SceneApiSettings.from_env()
+
+    assert settings.scene_package == "my.package"
+    assert settings.scene_resource_name == "dataset.json"
+    assert settings.scene_path == data_path
+    assert settings.branch_root == branch_root
+
+
+def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_PACKAGE", "   ")
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_RESOURCE", "   ")
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_PATH", "   ")
+    monkeypatch.setenv("TEXTADVENTURE_BRANCH_ROOT", "")
+
+    settings = SceneApiSettings.from_env()
+
+    assert settings.scene_package == "textadventure.data"
+    assert settings.scene_resource_name == "scripted_scenes.json"
+    assert settings.scene_path is None
+    assert settings.branch_root is None
+
+
+def test_create_app_uses_environment_scene_path(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "custom.json"
+    _write_dataset(data_path, dataset)
+
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_PATH", str(data_path))
+
+    client = TestClient(create_app())
+
+    response = client.get("/api/scenes/alpha")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"]["description"] == "Alpha"
+
+
+def test_create_app_uses_environment_branch_root(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "custom.json"
+    branch_root = tmp_path / "branches"
+    _write_dataset(data_path, dataset)
+
+    monkeypatch.setenv("TEXTADVENTURE_SCENE_PATH", str(data_path))
+    monkeypatch.setenv("TEXTADVENTURE_BRANCH_ROOT", str(branch_root))
+
+    client = TestClient(create_app())
+
+    payload = {
+        "branch_name": "New storyline",
+        "scenes": dataset,
+        "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "base_version_id": None,
+    }
+
+    response = client.post("/api/scenes/branches", json=payload)
+    assert response.status_code == 201
+    assert branch_root.exists()
+    assert any(branch_root.glob("*.json"))

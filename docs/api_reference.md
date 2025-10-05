@@ -91,6 +91,11 @@ services.
 - **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`, and
   supporting models normalise the API payloads consumed by prospective web tools or
   external services.
+- **Deployment settings (`textadventure.api.settings.SceneApiSettings`)** – Reads
+  environment variables such as `TEXTADVENTURE_SCENE_PATH`,
+  `TEXTADVENTURE_SCENE_PACKAGE`, `TEXTADVENTURE_SCENE_RESOURCE`, and
+  `TEXTADVENTURE_BRANCH_ROOT` so the API can target custom scene datasets and
+  branch storage directories without code changes.
 
 Use this reference alongside the architecture overview to dive deeper into specific
 modules when extending the engine or integrating new agent capabilities.

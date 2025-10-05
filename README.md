@@ -178,6 +178,27 @@ Looking for a quick catalogue of everything the framework currently supports?
 See the [feature reference](docs/feature_reference.md) for an overview of the
 CLI, persistence, analytics, search tooling, and more.
 
+## HTTP API Configuration
+
+The FastAPI surface exposed by ``textadventure.api`` reads a handful of
+environment variables so deployments can point at custom data sources without
+code changes. Set these before launching Uvicorn (or the Docker image) to adjust
+where scene data and branch definitions are loaded from:
+
+- ``TEXTADVENTURE_SCENE_PATH`` – Optional filesystem path to a JSON file
+  containing scenes. When supplied it overrides the bundled package resource.
+- ``TEXTADVENTURE_SCENE_PACKAGE`` – Import path of the package that contains the
+  bundled scene resource. Defaults to ``textadventure.data`` when
+  ``TEXTADVENTURE_SCENE_PATH`` is unset.
+- ``TEXTADVENTURE_SCENE_RESOURCE`` – Name of the JSON resource inside
+  ``TEXTADVENTURE_SCENE_PACKAGE``. Defaults to ``scripted_scenes.json``.
+- ``TEXTADVENTURE_BRANCH_ROOT`` – Directory where saved branch definitions and
+  plans are stored. Defaults to ``./scene_branches`` relative to the current
+  working directory.
+
+All values accept ``~`` prefixes, making it easy to redirect the service towards
+shared datasets or persistent storage locations.
+
 ## Troubleshooting
 
 Encountering issues with the CLI, persistence, or LLM integrations? Consult the
