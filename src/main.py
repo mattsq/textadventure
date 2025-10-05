@@ -9,7 +9,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence, TextIO, cast
+from typing import Mapping, Sequence, TextIO, cast
 
 from textadventure import (
     FileSessionStore,
@@ -45,10 +45,19 @@ def _format_host_for_url(host: str) -> str:
 class EditorLauncher:
     """Manage a background ``uvicorn`` process hosting the editor API."""
 
-    def __init__(self, *, host: str = "127.0.0.1", port: int = 8000) -> None:
+    def __init__(
+        self,
+        *,
+        host: str = "127.0.0.1",
+        port: int = 8000,
+        reload: bool = False,
+        env: Mapping[str, str] | None = None,
+    ) -> None:
         self.host = host
         self.port = port
+        self.reload = reload
         self._process: subprocess.Popen[bytes] | None = None
+        self._env_overrides = dict(env) if env is not None else None
 
     def base_url(self) -> str:
         """Return the HTTP URL for the hosted editor."""
@@ -86,8 +95,15 @@ class EditorLauncher:
             str(self.port),
         ]
 
+        if self.reload:
+            command.append("--reload")
+
+        env = os.environ.copy()
+        if self._env_overrides is not None:
+            env.update(self._env_overrides)
+
         try:
-            process = subprocess.Popen(command)
+            process = subprocess.Popen(command, env=env)
         except OSError as exc:  # pragma: no cover - exercising OS failures is hard
             raise EditorLaunchError(f"Failed to launch editor: {exc}") from exc
 
@@ -772,6 +788,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Port where the optional editor API server should listen.",
     )
     parser.add_argument(
+        "--editor-reload",
+        action="store_true",
+        help="Run the embedded editor API server with auto-reload enabled.",
+    )
+    parser.add_argument(
         "--no-editor",
         action="store_true",
         help="Disable the embedded editor command for this session.",
@@ -915,7 +936,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.no_editor:
         launcher: EditorLauncher | None = None
     else:
-        launcher = EditorLauncher(host=args.editor_host, port=args.editor_port)
+        editor_env: dict[str, str] | None = None
+        if scene_path is not None:
+            editor_env = {
+                "TEXTADVENTURE_SCENE_PATH": str(scene_path.resolve()),
+            }
+        launcher = EditorLauncher(
+            host=args.editor_host,
+            port=args.editor_port,
+            reload=args.editor_reload,
+            env=editor_env,
+        )
 
     transcript_logger: TranscriptLogger | None = None
     log_handle: TextIO | None = None

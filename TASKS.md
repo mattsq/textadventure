@@ -373,7 +373,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Implement a lightweight watcher that detects changes to the external scene file and reloads the scripted story engine in-place.
         - [x] Document the workflow and add automated coverage for the reload behaviour.
       - [x] CLI command to launch editor *(Added in-CLI `editor` command with lifecycle controls, host/port configuration flags, and documentation.)*
-      - [ ] Development mode integration
+      - [x] Development mode integration
+        - [x] Propagate the CLI scene path to the embedded editor server so both share live datasets during authoring.
+        - [x] Support an `--editor-reload` flag to launch the embedded server with uvicorn auto-reload for iterative testing.
     - [ ] Create deployment pipeline:
       - [x] Docker containerization *(Added a Dockerfile and README instructions for running the API via Uvicorn in a container.)*
       - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
