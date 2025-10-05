@@ -1630,11 +1630,14 @@ def test_scene_repository_loads_from_configured_path(tmp_path: Path) -> None:
 def test_scene_api_settings_from_env(monkeypatch: Any, tmp_path: Path) -> None:
     data_path = tmp_path / "dataset.json"
     branch_root = tmp_path / "branches"
+    template_root = tmp_path / "templates"
 
     monkeypatch.setenv("TEXTADVENTURE_SCENE_PACKAGE", "my.package")
     monkeypatch.setenv("TEXTADVENTURE_SCENE_RESOURCE", "dataset.json")
     monkeypatch.setenv("TEXTADVENTURE_SCENE_PATH", str(data_path))
     monkeypatch.setenv("TEXTADVENTURE_BRANCH_ROOT", str(branch_root))
+    monkeypatch.setenv("TEXTADVENTURE_PROJECT_ROOT", str(tmp_path / "projects"))
+    monkeypatch.setenv("TEXTADVENTURE_PROJECT_TEMPLATE_ROOT", str(template_root))
 
     settings = SceneApiSettings.from_env()
 
@@ -1642,6 +1645,8 @@ def test_scene_api_settings_from_env(monkeypatch: Any, tmp_path: Path) -> None:
     assert settings.scene_resource_name == "dataset.json"
     assert settings.scene_path == data_path
     assert settings.branch_root == branch_root
+    assert settings.project_root == tmp_path / "projects"
+    assert settings.project_template_root == template_root
 
 
 def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
@@ -1649,6 +1654,8 @@ def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
     monkeypatch.setenv("TEXTADVENTURE_SCENE_RESOURCE", "   ")
     monkeypatch.setenv("TEXTADVENTURE_SCENE_PATH", "   ")
     monkeypatch.setenv("TEXTADVENTURE_BRANCH_ROOT", "")
+    monkeypatch.setenv("TEXTADVENTURE_PROJECT_ROOT", "   ")
+    monkeypatch.setenv("TEXTADVENTURE_PROJECT_TEMPLATE_ROOT", "")
 
     settings = SceneApiSettings.from_env()
 
@@ -1656,6 +1663,8 @@ def test_scene_api_settings_ignore_blank_values(monkeypatch: Any) -> None:
     assert settings.scene_resource_name == "scripted_scenes.json"
     assert settings.scene_path is None
     assert settings.branch_root is None
+    assert settings.project_root is None
+    assert settings.project_template_root is None
 
 
 def test_create_app_uses_environment_scene_path(

@@ -191,3 +191,209 @@ def test_projects_endpoints_return_404_when_disabled() -> None:
 
     detail_response = client.get("/api/projects/unknown")
     assert detail_response.status_code == 404
+
+
+def test_list_project_templates_returns_registered_metadata(tmp_path: Path) -> None:
+    timestamp = datetime(2024, 2, 1, tzinfo=timezone.utc)
+
+    starter_scenes: dict[str, Any] = {
+        "start": {
+            "description": "Template opening",
+            "choices": [
+                {"command": "begin", "description": "Begin your quest."},
+            ],
+            "transitions": {
+                "begin": {
+                    "narration": "The journey begins.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    mystery_scenes: dict[str, Any] = {
+        "foyer": {
+            "description": "A dimly lit foyer.",
+            "choices": [
+                {"command": "inspect", "description": "Inspect the surroundings."},
+            ],
+            "transitions": {
+                "inspect": {
+                    "narration": "You discover a hidden clue.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    template_root = tmp_path / "templates"
+    project_root = tmp_path / "projects"
+
+    _write_project(
+        template_root,
+        "starter",
+        starter_scenes,
+        metadata={"name": "Starter Kit", "description": "Kick-off adventure."},
+        timestamp=timestamp,
+    )
+    _write_project(
+        template_root,
+        "mystery",
+        mystery_scenes,
+        metadata={"name": "Mystery", "scene_path": "mystery.json"},
+        scene_filename="mystery.json",
+        timestamp=timestamp,
+    )
+
+    starter_checksum, _ = _checksum_and_version(starter_scenes, timestamp)
+    mystery_checksum, _ = _checksum_and_version(mystery_scenes, timestamp)
+
+    settings = SceneApiSettings(
+        project_root=project_root, project_template_root=template_root
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/project-templates")
+    assert response.status_code == 200
+
+    payload = response.json()
+    templates = {entry["id"]: entry for entry in payload["data"]}
+
+    assert set(templates) == {"mystery", "starter"}
+
+    starter = templates["starter"]
+    assert starter["name"] == "Starter Kit"
+    assert starter["description"] == "Kick-off adventure."
+    assert starter["scene_count"] == len(starter_scenes)
+    assert starter["checksum"] == starter_checksum
+
+    mystery = templates["mystery"]
+    assert mystery["name"] == "Mystery"
+    assert mystery.get("description") is None
+    assert mystery["scene_count"] == len(mystery_scenes)
+    assert mystery["checksum"] == mystery_checksum
+
+
+def test_instantiate_project_template_creates_project_directory(tmp_path: Path) -> None:
+    timestamp = datetime(2024, 5, 1, tzinfo=timezone.utc)
+
+    scenes: dict[str, Any] = {
+        "intro": {
+            "description": "Template intro",
+            "choices": [
+                {"command": "venture", "description": "Venture forth."},
+            ],
+            "transitions": {
+                "venture": {
+                    "narration": "You step into the unknown.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    template_root = tmp_path / "templates"
+    project_root = tmp_path / "projects"
+
+    _write_project(
+        template_root,
+        "starter",
+        scenes,
+        metadata={"name": "Starter", "scene_path": "template.json"},
+        scene_filename="template.json",
+        timestamp=timestamp,
+    )
+
+    checksum, _ = _checksum_and_version(scenes, timestamp)
+
+    settings = SceneApiSettings(
+        project_root=project_root, project_template_root=template_root
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.post(
+        "/api/project-templates/starter/instantiate",
+        json={
+            "project_id": "custom-project",
+            "name": "Custom Project",
+            "description": "Fresh storyline.",
+        },
+    )
+
+    assert response.status_code == 201
+
+    payload = response.json()
+    assert payload["data"]["id"] == "custom-project"
+    assert payload["data"]["name"] == "Custom Project"
+    assert payload["data"]["description"] == "Fresh storyline."
+    assert payload["data"]["checksum"] == checksum
+    assert payload["scenes"] == scenes
+
+    created_dataset = project_root / "custom-project" / "template.json"
+    metadata_path = project_root / "custom-project" / "project.json"
+
+    with created_dataset.open("r", encoding="utf-8") as handle:
+        stored_scenes = json.load(handle)
+
+    with metadata_path.open("r", encoding="utf-8") as handle:
+        metadata = json.load(handle)
+
+    assert stored_scenes == scenes
+    assert metadata["name"] == "Custom Project"
+    assert metadata["description"] == "Fresh storyline."
+    assert metadata["scene_path"] == "template.json"
+
+    project_response = client.get("/api/projects/custom-project")
+    assert project_response.status_code == 200
+    assert project_response.json()["scenes"] == scenes
+
+
+def test_project_template_endpoints_return_404_when_disabled(tmp_path: Path) -> None:
+    settings = SceneApiSettings(project_root=tmp_path / "projects")
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/project-templates")
+    assert response.status_code == 404
+
+    instantiate_response = client.post(
+        "/api/project-templates/starter/instantiate",
+        json={"project_id": "example"},
+    )
+    assert instantiate_response.status_code == 404
+
+
+def test_instantiate_project_template_rejects_invalid_identifier(
+    tmp_path: Path,
+) -> None:
+    scenes: dict[str, Any] = {
+        "intro": {
+            "description": "Intro",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    template_root = tmp_path / "templates"
+    project_root = tmp_path / "projects"
+
+    _write_project(
+        template_root,
+        "starter",
+        scenes,
+        metadata={"name": "Starter"},
+    )
+
+    settings = SceneApiSettings(
+        project_root=project_root, project_template_root=template_root
+    )
+    client = TestClient(create_app(settings=settings))
+
+    response = client.post(
+        "/api/project-templates/starter/instantiate",
+        json={"project_id": "Invalid Identifier"},
+    )
+
+    assert response.status_code == 400
+    assert "Project identifier" in response.json()["detail"]

@@ -619,6 +619,62 @@ class AdventureProjectListResponse(BaseModel):
     )
 
 
+class AdventureProjectTemplateResource(BaseModel):
+    """Metadata describing an adventure project template."""
+
+    id: str = Field(..., description="Stable identifier for the template.")
+    name: str = Field(..., description="Display name for the template.")
+    description: str | None = Field(
+        None, description="Optional summary of the template adventure."
+    )
+    scene_count: int = Field(
+        ..., ge=0, description="Number of scene definitions contained in the template."
+    )
+    created_at: datetime = Field(
+        ..., description="Timestamp when the template metadata was last updated."
+    )
+    updated_at: datetime = Field(
+        ..., description="Timestamp when the template dataset was last updated."
+    )
+    version_id: str = Field(
+        ...,
+        description="Version identifier derived from the template timestamp and checksum.",
+    )
+    checksum: str = Field(
+        ..., description="SHA-256 checksum of the serialised template scene dataset."
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("updated_at")
+    def _serialise_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class AdventureProjectTemplateListResponse(BaseModel):
+    """Response envelope describing available project templates."""
+
+    data: list[AdventureProjectTemplateResource] = Field(
+        default_factory=list,
+        description="Collection of registered project templates ordered by identifier.",
+    )
+
+
+class ProjectTemplateInstantiateRequest(BaseModel):
+    """Request payload for instantiating a project template."""
+
+    project_id: str = Field(..., description="Identifier to assign to the new project.")
+    name: str | None = Field(
+        None,
+        description="Optional display name to persist for the newly created project.",
+    )
+    description: str | None = Field(
+        None, description="Optional summary describing the newly created project."
+    )
+
+
 class AdventureProjectDetailResponse(BaseModel):
     """Full project payload including the bundled scene dataset."""
 
@@ -826,6 +882,77 @@ class SceneProjectStore:
 
         return self._record_from_directory(directory, identifier_override=identifier)
 
+    def create(
+        self,
+        *,
+        identifier: str,
+        scenes: Mapping[str, Any],
+        name: str | None = None,
+        description: str | None = None,
+        scene_filename: str | None = None,
+    ) -> AdventureProjectRecord:
+        """Create a new project directory populated with ``scenes``."""
+
+        normalised_id = _normalise_project_identifier(identifier)
+        dataset_name = (
+            _validate_scene_filename(scene_filename)
+            if scene_filename is not None
+            else self._DEFAULT_DATASET_NAME
+        )
+
+        metadata_payload: dict[str, Any] = {}
+
+        if name is not None:
+            if not isinstance(name, str):
+                raise ValueError("Project name must be provided as a string.")
+            trimmed_name = name.strip()
+            if not trimmed_name:
+                raise ValueError(
+                    "Project name must be a non-empty string when provided."
+                )
+            metadata_payload["name"] = trimmed_name
+
+        if description is not None:
+            if not isinstance(description, str):
+                raise ValueError("Project description must be provided as a string.")
+            metadata_payload["description"] = description
+
+        if dataset_name != self._DEFAULT_DATASET_NAME:
+            metadata_payload["scene_path"] = dataset_name
+
+        serialisable = _ensure_serialisable_scene_mapping(scenes)
+
+        directory = self._root / normalised_id
+        try:
+            directory.mkdir(parents=True, exist_ok=False)
+        except FileExistsError as exc:
+            raise FileExistsError(f"Project '{normalised_id}' already exists.") from exc
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to create project directory '{directory}'."
+            ) from exc
+
+        dataset_path = directory / dataset_name
+        try:
+            with dataset_path.open("w", encoding="utf-8") as handle:
+                json.dump(serialisable, handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to write scene dataset for project '{normalised_id}'."
+            ) from exc
+
+        if metadata_payload:
+            metadata_path = directory / self._METADATA_FILENAME
+            try:
+                with metadata_path.open("w", encoding="utf-8") as handle:
+                    json.dump(metadata_payload, handle, ensure_ascii=False, indent=2)
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Failed to write project metadata for '{normalised_id}'."
+                ) from exc
+
+        return self._record_from_directory(directory, identifier_override=normalised_id)
+
     def _record_from_directory(
         self, directory: Path, *, identifier_override: str | None = None
     ) -> AdventureProjectRecord:
@@ -918,6 +1045,72 @@ class ProjectService:
         record = self._store.load(identifier)
         resource, scenes = _build_project_detail(record)
         return AdventureProjectDetailResponse(data=resource, scenes=scenes)
+
+    def create_project(
+        self,
+        *,
+        identifier: str,
+        scenes: Mapping[str, Any],
+        name: str | None = None,
+        description: str | None = None,
+        scene_filename: str | None = None,
+    ) -> AdventureProjectDetailResponse:
+        record = self._store.create(
+            identifier=identifier,
+            scenes=scenes,
+            name=name,
+            description=description,
+            scene_filename=scene_filename,
+        )
+        resource, created_scenes = _build_project_detail(record)
+        return AdventureProjectDetailResponse(data=resource, scenes=created_scenes)
+
+
+class ProjectTemplateService:
+    """Service exposing project template listing and instantiation helpers."""
+
+    def __init__(
+        self,
+        *,
+        template_store: SceneProjectStore,
+        project_service: ProjectService,
+    ) -> None:
+        self._template_store = template_store
+        self._project_service = project_service
+
+    def list_templates(self) -> AdventureProjectTemplateListResponse:
+        records = self._template_store.list()
+        resources = [
+            AdventureProjectTemplateResource(
+                **_build_project_resource(record).model_dump()
+            )
+            for record in records
+        ]
+        return AdventureProjectTemplateListResponse(data=resources)
+
+    def instantiate_template(
+        self,
+        template_id: str,
+        *,
+        project_id: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> AdventureProjectDetailResponse:
+        record = self._template_store.load(template_id)
+        scenes, _, _ = _load_project_dataset(record)
+
+        resolved_name = name if name is not None else record.name
+        resolved_description = (
+            description if description is not None else record.description
+        )
+
+        return self._project_service.create_project(
+            identifier=project_id,
+            scenes=scenes,
+            name=resolved_name,
+            description=resolved_description,
+            scene_filename=record.scene_path.name,
+        )
 
 
 def _build_branch_resource(record: SceneBranchRecord) -> SceneBranchResource:
@@ -1012,6 +1205,56 @@ def _load_project_dataset(
     checksum = _compute_scene_checksum(serialisable)
     version_id = _format_version_id(record.updated_at, checksum)
     return serialisable, checksum, version_id
+
+
+_PROJECT_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+def _normalise_project_identifier(identifier: str) -> str:
+    if not isinstance(identifier, str):
+        raise ValueError("Project identifier must be provided as a string.")
+
+    slug = identifier.strip().casefold()
+    if not slug:
+        raise ValueError("Project identifier must be a non-empty string.")
+
+    if not _PROJECT_IDENTIFIER_PATTERN.fullmatch(slug):
+        raise ValueError(
+            "Project identifier must only contain lowercase letters, numbers, hyphens, and underscores."
+        )
+
+    return slug
+
+
+def _validate_scene_filename(filename: str | None) -> str:
+    if filename is None:
+        raise ValueError("Scene filename must be provided.")
+
+    candidate = filename.strip()
+    if not candidate:
+        raise ValueError("Scene filename must be a non-empty string.")
+
+    if Path(candidate).name != candidate:
+        raise ValueError("Scene filename must not include directory components.")
+
+    return candidate
+
+
+def _ensure_serialisable_scene_mapping(scenes: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(scenes, Mapping):
+        raise ValueError("Project scenes must be provided as a mapping.")
+
+    load_scenes_from_mapping(scenes)
+
+    try:
+        serialisable_any = json.loads(json.dumps(scenes, ensure_ascii=False))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Project scenes could not be serialised to JSON.") from exc
+
+    if not isinstance(serialisable_any, dict):
+        raise ValueError("Project scenes must be serialisable as a JSON object.")
+
+    return cast(dict[str, Any], serialisable_any)
 
 
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
@@ -2059,6 +2302,7 @@ def create_app(
     scene_service: SceneService | None = None,
     *,
     project_service: ProjectService | None = None,
+    project_template_service: ProjectTemplateService | None = None,
     settings: SceneApiSettings | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -2075,10 +2319,25 @@ def create_app(
         branch_store = SceneBranchStore(root=resolved_settings.branch_root)
         service = SceneService(repository=repository, branch_store=branch_store)
 
-    project = project_service
-    if project is None and resolved_settings.project_root is not None:
+    project_store: SceneProjectStore | None = None
+    if resolved_settings.project_root is not None:
         project_store = SceneProjectStore(root=resolved_settings.project_root)
+
+    project = project_service
+    if project is None and project_store is not None:
         project = ProjectService(store=project_store)
+
+    template_service = project_template_service
+    if (
+        template_service is None
+        and project is not None
+        and resolved_settings.project_template_root is not None
+    ):
+        template_store = SceneProjectStore(root=resolved_settings.project_template_root)
+        template_service = ProjectTemplateService(
+            template_store=template_store,
+            project_service=project,
+        )
 
     app = FastAPI(title="Text Adventure Scene API", version="0.1.0")
 
@@ -2366,6 +2625,48 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/project-templates",
+        response_model=AdventureProjectTemplateListResponse,
+    )
+    def list_project_templates() -> AdventureProjectTemplateListResponse:
+        if template_service is None:
+            raise HTTPException(404, "Project template endpoints are not enabled.")
+
+        try:
+            return template_service.list_templates()
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/project-templates/{template_id}/instantiate",
+        response_model=AdventureProjectDetailResponse,
+        status_code=201,
+    )
+    def instantiate_project_template(
+        template_id: str, payload: ProjectTemplateInstantiateRequest
+    ) -> AdventureProjectDetailResponse:
+        if template_service is None:
+            raise HTTPException(404, "Project template endpoints are not enabled.")
+
+        try:
+            return template_service.instantiate_template(
+                template_id,
+                project_id=payload.project_id,
+                name=payload.name,
+                description=payload.description,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except FileExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

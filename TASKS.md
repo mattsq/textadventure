@@ -316,11 +316,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Create project management features:
     - [ ] Multiple adventure projects
       - [x] Add a filesystem-backed project registry for discovering available adventure datasets.
-      - [x] Expose API endpoints for listing and retrieving registered projects.
-      - [x] Document the project workflow and cover it with automated tests.
-      - [ ] Project templates
-      - [ ] Asset organization
-      - [ ] Collaborative permissions
+    - [x] Expose API endpoints for listing and retrieving registered projects.
+    - [x] Document the project workflow and cover it with automated tests.
+    - [x] Project templates *(Added template catalogue/listing endpoints plus an instantiation workflow that materialises new projects from reusable datasets, with documentation and regression tests.)*
+    - [ ] Asset organization
+    - [ ] Collaborative permissions
 
   - [ ] **Phase 8: Quality of Life & Polish**
     - [ ] Implement comprehensive search:
