@@ -101,7 +101,18 @@ def test_list_projects_returns_registered_metadata(tmp_path: Path) -> None:
         tmp_path,
         "alpha",
         alpha_scenes,
-        metadata={"name": "Alpha Project", "description": "First project."},
+        metadata={
+            "name": "Alpha Project",
+            "description": "First project.",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {
+                    "user_id": "editor@example.com",
+                    "role": "editor",
+                    "display_name": "Lead Editor",
+                },
+            ],
+        },
         timestamp=timestamp,
     )
     _write_project(
@@ -130,6 +141,7 @@ def test_list_projects_returns_registered_metadata(tmp_path: Path) -> None:
     assert alpha["name"] == "Alpha Project"
     assert alpha["description"] == "First project."
     assert alpha["scene_count"] == len(alpha_scenes)
+    assert alpha["collaborator_count"] == 2
     assert alpha["checksum"] == checksum_alpha
     assert alpha["version_id"] == version_alpha
     assert datetime.fromisoformat(alpha["updated_at"]) == timestamp
@@ -139,6 +151,7 @@ def test_list_projects_returns_registered_metadata(tmp_path: Path) -> None:
     assert beta["name"] == "Beta Project"
     assert beta.get("description") is None
     assert beta["scene_count"] == len(beta_scenes)
+    assert beta["collaborator_count"] == 0
     assert beta["checksum"] == checksum_beta
     assert beta["version_id"] == version_beta
 
@@ -180,6 +193,7 @@ def test_get_project_returns_scene_payload(tmp_path: Path) -> None:
     assert payload["data"]["id"] == "hub"
     assert payload["data"]["checksum"] == checksum
     assert payload["data"]["version_id"] == version_id
+    assert payload["data"]["collaborator_count"] == 0
     assert payload["scenes"] == scenes
 
 
@@ -260,6 +274,152 @@ def test_list_project_assets_returns_files_and_directories(tmp_path: Path) -> No
     assert logo_entry["size"] == len(logo_bytes)
     assert logo_entry["content_type"] == "image/png"
     assert logo_entry["updated_at"] == logo_timestamp.isoformat()
+
+
+def test_list_project_collaborators_returns_metadata(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "proceed", "description": "Proceed"},
+            ],
+            "transitions": {"proceed": {"narration": "Go", "target": None}},
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "collab",
+        scenes,
+        metadata={
+            "name": "Collaboration",
+            "collaborators": [
+                {
+                    "user_id": "owner@example.com",
+                    "role": "owner",
+                    "display_name": "Project Owner",
+                },
+                {"user_id": "viewer@example.com", "role": "viewer"},
+            ],
+        },
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/projects/collab/collaborators")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["project_id"] == "collab"
+    assert payload["collaborators"] == [
+        {
+            "user_id": "owner@example.com",
+            "role": "owner",
+            "display_name": "Project Owner",
+        },
+        {
+            "user_id": "viewer@example.com",
+            "role": "viewer",
+            "display_name": None,
+        },
+    ]
+
+
+def test_replace_project_collaborators_updates_metadata(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "begin", "description": "Begin"},
+            ],
+            "transitions": {"begin": {"narration": "Begin", "target": None}},
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "editable",
+        scenes,
+        metadata={"name": "Editable"},
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.put(
+        "/api/projects/editable/collaborators",
+        json={
+            "collaborators": [
+                {
+                    "user_id": "owner@example.com",
+                    "role": "owner",
+                    "display_name": "Owner",
+                },
+                {"user_id": "editor@example.com", "role": "editor"},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["project_id"] == "editable"
+    assert payload["collaborators"][0]["user_id"] == "owner@example.com"
+    assert payload["collaborators"][1]["user_id"] == "editor@example.com"
+
+    metadata_path = tmp_path / "editable" / "project.json"
+    with metadata_path.open("r", encoding="utf-8") as handle:
+        stored_metadata = json.load(handle)
+
+    assert stored_metadata["collaborators"] == [
+        {
+            "user_id": "owner@example.com",
+            "role": "owner",
+            "display_name": "Owner",
+        },
+        {"user_id": "editor@example.com", "role": "editor"},
+    ]
+
+    project_response = client.get("/api/projects/editable")
+    assert project_response.status_code == 200
+    assert project_response.json()["data"]["collaborator_count"] == 2
+
+
+def test_replace_project_collaborators_requires_owner(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "solo",
+        scenes,
+        metadata={"name": "Solo"},
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.put(
+        "/api/projects/solo/collaborators",
+        json={"collaborators": [{"user_id": "viewer@example.com", "role": "viewer"}]},
+    )
+
+    assert response.status_code == 400
+    assert "owner" in response.json()["detail"]
+
+    metadata_path = tmp_path / "solo" / "project.json"
+    if metadata_path.exists():
+        with metadata_path.open("r", encoding="utf-8") as handle:
+            metadata = json.load(handle)
+        assert "collaborators" not in metadata
 
 
 def test_projects_endpoints_return_404_when_disabled() -> None:

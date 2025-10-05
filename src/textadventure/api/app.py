@@ -20,7 +20,13 @@ from functools import partial
 
 from starlette.background import BackgroundTask
 from starlette.responses import JSONResponse
-from pydantic import BaseModel, Field, ValidationError, field_serializer
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    field_serializer,
+    field_validator,
+)
 
 from ..analytics import (
     AdventureQualityReport,
@@ -47,6 +53,14 @@ class ExportFormat(str, Enum):
 
     MINIFIED = "minified"
     PRETTY = "pretty"
+
+
+class CollaboratorRole(str, Enum):
+    """Enumerated permission levels for project collaborators."""
+
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
 
 
 class FormattedJSONResponse(JSONResponse):
@@ -655,6 +669,9 @@ class AdventureProjectResource(BaseModel):
     scene_count: int = Field(
         ..., ge=0, description="Number of scene definitions contained in the project."
     )
+    collaborator_count: int = Field(
+        ..., ge=0, description="Number of collaborators with access to the project."
+    )
     created_at: datetime = Field(
         ..., description="Timestamp when the project metadata was last updated."
     )
@@ -809,6 +826,56 @@ class ProjectAssetListResponse(BaseModel):
         return value.isoformat()
 
 
+class ProjectCollaboratorResource(BaseModel):
+    """Representation of a collaborator's access level for a project."""
+
+    user_id: str = Field(
+        ..., description="Unique identifier for the collaborator (e.g. email)."
+    )
+    role: CollaboratorRole = Field(
+        ..., description="Permission level granted to the collaborator."
+    )
+    display_name: str | None = Field(
+        None,
+        description="Optional human readable label for the collaborator.",
+    )
+
+    @field_validator("user_id")
+    @classmethod
+    def _validate_user_id(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Collaborator user_id must not be empty.")
+        return trimmed
+
+    @field_validator("display_name")
+    @classmethod
+    def _normalise_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
+
+class ProjectCollaboratorListResponse(BaseModel):
+    """Response payload enumerating collaborators for a project."""
+
+    project_id: str = Field(..., description="Identifier for the requested project.")
+    collaborators: list[ProjectCollaboratorResource] = Field(
+        default_factory=list,
+        description="Ordered list of collaborators with access to the project.",
+    )
+
+
+class ProjectCollaboratorUpdateRequest(BaseModel):
+    """Request body for replacing a project's collaborator roster."""
+
+    collaborators: list[ProjectCollaboratorResource] = Field(
+        default_factory=list,
+        description="Complete collaborator list to persist for the project.",
+    )
+
+
 @dataclass(frozen=True)
 class SceneBranchRecord:
     """Representation of a branch definition stored on disk."""
@@ -958,6 +1025,15 @@ class SceneBranchStore:
 
 
 @dataclass(frozen=True)
+class ProjectCollaboratorRecord:
+    """Internal representation of a collaborator entry stored on disk."""
+
+    user_id: str
+    role: CollaboratorRole
+    display_name: str | None
+
+
+@dataclass(frozen=True)
 class AdventureProjectRecord:
     """Representation of a project definition stored on disk."""
 
@@ -967,6 +1043,8 @@ class AdventureProjectRecord:
     scene_path: Path
     created_at: datetime
     updated_at: datetime
+    metadata_path: Path
+    collaborators: tuple[ProjectCollaboratorRecord, ...]
 
 
 class SceneProjectStore:
@@ -1012,6 +1090,7 @@ class SceneProjectStore:
         name: str | None = None,
         description: str | None = None,
         scene_filename: str | None = None,
+        collaborators: Sequence[ProjectCollaboratorRecord] | None = None,
     ) -> AdventureProjectRecord:
         """Create a new project directory populated with ``scenes``."""
 
@@ -1023,6 +1102,11 @@ class SceneProjectStore:
         )
 
         metadata_payload: dict[str, Any] = {}
+        collaborator_records: tuple[ProjectCollaboratorRecord, ...] = (
+            _ensure_unique_collaborators(collaborators, normalised_id)
+            if collaborators is not None
+            else ()
+        )
 
         if name is not None:
             if not isinstance(name, str):
@@ -1041,6 +1125,11 @@ class SceneProjectStore:
 
         if dataset_name != self._DEFAULT_DATASET_NAME:
             metadata_payload["scene_path"] = dataset_name
+
+        if collaborator_records:
+            metadata_payload["collaborators"] = _serialise_collaborators(
+                collaborator_records
+            )
 
         serialisable = _ensure_serialisable_scene_mapping(scenes)
 
@@ -1065,13 +1154,11 @@ class SceneProjectStore:
 
         if metadata_payload:
             metadata_path = directory / self._METADATA_FILENAME
-            try:
-                with metadata_path.open("w", encoding="utf-8") as handle:
-                    json.dump(metadata_payload, handle, ensure_ascii=False, indent=2)
-            except OSError as exc:
-                raise RuntimeError(
-                    f"Failed to write project metadata for '{normalised_id}'."
-                ) from exc
+            self._write_metadata_payload(
+                metadata_path,
+                metadata_payload,
+                project_id=normalised_id,
+            )
 
         assets_directory = directory / "assets"
         try:
@@ -1087,25 +1174,7 @@ class SceneProjectStore:
         self, directory: Path, *, identifier_override: str | None = None
     ) -> AdventureProjectRecord:
         metadata_path = directory / self._METADATA_FILENAME
-        metadata: Mapping[str, Any]
-
-        if metadata_path.exists():
-            try:
-                loaded = _load_json(metadata_path)
-            except (OSError, ValueError) as exc:
-                raise ValueError(
-                    f"Failed to load project metadata from '{metadata_path}'."
-                ) from exc
-
-            if not isinstance(loaded, Mapping):
-                raise ValueError(
-                    f"Project metadata in '{metadata_path}' must be a mapping."
-                )
-
-            metadata = loaded
-        else:
-            metadata = {}
-
+        metadata = self._load_metadata_payload(metadata_path)
         identifier = identifier_override or directory.name
         name_raw = metadata.get("name")
         description_raw = metadata.get("description")
@@ -1140,6 +1209,10 @@ class SceneProjectStore:
                 f"Project '{identifier}' is missing scene dataset '{scene_name_raw}'."
             )
 
+        collaborators = _parse_collaborators(
+            metadata.get("collaborators"), project_id=identifier
+        )
+
         dataset_timestamp = _timestamp_for(scene_path)
         metadata_timestamp = (
             _timestamp_for(metadata_path)
@@ -1156,7 +1229,86 @@ class SceneProjectStore:
             scene_path=scene_path,
             created_at=created_at,
             updated_at=dataset_timestamp,
+            metadata_path=metadata_path,
+            collaborators=collaborators,
         )
+
+    def replace_collaborators(
+        self,
+        identifier: str,
+        collaborators: Sequence[ProjectCollaboratorRecord],
+    ) -> AdventureProjectRecord:
+        if not isinstance(identifier, str):
+            raise ValueError("Project identifier must be provided as a string.")
+
+        trimmed_identifier = identifier.strip()
+        if not trimmed_identifier:
+            raise ValueError("Project identifier must be a non-empty string.")
+
+        record = self.load(trimmed_identifier)
+        validated = _ensure_unique_collaborators(collaborators, record.identifier)
+
+        metadata = self._load_metadata_payload(record.metadata_path)
+        payload: dict[str, Any] = dict(metadata)
+        payload["name"] = record.name
+
+        if record.description is not None:
+            payload["description"] = record.description
+        else:
+            payload.pop("description", None)
+
+        payload["scene_path"] = record.scene_path.name
+
+        if validated:
+            payload["collaborators"] = _serialise_collaborators(validated)
+        else:
+            payload.pop("collaborators", None)
+
+        self._write_metadata_payload(
+            record.metadata_path,
+            payload,
+            project_id=record.identifier,
+        )
+
+        return self._record_from_directory(
+            record.scene_path.parent, identifier_override=record.identifier
+        )
+
+    def _load_metadata_payload(self, path: Path) -> dict[str, Any]:
+        if not path.exists():
+            return {}
+
+        try:
+            payload = _load_json(path)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Failed to load project metadata from '{path}'.") from exc
+
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"Project metadata in '{path}' must be a mapping.")
+
+        return dict(payload)
+
+    def _write_metadata_payload(
+        self,
+        path: Path,
+        payload: Mapping[str, Any],
+        *,
+        project_id: str,
+    ) -> None:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare metadata directory for '{project_id}'."
+            ) from exc
+
+        try:
+            with path.open("w", encoding="utf-8") as handle:
+                json.dump(dict(payload), handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to write project metadata for '{project_id}'."
+            ) from exc
 
 
 class ProjectService:
@@ -1204,6 +1356,74 @@ class ProjectService:
             root="assets",
             generated_at=datetime.now(timezone.utc),
             assets=resources,
+        )
+
+    def list_project_collaborators(
+        self, identifier: str
+    ) -> ProjectCollaboratorListResponse:
+        trimmed_identifier = identifier.strip()
+        if not trimmed_identifier:
+            raise ValueError("Project identifier must be provided.")
+
+        record = self._store.load(trimmed_identifier)
+        collaborators = [
+            ProjectCollaboratorResource(
+                user_id=collaborator.user_id,
+                role=collaborator.role,
+                display_name=collaborator.display_name,
+            )
+            for collaborator in record.collaborators
+        ]
+        return ProjectCollaboratorListResponse(
+            project_id=record.identifier,
+            collaborators=collaborators,
+        )
+
+    def replace_project_collaborators(
+        self,
+        identifier: str,
+        collaborators: Sequence[ProjectCollaboratorResource],
+    ) -> ProjectCollaboratorListResponse:
+        trimmed_identifier = identifier.strip()
+        if not trimmed_identifier:
+            raise ValueError("Project identifier must be provided.")
+
+        collaborator_records = [
+            ProjectCollaboratorRecord(
+                user_id=collaborator.user_id,
+                role=collaborator.role,
+                display_name=collaborator.display_name,
+            )
+            for collaborator in collaborators
+        ]
+
+        if collaborator_records and not any(
+            entry.role is CollaboratorRole.OWNER for entry in collaborator_records
+        ):
+            raise ValueError(
+                f"Project '{trimmed_identifier}' must include at least one owner collaborator."
+            )
+
+        validated = _ensure_unique_collaborators(
+            collaborator_records, trimmed_identifier
+        )
+
+        updated_record = self._store.replace_collaborators(
+            trimmed_identifier, validated
+        )
+
+        updated_collaborators = [
+            ProjectCollaboratorResource(
+                user_id=collaborator.user_id,
+                role=collaborator.role,
+                display_name=collaborator.display_name,
+            )
+            for collaborator in updated_record.collaborators
+        ]
+
+        return ProjectCollaboratorListResponse(
+            project_id=updated_record.identifier,
+            collaborators=updated_collaborators,
         )
 
 
@@ -1345,6 +1565,7 @@ def _build_project_resource(record: AdventureProjectRecord) -> AdventureProjectR
         name=record.name,
         description=record.description,
         scene_count=len(scenes),
+        collaborator_count=len(record.collaborators),
         created_at=record.created_at,
         updated_at=record.updated_at,
         version_id=version_id,
@@ -1361,6 +1582,7 @@ def _build_project_detail(
         name=record.name,
         description=record.description,
         scene_count=len(scenes),
+        collaborator_count=len(record.collaborators),
         created_at=record.created_at,
         updated_at=record.updated_at,
         version_id=version_id,
@@ -1449,6 +1671,128 @@ def _ensure_serialisable_scene_mapping(scenes: Mapping[str, Any]) -> dict[str, A
         raise ValueError("Project scenes must be serialisable as a JSON object.")
 
     return cast(dict[str, Any], serialisable_any)
+
+
+def _parse_collaborators(
+    payload: Any, *, project_id: str
+) -> tuple[ProjectCollaboratorRecord, ...]:
+    if payload is None:
+        return ()
+
+    if not isinstance(payload, Sequence) or isinstance(
+        payload, (str, bytes, bytearray)
+    ):
+        raise ValueError(
+            f"Project '{project_id}' metadata has an invalid 'collaborators' field."
+        )
+
+    collaborators: list[ProjectCollaboratorRecord] = []
+    for index, entry in enumerate(payload):
+        if not isinstance(entry, Mapping):
+            raise ValueError(
+                f"Project '{project_id}' metadata collaborator at index {index} must be a mapping."
+            )
+
+        user_id_raw = entry.get("user_id")
+        if not isinstance(user_id_raw, str):
+            raise ValueError(
+                f"Project '{project_id}' metadata collaborator at index {index} has an invalid 'user_id'."
+            )
+
+        user_id = user_id_raw.strip()
+        if not user_id:
+            raise ValueError(
+                f"Project '{project_id}' metadata collaborator at index {index} has an empty 'user_id'."
+            )
+
+        role_raw = entry.get("role")
+        if not isinstance(role_raw, str):
+            raise ValueError(
+                f"Project '{project_id}' metadata collaborator '{user_id}' is missing a role."
+            )
+
+        try:
+            role = CollaboratorRole(role_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"Project '{project_id}' metadata collaborator '{user_id}' has an unknown role '{role_raw}'."
+            ) from exc
+
+        display_name_raw = entry.get("display_name")
+        if display_name_raw is None:
+            display_name: str | None = None
+        elif isinstance(display_name_raw, str):
+            display_name = display_name_raw.strip() or None
+        else:
+            raise ValueError(
+                f"Project '{project_id}' metadata collaborator '{user_id}' has an invalid display name."
+            )
+
+        collaborators.append(
+            ProjectCollaboratorRecord(
+                user_id=user_id,
+                role=role,
+                display_name=display_name,
+            )
+        )
+
+    return _ensure_unique_collaborators(collaborators, project_id)
+
+
+def _ensure_unique_collaborators(
+    collaborators: Sequence[ProjectCollaboratorRecord],
+    project_id: str,
+) -> tuple[ProjectCollaboratorRecord, ...]:
+    if not collaborators:
+        return ()
+
+    seen: set[str] = set()
+    normalised: list[ProjectCollaboratorRecord] = []
+
+    for entry in collaborators:
+        user_id = entry.user_id.strip()
+        if not user_id:
+            raise ValueError(
+                f"Project '{project_id}' collaborators must include non-empty user IDs."
+            )
+
+        if user_id in seen:
+            raise ValueError(
+                f"Project '{project_id}' collaborator '{user_id}' is defined multiple times."
+            )
+
+        seen.add(user_id)
+
+        display_name = entry.display_name
+        if display_name is not None:
+            display_name = display_name.strip()
+            if not display_name:
+                display_name = None
+
+        normalised.append(
+            ProjectCollaboratorRecord(
+                user_id=user_id,
+                role=entry.role,
+                display_name=display_name,
+            )
+        )
+
+    return tuple(normalised)
+
+
+def _serialise_collaborators(
+    collaborators: Sequence[ProjectCollaboratorRecord],
+) -> list[dict[str, Any]]:
+    serialised: list[dict[str, Any]] = []
+    for collaborator in collaborators:
+        entry: dict[str, Any] = {
+            "user_id": collaborator.user_id,
+            "role": collaborator.role.value,
+        }
+        if collaborator.display_name is not None:
+            entry["display_name"] = collaborator.display_name
+        serialised.append(entry)
+    return serialised
 
 
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
@@ -3100,6 +3444,46 @@ def create_app(
 
         try:
             return project.list_project_assets(project_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/projects/{project_id}/collaborators",
+        response_model=ProjectCollaboratorListResponse,
+    )
+    def list_project_collaborators(
+        project_id: str,
+    ) -> ProjectCollaboratorListResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.list_project_collaborators(project_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.put(
+        "/api/projects/{project_id}/collaborators",
+        response_model=ProjectCollaboratorListResponse,
+    )
+    def replace_project_collaborators(
+        project_id: str, payload: ProjectCollaboratorUpdateRequest
+    ) -> ProjectCollaboratorListResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.replace_project_collaborators(
+                project_id, payload.collaborators
+            )
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
