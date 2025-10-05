@@ -15,7 +15,7 @@ from pydantic import BaseModel
 class HTTPException(Exception):
     """Exception mirroring FastAPI's HTTPException signature."""
 
-    def __init__(self, status_code: int, detail: str | None = None) -> None:
+    def __init__(self, status_code: int, detail: Any | None = None) -> None:
         super().__init__(detail)
         self.status_code = status_code
         self.detail = detail
@@ -77,6 +77,27 @@ class FastAPI:
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._routes[("POST", path)] = _Route(
                 method="POST",
+                path=path,
+                endpoint=func,
+                response_model=response_model,
+                status_code=status_code,
+            )
+            return func
+
+        return decorator
+
+    def put(
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register a handler for ``PUT`` requests."""
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            self._routes[("PUT", path)] = _Route(
+                method="PUT",
                 path=path,
                 endpoint=func,
                 response_model=response_model,

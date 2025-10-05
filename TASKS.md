@@ -146,7 +146,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Implement FastAPI backend with the following endpoints:
       - [x] `GET /api/scenes` - List all scenes with metadata *(Implemented read-only endpoint backed by the scripted scene store, including pagination, filtering, and validation summaries.)*
       - [x] `GET /api/scenes/{scene_id}` - Get detailed scene data *(Implemented read-only detail endpoint returning full scene definitions with optional validation metadata.)*
-      - [ ] `PUT /api/scenes/{scene_id}` - Update existing scene
+      - [x] `PUT /api/scenes/{scene_id}` - Update existing scene *(Adds optimistic concurrency checks, persistence, and regression tests.)*
       - [ ] `POST /api/scenes` - Create new scene
       - [ ] `DELETE /api/scenes/{scene_id}` - Delete scene (with dependency checks)
       - [x] `GET /api/scenes/validate` - Full integrity validation *(Added read-only endpoint returning quality, reachability, and item-flow summaries with test coverage.)*
