@@ -5,10 +5,18 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 from io import StringIO
 from pathlib import Path
+import json
+import os
 
 import builtins
 
-from main import EditorLaunchError, EditorLauncher, TranscriptLogger, run_cli
+from main import (
+    EditorLaunchError,
+    EditorLauncher,
+    SceneDatasetMonitor,
+    TranscriptLogger,
+    run_cli,
+)
 from textadventure import InMemorySessionStore, SessionSnapshot, WorldState
 from textadventure.multi_agent import (
     Agent,
@@ -16,10 +24,41 @@ from textadventure.multi_agent import (
     AgentTurnResult,
     MultiAgentCoordinator,
 )
-from textadventure.scripted_story_engine import ScriptedStoryEngine
+from textadventure.scripted_story_engine import (
+    ScriptedStoryEngine,
+    load_scenes_from_file,
+)
 from textadventure.story_engine import StoryChoice, StoryEngine, StoryEvent
 
 import pytest
+
+
+def _force_mtime_advance(path: Path) -> None:
+    """Ensure ``path`` has a strictly newer modification timestamp."""
+
+    current = path.stat().st_mtime_ns
+    last = getattr(_force_mtime_advance, "_last", 0)
+    target = max(current, last + 1)
+    os.utime(path, ns=(target, target))
+    _force_mtime_advance._last = target  # type: ignore[attr-defined]
+
+
+def _write_scene_dataset(path: Path, *, description: str) -> None:
+    """Persist a minimal scene dataset for testing watchers."""
+
+    payload = {
+        "starting-area": {
+            "description": description,
+            "choices": [
+                {"command": "wait", "description": "Wait for a while."},
+            ],
+            "transitions": {
+                "wait": {"narration": "Time drifts by."},
+            },
+        }
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _force_mtime_advance(path)
 
 
 class _IteratorInput:
@@ -347,6 +386,101 @@ def test_transcript_logger_captures_inputs_and_events(monkeypatch) -> None:
     assert "Metadata: (none)" in log
     assert "Player input: look" in log
     assert "Player input: quit" in log
+
+
+def test_scene_dataset_monitor_reloads_updated_file(tmp_path: Path) -> None:
+    """Changing the dataset file should refresh the scripted engine."""
+
+    dataset = tmp_path / "scenes.json"
+    _write_scene_dataset(dataset, description="Forest canopy glitters.")
+    scenes = load_scenes_from_file(dataset)
+    engine = ScriptedStoryEngine(scenes=scenes)
+    monitor = SceneDatasetMonitor(
+        dataset,
+        engine,
+        initial_timestamp=dataset.stat().st_mtime_ns,
+    )
+
+    world = WorldState()
+    initial_event = engine.propose_event(world)
+    assert "Forest canopy glitters." in initial_event.narration
+
+    _write_scene_dataset(dataset, description="Moonlight bathes the grove.")
+    outcome = monitor.poll()
+    assert outcome.reloaded
+    assert outcome.message and "Reloaded scenes" in outcome.message
+
+    refreshed_event = engine.propose_event(world)
+    assert "Moonlight bathes the grove." in refreshed_event.narration
+
+
+def test_scene_dataset_monitor_reports_errors_once(tmp_path: Path) -> None:
+    """Dataset load errors should emit a single notification until resolved."""
+
+    dataset = tmp_path / "scenes.json"
+    _write_scene_dataset(dataset, description="River murmurs softly.")
+    scenes = load_scenes_from_file(dataset)
+    engine = ScriptedStoryEngine(scenes=scenes)
+    monitor = SceneDatasetMonitor(
+        dataset,
+        engine,
+        initial_timestamp=dataset.stat().st_mtime_ns,
+    )
+
+    dataset.write_text('{\n  "broken": true', encoding="utf-8")
+    _force_mtime_advance(dataset)
+
+    first = monitor.poll()
+    assert not first.reloaded
+    assert first.message and "Failed to reload scenes" in first.message
+
+    second = monitor.poll()
+    assert not second.reloaded
+    assert second.message is None
+
+    _write_scene_dataset(dataset, description="River path opens ahead.")
+    recovered = monitor.poll()
+    assert recovered.reloaded
+    assert recovered.message and "Reloaded scenes" in recovered.message
+
+    event = engine.propose_event(WorldState())
+    assert "River path opens ahead." in event.narration
+
+
+def test_run_cli_reloads_scene_dataset(monkeypatch, capsys, tmp_path: Path) -> None:
+    """The CLI should announce and apply dataset changes between turns."""
+
+    dataset = tmp_path / "scenes.json"
+    _write_scene_dataset(dataset, description="Stars glimmer above the trail.")
+    scenes = load_scenes_from_file(dataset)
+    engine = ScriptedStoryEngine(scenes=scenes)
+    monitor = SceneDatasetMonitor(
+        dataset,
+        engine,
+        initial_timestamp=dataset.stat().st_mtime_ns,
+    )
+
+    world = WorldState()
+
+    def scripted_input(prompt: str = "") -> str:
+        if scripted_input.calls == 0:
+            scripted_input.calls += 1
+            _write_scene_dataset(
+                dataset, description="A lantern now lights the ancient path."
+            )
+            return ""
+        return "quit"
+
+    scripted_input.calls = 0  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(builtins, "input", scripted_input)
+
+    run_cli(engine, world, dataset_monitor=monitor)
+
+    output = capsys.readouterr().out
+    assert "Stars glimmer above the trail." in output
+    assert "A lantern now lights the ancient path." in output
+    assert "[scene-watch] Reloaded scenes" in output
 
 
 def test_cli_walkthrough_matches_golden(monkeypatch, capsys) -> None:

@@ -435,6 +435,11 @@ class ScriptedStoryEngine(StoryEngine):
 
         return MappingProxyType(self._scenes)
 
+    def replace_scenes(self, scenes: Mapping[str, _Scene]) -> None:
+        """Replace the configured scenes with a new mapping."""
+
+        self._scenes = scenes
+
     def propose_event(
         self,
         world_state: WorldState,
