@@ -1,0 +1,193 @@
+import hashlib
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Mapping
+
+from fastapi.testclient import TestClient
+
+from textadventure.api import SceneApiSettings, create_app
+
+
+def _write_project(
+    root: Path,
+    identifier: str,
+    scenes: Mapping[str, Any],
+    *,
+    metadata: Mapping[str, Any] | None = None,
+    scene_filename: str = "scenes.json",
+    timestamp: datetime | None = None,
+) -> None:
+    directory = root / identifier
+    directory.mkdir(parents=True, exist_ok=True)
+
+    scene_path = directory / scene_filename
+    with scene_path.open("w", encoding="utf-8") as handle:
+        json.dump(scenes, handle)
+
+    metadata_path = directory / "project.json"
+    if metadata is not None:
+        with metadata_path.open("w", encoding="utf-8") as handle:
+            json.dump(dict(metadata), handle)
+
+    if timestamp is not None:
+        epoch = timestamp.timestamp()
+        os.utime(scene_path, (epoch, epoch))
+        if metadata is not None:
+            os.utime(metadata_path, (epoch, epoch))
+
+
+def _checksum_and_version(
+    scenes: Mapping[str, Any], timestamp: datetime
+) -> tuple[str, str]:
+    canonical = json.dumps(
+        scenes,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    checksum = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    version_prefix = timestamp.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    version_id = f"{version_prefix}-{checksum[:8]}"
+    return checksum, version_id
+
+
+def test_list_projects_returns_registered_metadata(tmp_path: Path) -> None:
+    timestamp = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    alpha_scenes: dict[str, Any] = {
+        "alpha": {
+            "description": "Alpha start",
+            "choices": [
+                {"command": "continue", "description": "Continue onward."},
+            ],
+            "transitions": {
+                "continue": {
+                    "narration": "You move forward.",
+                    "target": "beta",
+                }
+            },
+        },
+        "beta": {
+            "description": "Beta room",
+            "choices": [
+                {"command": "return", "description": "Head back."},
+            ],
+            "transitions": {
+                "return": {
+                    "narration": "You return to the start.",
+                    "target": "alpha",
+                }
+            },
+        },
+    }
+
+    beta_scenes: dict[str, Any] = {
+        "intro": {
+            "description": "Intro scene",
+            "choices": [
+                {"command": "explore", "description": "Look around."},
+            ],
+            "transitions": {
+                "explore": {
+                    "narration": "You explore the area.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "alpha",
+        alpha_scenes,
+        metadata={"name": "Alpha Project", "description": "First project."},
+        timestamp=timestamp,
+    )
+    _write_project(
+        tmp_path,
+        "beta",
+        beta_scenes,
+        metadata={"name": "Beta Project", "scene_path": "custom.json"},
+        scene_filename="custom.json",
+        timestamp=timestamp,
+    )
+
+    checksum_alpha, version_alpha = _checksum_and_version(alpha_scenes, timestamp)
+    checksum_beta, version_beta = _checksum_and_version(beta_scenes, timestamp)
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/projects")
+    assert response.status_code == 200
+
+    payload = response.json()
+    projects = {entry["id"]: entry for entry in payload["data"]}
+    assert set(projects) == {"alpha", "beta"}
+
+    alpha = projects["alpha"]
+    assert alpha["name"] == "Alpha Project"
+    assert alpha["description"] == "First project."
+    assert alpha["scene_count"] == len(alpha_scenes)
+    assert alpha["checksum"] == checksum_alpha
+    assert alpha["version_id"] == version_alpha
+    assert datetime.fromisoformat(alpha["updated_at"]) == timestamp
+    assert datetime.fromisoformat(alpha["created_at"]) == timestamp
+
+    beta = projects["beta"]
+    assert beta["name"] == "Beta Project"
+    assert beta.get("description") is None
+    assert beta["scene_count"] == len(beta_scenes)
+    assert beta["checksum"] == checksum_beta
+    assert beta["version_id"] == version_beta
+
+
+def test_get_project_returns_scene_payload(tmp_path: Path) -> None:
+    timestamp = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    scenes: dict[str, Any] = {
+        "hub": {
+            "description": "Central hub",
+            "choices": [
+                {"command": "north", "description": "Go north."},
+            ],
+            "transitions": {
+                "north": {
+                    "narration": "You walk north.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "hub",
+        scenes,
+        metadata={"name": "Hub Project"},
+        timestamp=timestamp,
+    )
+
+    checksum, version_id = _checksum_and_version(scenes, timestamp)
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/projects/hub")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["data"]["id"] == "hub"
+    assert payload["data"]["checksum"] == checksum
+    assert payload["data"]["version_id"] == version_id
+    assert payload["scenes"] == scenes
+
+
+def test_projects_endpoints_return_404_when_disabled() -> None:
+    client = TestClient(create_app(settings=SceneApiSettings()))
+
+    response = client.get("/api/projects")
+    assert response.status_code == 404
+
+    detail_response = client.get("/api/projects/unknown")
+    assert detail_response.status_code == 404
