@@ -57,6 +57,15 @@ class TestClient:
         payload, text = _serialise(result)
         return _Response(status, payload, text)
 
+    def delete(self, path: str, params: Mapping[str, Any] | None = None) -> _Response:
+        try:
+            result, status = self._app._dispatch("DELETE", path, params or {})
+        except HTTPException as exc:
+            return _Response(exc.status_code, {"detail": exc.detail})
+
+        payload, text = _serialise(result)
+        return _Response(status, payload, text)
+
 
 def _serialise(value: Any) -> tuple[Any, str | None]:
     if hasattr(value, "body"):

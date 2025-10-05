@@ -578,6 +578,98 @@ metadata for rendering selection menus or project dashboards.
 }
 ```
 
+### `GET /scenes/branches/{branch_id}`
+
+Fetch the full branch definition so editors can review the diff metadata,
+available import strategies, and the saved scene payloads before applying or
+sharing the branch.
+
+**Path parameters**
+
+- `branch_id` – Stable identifier returned by `POST /scenes/branches`.
+
+**Response – 200 OK**
+
+```json
+{
+  "id": "hidden-door-path",
+  "name": "Hidden Door Path",
+  "created_at": "2024-07-02T09:20:00Z",
+  "base": {
+    "generated_at": "2024-07-01T12:00:00Z",
+    "version_id": "20240701T120000Z-1a2b3c4d",
+    "checksum": "f3a8…"
+  },
+  "target": {
+    "generated_at": "2024-07-02T09:15:00Z",
+    "version_id": "20240702T091500Z-5e6f7a8b",
+    "checksum": "4b91…"
+  },
+  "expected_base_version_id": "20240701T120000Z-1a2b3c4d",
+  "base_version_matches": true,
+  "summary": {
+    "added_scene_ids": ["hidden-door"],
+    "removed_scene_ids": [],
+    "modified_scene_ids": ["alpha"],
+    "unchanged_scene_ids": ["beta"]
+  },
+  "scene_count": 2,
+  "entries": [
+    {
+      "scene_id": "alpha",
+      "status": "modified",
+      "diff": "--- current/alpha\n+++ branch/alpha\n…",
+      "diff_html": "<table class=\"diff\">…</table>"
+    },
+    {
+      "scene_id": "hidden-door",
+      "status": "added",
+      "diff": "+++ branch/hidden-door\n…",
+      "diff_html": "<table class=\"diff\">…</table>"
+    }
+  ],
+  "plans": [
+    {
+      "strategy": "merge",
+      "new_scene_ids": ["hidden-door"],
+      "updated_scene_ids": ["alpha"],
+      "unchanged_scene_ids": ["beta"],
+      "removed_scene_ids": []
+    },
+    {
+      "strategy": "replace",
+      "new_scene_ids": ["hidden-door"],
+      "updated_scene_ids": ["alpha"],
+      "unchanged_scene_ids": ["beta"],
+      "removed_scene_ids": []
+    }
+  ],
+  "scenes": {
+    "hidden-door": { "description": "A secret door swings open…" }
+  }
+}
+```
+
+**Errors**
+
+- `404 Not Found` – Branch identifier does not exist on disk.
+
+### `DELETE /scenes/branches/{branch_id}`
+
+Remove a saved branch definition once it has been merged, superseded, or deemed
+obsolete. The API deletes the underlying JSON snapshot and returns an empty
+response body.
+
+**Path parameters**
+
+- `branch_id` – Identifier returned when the branch was created.
+
+**Response – 204 No Content**
+
+**Errors**
+
+- `404 Not Found` – Branch identifier does not exist on disk.
+
 ### `POST /scenes/branches`
 
 Persist a branch definition so it can be revisited later or imported into a

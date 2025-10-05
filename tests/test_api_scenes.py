@@ -1452,6 +1452,154 @@ def test_list_branches_endpoint_returns_empty_collection(tmp_path: Path) -> None
     assert response.json() == {"data": []}
 
 
+def test_get_branch_endpoint_returns_branch_definition(tmp_path: Path) -> None:
+    current_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    branch_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha branch",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        },
+        "branching-passage": {
+            "description": "A hidden corridor opens.",
+            "choices": [
+                {"command": "step", "description": "Step through."},
+            ],
+            "transitions": {
+                "step": {
+                    "narration": "You slip into the passage.",
+                    "target": None,
+                }
+            },
+        },
+    }
+    current_timestamp = datetime(2024, 7, 12, 10, 0, tzinfo=timezone.utc)
+    branch_timestamp = datetime(2024, 7, 12, 11, 30, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return current_dataset, current_timestamp
+
+    store = SceneBranchStore(root=tmp_path)
+    service = SceneService(repository=_StubRepository(), branch_store=store)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.post(
+        "/api/scenes/branches",
+        json={
+            "branch_name": "Hidden Passage",
+            "scenes": branch_dataset,
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "generated_at": branch_timestamp.isoformat(),
+        },
+    )
+    assert response.status_code == 201
+    identifier = response.json()["id"]
+
+    detail = client.get(f"/api/scenes/branches/{identifier}")
+    assert detail.status_code == 200
+
+    payload = detail.json()
+    expected_current = _expected_metadata(current_dataset, current_timestamp)
+    expected_branch = _expected_metadata(branch_dataset, branch_timestamp)
+
+    assert payload["id"] == identifier
+    assert payload["name"] == "Hidden Passage"
+    assert payload["scene_count"] == len(branch_dataset)
+    assert payload["base"]["version_id"] == expected_current["version_id"]
+    assert payload["target"]["version_id"] == expected_branch["version_id"]
+    assert payload["summary"]["added_scene_ids"] == ["branching-passage"]
+
+    entries = {entry["scene_id"]: entry for entry in payload["entries"]}
+    assert entries["alpha"]["status"] == "modified"
+    assert entries["branching-passage"]["status"] == "added"
+
+    plans = {plan["strategy"]: plan for plan in payload["plans"]}
+    assert set(plans) == {"merge", "replace"}
+    assert plans["merge"]["new_scene_ids"] == ["branching-passage"]
+
+    assert payload["scenes"] == branch_dataset
+
+
+def test_get_branch_endpoint_returns_404_for_missing_branch(tmp_path: Path) -> None:
+    store = SceneBranchStore(root=tmp_path)
+    service = SceneService(branch_store=store)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/scenes/branches/unknown")
+    assert response.status_code == 404
+
+
+def test_delete_branch_endpoint_removes_definition(tmp_path: Path) -> None:
+    dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha current",
+            "choices": [
+                {"command": "wait", "description": "Wait it out."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You wait for a moment.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    timestamp = datetime(2024, 7, 10, 14, 30, tzinfo=timezone.utc)
+
+    class _StubRepository:
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return dataset, timestamp
+
+    store = SceneBranchStore(root=tmp_path)
+    service = SceneService(repository=_StubRepository(), branch_store=store)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.post(
+        "/api/scenes/branches",
+        json={
+            "branch_name": "Ephemeral",
+            "scenes": dataset,
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+        },
+    )
+    assert response.status_code == 201
+    identifier = response.json()["id"]
+
+    delete_response = client.delete(f"/api/scenes/branches/{identifier}")
+    assert delete_response.status_code == 204
+    assert store.list() == []
+
+
+def test_delete_branch_endpoint_returns_404_for_missing_branch(tmp_path: Path) -> None:
+    store = SceneBranchStore(root=tmp_path)
+    service = SceneService(branch_store=store)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.delete("/api/scenes/branches/missing")
+    assert response.status_code == 404
+
+
 def test_plan_rollback_endpoint_rejects_empty_payload() -> None:
     client = _client()
 
