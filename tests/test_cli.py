@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from io import StringIO
 from pathlib import Path
 import json
@@ -10,6 +10,7 @@ import os
 
 import builtins
 
+import main
 from main import (
     EditorLaunchError,
     EditorLauncher,
@@ -17,7 +18,12 @@ from main import (
     TranscriptLogger,
     run_cli,
 )
-from textadventure import InMemorySessionStore, SessionSnapshot, WorldState
+from textadventure import (
+    InMemorySessionStore,
+    SessionSnapshot,
+    SessionStore,
+    WorldState,
+)
 from textadventure.multi_agent import (
     Agent,
     AgentTrigger,
@@ -133,6 +139,54 @@ class _StubEditorLauncher(EditorLauncher):
         self._running = False
         self.stopped += 1
         return True
+
+
+def test_editor_launcher_start_applies_env_and_reload(monkeypatch) -> None:
+    """Launching the editor should honour reload mode and env overrides."""
+
+    recorded: dict[str, object] = {}
+
+    class _FakeProcess:
+        def poll(self) -> int | None:
+            return None
+
+        def wait(
+            self, timeout: float | None = None
+        ) -> int:  # pragma: no cover - simple
+            del timeout
+            return 0
+
+        def terminate(self) -> None:  # pragma: no cover - simple helper
+            return None
+
+        def kill(self) -> None:  # pragma: no cover - simple helper
+            return None
+
+    def fake_popen(command: Sequence[str], *, env: dict[str, str]) -> _FakeProcess:
+        recorded["command"] = list(command)
+        recorded["env"] = env
+        return _FakeProcess()
+
+    monkeypatch.setattr("main.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("main.time.sleep", lambda _: None)
+
+    launcher = EditorLauncher(
+        host="127.0.0.1",
+        port=9100,
+        reload=True,
+        env={"TEXTADVENTURE_SCENE_PATH": "/tmp/demo.json"},
+    )
+    launcher.start()
+
+    command = recorded.get("command")
+    assert isinstance(command, list)
+    assert "--reload" in command
+
+    env = recorded.get("env")
+    assert isinstance(env, dict)
+    assert env["TEXTADVENTURE_SCENE_PATH"] == "/tmp/demo.json"
+
+    assert launcher.stop() is True
 
 
 def test_run_cli_handles_basic_command_sequence(monkeypatch, capsys) -> None:
@@ -580,3 +634,75 @@ def test_editor_command_handles_disabled_launcher(monkeypatch, capsys) -> None:
 
     captured = capsys.readouterr().out
     assert "Editor integration is unavailable" in captured
+
+
+def test_main_passes_scene_path_to_editor_launcher(monkeypatch, tmp_path) -> None:
+    """Running the CLI with an external scene file shares it with the editor."""
+
+    dataset_path = tmp_path / "scenes.json"
+    _write_scene_dataset(dataset_path, description="A quiet grove.")
+
+    captured: dict[str, object] = {}
+
+    class _RecordingLauncher:
+        def __init__(
+            self,
+            *,
+            host: str,
+            port: int,
+            reload: bool = False,
+            env: Mapping[str, str] | None = None,
+        ) -> None:
+            captured["host"] = host
+            captured["port"] = port
+            captured["reload"] = reload
+            captured["env"] = dict(env or {})
+
+        def is_running(self) -> bool:  # pragma: no cover - not exercised
+            return False
+
+        def base_url(self) -> str:  # pragma: no cover - not exercised
+            return "http://127.0.0.1:8123"
+
+        def start(self) -> None:  # pragma: no cover - not exercised
+            return None
+
+        def stop(self) -> bool:  # pragma: no cover - not exercised
+            return False
+
+    captured_cli: dict[str, object] = {}
+
+    def fake_run_cli(
+        engine: StoryEngine,
+        world: WorldState,
+        *,
+        session_store: SessionStore | None = None,
+        autoload_session: str | None = None,
+        transcript_logger: TranscriptLogger | None = None,
+        editor_launcher: object,
+        dataset_monitor: object | None = None,
+    ) -> None:
+        captured_cli["editor_launcher"] = editor_launcher
+        captured_cli["session_store"] = session_store
+        captured_cli["autoload_session"] = autoload_session
+        captured_cli["transcript_logger"] = transcript_logger
+        captured_cli["dataset_monitor"] = dataset_monitor
+        return None
+
+    monkeypatch.setattr("main.EditorLauncher", _RecordingLauncher)
+    monkeypatch.setattr("main.run_cli", fake_run_cli)
+
+    main.main(
+        [
+            "--scene-path",
+            str(dataset_path),
+            "--no-persistence",
+            "--editor-reload",
+        ]
+    )
+
+    assert captured_cli["editor_launcher"].__class__ is _RecordingLauncher
+    assert captured["reload"] is True
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["TEXTADVENTURE_SCENE_PATH"] == str(dataset_path.resolve())
