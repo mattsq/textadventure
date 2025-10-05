@@ -213,6 +213,56 @@ def test_get_scene_can_include_validation_issues() -> None:
     assert override_issue["path"] == "transitions.use.narration_overrides[0].narration"
 
 
+def test_get_scene_graph_returns_nodes_and_edges() -> None:
+    client = _client()
+
+    response = client.get("/api/scenes/graph")
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    generated_at = datetime.fromisoformat(payload["generated_at"])
+    assert generated_at.tzinfo is not None
+    assert payload["start_scene"] == "starting-area"
+
+    nodes = {entry["id"]: entry for entry in payload["nodes"]}
+    assert "starting-area" in nodes
+    assert nodes["starting-area"]["has_terminal_transition"] is True
+
+    edges = {entry["id"]: entry for entry in payload["edges"]}
+
+    assert "starting-area:explore" in edges
+    explore_edge = edges["starting-area:explore"]
+    assert explore_edge["target"] == "old-gate"
+    assert explore_edge["is_terminal"] is False
+    assert explore_edge["requires"] == []
+
+    look_edge = edges["starting-area:look"]
+    assert look_edge["target"] is None
+    assert look_edge["is_terminal"] is True
+
+    inspect_edge = edges["old-gate:inspect"]
+    assert inspect_edge["item"] == "rusty key"
+
+    hall_edge = edges["misty-courtyard:hall"]
+    assert hall_edge["requires"] == ["rusty key"]
+    assert hall_edge["failure_narration"]
+
+    signal_edge = edges["ranger-lookout:signal"]
+    assert signal_edge["override_count"] == 1
+
+
+def test_get_scene_graph_supports_custom_start_scene() -> None:
+    client = _client()
+
+    response = client.get("/api/scenes/graph", params={"start_scene": "old-gate"})
+    assert response.status_code == 200
+    assert response.json()["start_scene"] == "old-gate"
+
+    invalid = client.get("/api/scenes/graph", params={"start_scene": "unknown"})
+    assert invalid.status_code == 400
+
+
 def test_search_endpoint_returns_matches() -> None:
     client = _client()
 
