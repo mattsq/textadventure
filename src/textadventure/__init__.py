@@ -48,7 +48,14 @@ from .scripted_story_engine import (
     load_scenes_from_file,
     load_scenes_from_mapping,
 )
-from .markdown import render_markdown
+from .markdown import (
+    DEFAULT_PALETTE,
+    HIGH_CONTRAST_PALETTE,
+    MarkdownPalette,
+    get_markdown_palette,
+    render_markdown,
+    set_markdown_palette,
+)
 from .multi_agent import (
     Agent,
     AgentTrigger,
@@ -144,7 +151,12 @@ __all__ = [
     "search_scene_text_from_definitions",
     "search_scene_text_from_file",
     "replace_scene_text_in_definitions",
+    "MarkdownPalette",
+    "DEFAULT_PALETTE",
+    "HIGH_CONTRAST_PALETTE",
+    "get_markdown_palette",
     "render_markdown",
+    "set_markdown_palette",
     "Tool",
     "ToolResponse",
     "KnowledgeBaseTool",

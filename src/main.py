@@ -13,15 +13,19 @@ from typing import Mapping, Sequence, TextIO, cast
 
 from textadventure import (
     FileSessionStore,
+    HIGH_CONTRAST_PALETTE,
     LLMProviderRegistry,
     LLMStoryAgent,
     MultiAgentCoordinator,
+    MarkdownPalette,
     ScriptedStoryAgent,
     SessionSnapshot,
     SessionStore,
     StoryEngine,
     StoryEvent,
     WorldState,
+    get_markdown_palette,
+    set_markdown_palette,
 )
 from textadventure.llm_providers import register_builtin_providers
 from textadventure.scripted_story_engine import (
@@ -823,6 +827,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "May be supplied multiple times."
         ),
     )
+    parser.add_argument(
+        "--high-contrast",
+        action="store_true",
+        help=(
+            "Render narration and choices with a high-contrast colour palette "
+            "suited to low-vision accessibility."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -950,7 +962,11 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     transcript_logger: TranscriptLogger | None = None
     log_handle: TextIO | None = None
+    previous_palette: MarkdownPalette | None = None
     try:
+        if args.high_contrast:
+            previous_palette = get_markdown_palette()
+            set_markdown_palette(HIGH_CONTRAST_PALETTE)
         if args.log_file is not None:
             args.log_file.parent.mkdir(parents=True, exist_ok=True)
             log_handle = args.log_file.open("a", encoding="utf-8")
@@ -966,6 +982,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             dataset_monitor=dataset_monitor,
         )
     finally:
+        if previous_palette is not None:
+            set_markdown_palette(previous_palette)
         if log_handle is not None:
             log_handle.close()
 

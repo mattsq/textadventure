@@ -345,7 +345,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Common action shortcuts
       - [ ] Tab navigation
       - [ ] Screen reader support
-      - [ ] High contrast mode
+      - [x] High contrast mode *(Added a `--high-contrast` CLI flag that swaps in a brighter Markdown palette with documentation and tests.)*
     - [ ] Create help system:
       - [x] Interactive tutorials *(Added a CLI `tutorial` command with a guided walkthrough covering choices, system commands, and persistence tips.)*
       - [x] Context-sensitive help *(Added a CLI `help` command that surfaces current story choices alongside system command guidance.)*

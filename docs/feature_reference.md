@@ -15,6 +15,9 @@ is available and where to look next.
 - Command-line flags configure persistence, transcript logging, and LLM
   co-narrators (see `--session-dir`, `--log-file`, `--llm-provider`,
   `--llm-config`, and repeated `--llm-option key=value`).【F:src/main.py†L218-L268】
+- Accessibility helpers include the `--high-contrast` flag, which swaps in a
+  brighter ANSI palette for narration and choice text so the CLI remains legible
+  in low-vision or low-contrast setups.【F:src/main.py†L218-L323】【F:src/textadventure/markdown.py†L9-L133】
 
 ## Multi-Agent Narration & LLM Integration
 

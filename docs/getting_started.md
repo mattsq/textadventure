@@ -64,6 +64,19 @@ python src/main.py \
 - `--session-id` controls the save-file prefix so multiple runs can coexist.
 - `--log-file` writes a structured transcript containing narration, player input, and agent metadata.
 
+### Improve CLI Readability
+
+Switch to a brighter colour palette when running the CLI in low-light or
+low-vision environments:
+
+```bash
+python src/main.py --high-contrast
+```
+
+The `--high-contrast` flag tweaks heading colours, list bullets, and inline
+formatting so narration and choices stand out more clearly on terminals with
+reduced contrast or accessibility themes.
+
 ### Launch the Scene Editor API
 
 Type `editor` inside the CLI to start the FastAPI application that powers the web-based scene editor. The command reports the local URL and supports `editor stop`/`editor status` for lifecycle control. Configure the binding with the following command-line flags when starting the CLI:
