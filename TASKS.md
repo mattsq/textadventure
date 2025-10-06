@@ -381,8 +381,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Docker containerization *(Added a Dockerfile and README instructions for running the API via Uvicorn in a container.)*
     - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
     - [ ] Production build optimization
-      - [ ] Static asset management
+      - [x] Static asset management *(Added an asset bundler CLI that produces hashed ZIP archives and manifests for deployment workflows.)*
         - [x] Expose API endpoint to download project asset files for editors.
+        - [x] Generate hashed asset bundles and manifests for deployment via a CLI helper.
       - [x] Provide asset upload and deletion endpoints.
         - [x] Outline upload and deletion API contracts and validation rules.
         - [x] Implement asset storage/deletion logic, FastAPI endpoints, and regression tests.

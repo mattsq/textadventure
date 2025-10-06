@@ -220,6 +220,28 @@ where scene data and branch definitions are loaded from:
 All values accept ``~`` prefixes, making it easy to redirect the service towards
 shared datasets or persistent storage locations.
 
+## Static Asset Bundles
+
+Projects can ship supporting images, audio, or reference files alongside their
+scene data. The API already exposes endpoints for listing, uploading, and
+downloading these assets during development. For production deployments you can
+create versioned bundles with hashed filenames to simplify caching and CDN
+uploads:
+
+```bash
+python -m textadventure.asset_bundler \
+  --root projects/atlas/assets \
+  --output dist/assets
+```
+
+This command writes a ZIP archive such as `assets-20240505T123000Z.zip` together
+with an `assets-manifest.json` manifest summarising each file's checksum, size,
+MIME type, and hashed path inside the archive. Provide `--preserve-filenames` to
+keep original filenames in the bundle, `--bundle-name` to override the archive
+name, or `--manifest-name` to customise the manifest filename. The manifest
+structure mirrors the project asset listing API, making it easy for deployment
+pipelines to decide which files changed between releases.
+
 ## Troubleshooting
 
 Encountering issues with the CLI, persistence, or LLM integrations? Consult the
