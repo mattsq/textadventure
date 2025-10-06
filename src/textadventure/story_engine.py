@@ -10,7 +10,7 @@ from typing import Mapping, Sequence, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover - imported only for type checking
     from .world_state import WorldState
 
-from .markdown import render_markdown
+from .markdown import get_markdown_palette, render_markdown
 
 
 def _validate_text(value: str, *, field_name: str) -> str:
@@ -103,12 +103,24 @@ class StoryEngine(ABC):
     def format_event(self, event: StoryEvent) -> str:
         """Create a printable representation of a story event."""
 
-        lines = [render_markdown(event.narration)]
+        palette = get_markdown_palette()
+        lines = [render_markdown(event.narration, palette=palette)]
         if event.choices:
             lines.append("")
-            for choice in event.choices:
-                description = render_markdown(choice.description)
-                lines.append(f"[{choice.command}] {description}")
+            if palette.screen_reader_mode:
+                lines.append("Available choices:")
+                for index, choice in enumerate(event.choices, start=1):
+                    description_lines = render_markdown(
+                        choice.description, palette=palette
+                    ).splitlines() or [""]
+                    first_line = description_lines[0] if description_lines else ""
+                    lines.append(f"{index}. Command '{choice.command}': {first_line}")
+                    for extra in description_lines[1:]:
+                        lines.append(f"   {extra}")
+            else:
+                for choice in event.choices:
+                    description = render_markdown(choice.description, palette=palette)
+                    lines.append(f"[{choice.command}] {description}")
         return "\n".join(lines)
 
 

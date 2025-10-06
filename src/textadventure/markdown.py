@@ -21,6 +21,7 @@ class MarkdownPalette:
         default_factory=lambda: {1: "\033[95m", 2: "\033[94m", 3: "\033[92m"}
     )
     bullet_symbol: str = "•"
+    screen_reader_mode: bool = False
 
 
 DEFAULT_PALETTE = MarkdownPalette()
@@ -36,6 +37,19 @@ HIGH_CONTRAST_PALETTE = MarkdownPalette(
     bullet_symbol="*",
 )
 """Palette tuned for brighter, higher-contrast output."""
+
+SCREEN_READER_PALETTE = MarkdownPalette(
+    reset="",
+    bold="",
+    italic="",
+    underline="",
+    faint="",
+    code="",
+    heading_colours={},
+    bullet_symbol="-",
+    screen_reader_mode=True,
+)
+"""Palette that removes ANSI styling and simplifies symbols for assistive tech."""
 
 _ACTIVE_PALETTE: MarkdownPalette = DEFAULT_PALETTE
 
@@ -173,6 +187,7 @@ __all__ = [
     "MarkdownPalette",
     "DEFAULT_PALETTE",
     "HIGH_CONTRAST_PALETTE",
+    "SCREEN_READER_PALETTE",
     "get_markdown_palette",
     "render_markdown",
     "set_markdown_palette",

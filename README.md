@@ -77,7 +77,9 @@ TASKS.md                   # Planning notes and backlog ideas
 Run `python src/main.py --help` to discover options for enabling persistence
  (`--session-dir`, `--session-id`, `--no-persistence`) and transcript logging
  (`--log-file`). Enable a high-contrast colour palette with `--high-contrast`
- to make narration and choices easier to read. Use `--scene-path` (or the `TEXTADVENTURE_SCENE_PATH`
+ to make narration and choices easier to read, or switch to screen-reader
+ optimised output with `--screen-reader` for simplified text without ANSI
+ styling. Use `--scene-path` (or the `TEXTADVENTURE_SCENE_PATH`
  environment variable) to load scenes from an external JSON file. When
  configured the CLI watches the file for changes and reloads the story between
  turns, making it easy to iterate alongside the editor API. Configure the

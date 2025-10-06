@@ -18,6 +18,7 @@ from textadventure import (
     LLMStoryAgent,
     MultiAgentCoordinator,
     MarkdownPalette,
+    SCREEN_READER_PALETTE,
     ScriptedStoryAgent,
     SessionSnapshot,
     SessionStore,
@@ -868,6 +869,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "suited to low-vision accessibility."
         ),
     )
+    parser.add_argument(
+        "--screen-reader",
+        action="store_true",
+        help=(
+            "Optimise output for screen readers by removing ANSI styling, "
+            "simplifying symbols, and expanding choice descriptions."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -875,6 +884,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     """Start the scripted demo adventure."""
 
     args = _parse_args(argv)
+    if args.high_contrast and args.screen_reader:
+        print(
+            "--screen-reader cannot be combined with --high-contrast. "
+            "Choose the accessibility mode that best suits your setup."
+        )
+        raise SystemExit(2)
     world = WorldState()
     scene_path: Path | None = args.scene_path
     if scene_path is None:
@@ -997,9 +1012,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     log_handle: TextIO | None = None
     previous_palette: MarkdownPalette | None = None
     try:
-        if args.high_contrast:
+        selected_palette: MarkdownPalette | None = None
+        if args.screen_reader:
+            selected_palette = SCREEN_READER_PALETTE
+        elif args.high_contrast:
+            selected_palette = HIGH_CONTRAST_PALETTE
+
+        if selected_palette is not None:
             previous_palette = get_markdown_palette()
-            set_markdown_palette(HIGH_CONTRAST_PALETTE)
+            set_markdown_palette(selected_palette)
         if args.log_file is not None:
             args.log_file.parent.mkdir(parents=True, exist_ok=True)
             log_handle = args.log_file.open("a", encoding="utf-8")

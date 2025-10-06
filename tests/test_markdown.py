@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from textadventure.markdown import (
     HIGH_CONTRAST_PALETTE,
+    SCREEN_READER_PALETTE,
     get_markdown_palette,
     render_markdown,
     set_markdown_palette,
@@ -36,5 +37,19 @@ def test_render_markdown_supports_high_contrast_palette() -> None:
 
         assert "\033[97mHeading\033[0m" in result
         assert "* Item" in result
+    finally:
+        set_markdown_palette(previous)
+
+
+def test_render_markdown_supports_screen_reader_palette() -> None:
+    previous = get_markdown_palette()
+    try:
+        set_markdown_palette(SCREEN_READER_PALETTE)
+        text = """# Heading\n\n- Item"""
+        result = render_markdown(text)
+
+        assert "\033[" not in result
+        assert "- Item" in result
+        assert SCREEN_READER_PALETTE.screen_reader_mode is True
     finally:
         set_markdown_palette(previous)
