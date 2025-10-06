@@ -42,6 +42,7 @@ class SceneApiSettings:
     branch_root: Path | None = None
     project_root: Path | None = None
     project_template_root: Path | None = None
+    user_root: Path | None = None
     automatic_backup_dir: Path | None = None
     automatic_backup_retention: int | None = None
 
@@ -70,6 +71,7 @@ class SceneApiSettings:
         project_template_root = _normalise_path(
             source.get("TEXTADVENTURE_PROJECT_TEMPLATE_ROOT")
         )
+        user_root = _normalise_path(source.get("TEXTADVENTURE_USER_ROOT"))
         automatic_backup_dir = _normalise_path(
             source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_DIR")
         )
@@ -98,6 +100,7 @@ class SceneApiSettings:
             branch_root=branch_root,
             project_root=project_root,
             project_template_root=project_template_root,
+            user_root=user_root,
             automatic_backup_dir=automatic_backup_dir,
             automatic_backup_retention=automatic_backup_retention,
         )
