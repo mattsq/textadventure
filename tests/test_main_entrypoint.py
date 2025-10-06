@@ -79,3 +79,27 @@ def test_main_rejects_options_without_provider(monkeypatch, capsys) -> None:
     assert excinfo.value.code == 2
     error_output = capsys.readouterr().out
     assert "--llm-option was provided" in error_output
+
+
+def test_main_supports_screen_reader_mode(monkeypatch, capsys) -> None:
+    """The screen-reader flag should remove ANSI styling and expand choices."""
+
+    inputs = iter(["quit"])
+    monkeypatch.setattr(builtins, "input", lambda prompt="": next(inputs))
+
+    main(["--screen-reader", "--no-persistence"])
+
+    output = capsys.readouterr().out
+    assert "Available choices:" in output
+    assert "\033[" not in output
+
+
+def test_main_rejects_screen_reader_and_high_contrast(monkeypatch, capsys) -> None:
+    """Selecting both accessibility modes should exit with an explanation."""
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--screen-reader", "--high-contrast", "--no-persistence"])
+
+    assert excinfo.value.code == 2
+    output = capsys.readouterr().out
+    assert "cannot be combined" in output

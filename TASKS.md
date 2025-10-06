@@ -345,7 +345,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Add keyboard shortcuts and accessibility:
       - [x] Common action shortcuts *(Added CLI single-key shortcuts for quit/help/status/tutorial with documentation and tests.)*
       - [ ] Tab navigation
-      - [ ] Screen reader support
+      - [x] Screen reader support *(Added a `--screen-reader` CLI flag that removes ANSI styling, simplifies glyphs, and expands choice descriptions for assistive tech.)*
       - [x] High contrast mode *(Added a `--high-contrast` CLI flag that swaps in a brighter Markdown palette with documentation and tests.)*
     - [ ] Create help system:
       - [x] Interactive tutorials *(Added a CLI `tutorial` command with a guided walkthrough covering choices, system commands, and persistence tips.)*

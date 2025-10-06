@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from textadventure import StoryChoice, StoryEngine, StoryEvent, WorldState
+from textadventure import (
+    SCREEN_READER_PALETTE,
+    StoryChoice,
+    StoryEngine,
+    StoryEvent,
+    WorldState,
+    get_markdown_palette,
+    set_markdown_palette,
+)
 
 
 class DummyStoryEngine(StoryEngine):
@@ -74,3 +82,19 @@ def test_story_engine_format_event_renders_markdown() -> None:
 
     assert "\033[1msomething\033[0m" in formatted
     assert "\033[3mdetails\033[0m" in formatted
+
+
+def test_story_engine_format_event_supports_screen_reader_mode() -> None:
+    engine = DummyStoryEngine()
+    world = WorldState(location="harbour")
+    previous = get_markdown_palette()
+    try:
+        set_markdown_palette(SCREEN_READER_PALETTE)
+        event = engine.propose_event(world)
+        formatted = engine.format_event(event)
+    finally:
+        set_markdown_palette(previous)
+
+    assert "Available choices:" in formatted
+    assert "1. Command 'look': Survey the area" in formatted
+    assert "[look]" not in formatted

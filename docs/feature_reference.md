@@ -17,7 +17,9 @@ is available and where to look next.
   `--llm-config`, and repeated `--llm-option key=value`).【F:src/main.py†L218-L268】
 - Accessibility helpers include the `--high-contrast` flag, which swaps in a
   brighter ANSI palette for narration and choice text so the CLI remains legible
-  in low-vision or low-contrast setups.【F:src/main.py†L218-L323】【F:src/textadventure/markdown.py†L9-L133】
+  in low-vision or low-contrast setups, and the `--screen-reader` flag, which
+  removes ANSI styling, simplifies glyphs, and expands choice descriptions to
+  improve compatibility with assistive technologies.【F:src/main.py†L218-L327】【F:src/textadventure/markdown.py†L9-L142】【F:src/textadventure/story_engine.py†L61-L97】
 
 ## Multi-Agent Narration & LLM Integration
 

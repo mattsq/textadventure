@@ -77,6 +77,17 @@ The `--high-contrast` flag tweaks heading colours, list bullets, and inline
 formatting so narration and choices stand out more clearly on terminals with
 reduced contrast or accessibility themes.
 
+For assistive technologies that struggle with ANSI escape sequences or
+decorative glyphs, enable the simplified screen-reader output:
+
+```bash
+python src/main.py --screen-reader
+```
+
+This mode removes colour codes, swaps decorative bullets for ASCII
+characters, and expands choice descriptions so screen readers narrate the
+available commands clearly.
+
 ### Launch the Scene Editor API
 
 Type `editor` inside the CLI to start the FastAPI application that powers the web-based scene editor. The command reports the local URL and supports `editor stop`/`editor status` for lifecycle control. Configure the binding with the following command-line flags when starting the CLI:
