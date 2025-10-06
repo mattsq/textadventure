@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from textadventure.markdown import render_markdown
+from textadventure.markdown import (
+    HIGH_CONTRAST_PALETTE,
+    get_markdown_palette,
+    render_markdown,
+    set_markdown_palette,
+)
 
 
 def test_render_markdown_applies_inline_styles() -> None:
@@ -20,3 +25,16 @@ def test_render_markdown_handles_headings_and_lists() -> None:
     assert "=" * len("Heading") in result
     assert "• First item" in result
     assert "• Second item" in result
+
+
+def test_render_markdown_supports_high_contrast_palette() -> None:
+    previous = get_markdown_palette()
+    try:
+        set_markdown_palette(HIGH_CONTRAST_PALETTE)
+        text = """# Heading\n\n- Item"""
+        result = render_markdown(text)
+
+        assert "\033[97mHeading\033[0m" in result
+        assert "* Item" in result
+    finally:
+        set_markdown_palette(previous)
