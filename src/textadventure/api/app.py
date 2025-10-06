@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import difflib
 import hashlib
 import json
 import mimetypes
 import os
 import re
+import shutil
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from importlib import resources
@@ -835,6 +838,28 @@ class ProjectAssetContent:
     content_type: str | None
 
 
+class ProjectAssetUploadRequest(BaseModel):
+    """Payload describing the contents of an uploaded project asset."""
+
+    content: str = Field(
+        ..., description="Base64-encoded binary payload for the asset."
+    )
+
+    @field_validator("content")
+    @classmethod
+    def _validate_content(cls, value: str) -> str:
+        try:
+            base64.b64decode(value, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError(
+                "Asset content must be provided as base64-encoded data."
+            ) from exc
+        return value
+
+    def decoded_content(self) -> bytes:
+        return base64.b64decode(self.content)
+
+
 class BinaryResponse:
     """Minimal response object for returning binary payloads in tests."""
 
@@ -1426,6 +1451,107 @@ class ProjectService:
             content=content,
             content_type=content_type,
         )
+
+    def store_project_asset(
+        self, identifier: str, asset_path: str, content: bytes | bytearray
+    ) -> ProjectAssetResource:
+        """Persist ``content`` under ``asset_path`` within the project's assets."""
+
+        if not isinstance(content, (bytes, bytearray)):
+            raise ValueError("Project asset content must be provided as bytes.")
+
+        record = self._store.load(identifier)
+        assets_root = record.scene_path.parent / "assets"
+
+        if assets_root.exists() and not assets_root.is_dir():
+            raise ValueError(
+                f"Project assets directory '{assets_root}' must be a directory when present."
+            )
+
+        try:
+            assets_root.mkdir(exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare assets directory for project '{record.identifier}'."
+            ) from exc
+
+        relative_path = _normalise_project_asset_path(asset_path)
+        target_path = assets_root / relative_path
+
+        if target_path.exists() and target_path.is_dir():
+            raise ValueError(
+                f"Asset '{relative_path.as_posix()}' is a directory and cannot be overwritten."
+            )
+
+        try:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare directory for asset '{relative_path.as_posix()}' in project '{record.identifier}'."
+            ) from exc
+
+        try:
+            with target_path.open("wb") as handle:
+                handle.write(bytes(content))
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to write asset '{relative_path.as_posix()}' for project '{record.identifier}'."
+            ) from exc
+
+        try:
+            size = target_path.stat().st_size
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to stat asset '{relative_path.as_posix()}' for project '{record.identifier}'."
+            ) from exc
+
+        content_type, _ = mimetypes.guess_type(target_path.name)
+        return ProjectAssetResource(
+            path=relative_path.as_posix(),
+            name=target_path.name,
+            type=ProjectAssetType.FILE,
+            size=size,
+            content_type=content_type,
+            updated_at=_timestamp_for(target_path),
+        )
+
+    def delete_project_asset(self, identifier: str, asset_path: str) -> None:
+        """Remove ``asset_path`` from the project's assets directory."""
+
+        record = self._store.load(identifier)
+        assets_root = record.scene_path.parent / "assets"
+
+        if assets_root.exists() and not assets_root.is_dir():
+            raise ValueError(
+                f"Project assets directory '{assets_root}' must be a directory when present."
+            )
+
+        if not assets_root.exists():
+            raise FileNotFoundError(
+                f"Project '{record.identifier}' does not have an assets directory."
+            )
+
+        relative_path = _normalise_project_asset_path(asset_path)
+        target_path = assets_root / relative_path
+
+        if not target_path.exists():
+            raise FileNotFoundError(
+                f"Asset '{relative_path.as_posix()}' does not exist for project '{record.identifier}'."
+            )
+
+        try:
+            if target_path.is_file():
+                target_path.unlink()
+            elif target_path.is_dir():
+                shutil.rmtree(target_path)
+            else:
+                raise ValueError(
+                    f"Asset '{relative_path.as_posix()}' is not a file or directory."
+                )
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to delete asset '{relative_path.as_posix()}' for project '{record.identifier}'."
+            ) from exc
 
     def list_project_collaborators(
         self, identifier: str
@@ -3671,6 +3797,49 @@ def create_app(
         return BinaryResponse(
             content=asset.content, media_type=media_type, headers=headers
         )
+
+    @app.put(
+        "/api/projects/{project_id}/assets/{asset_path:path}",
+        response_model=ProjectAssetResource,
+    )
+    def upload_project_asset(
+        project_id: str,
+        asset_path: str,
+        payload: ProjectAssetUploadRequest,
+    ) -> ProjectAssetResource:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            content = payload.decoded_content()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            return project.store_project_asset(project_id, asset_path, content)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.delete(
+        "/api/projects/{project_id}/assets/{asset_path:path}",
+        status_code=204,
+    )
+    def delete_project_asset(project_id: str, asset_path: str) -> None:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            project.delete_project_asset(project_id, asset_path)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.get(
         "/api/projects/{project_id}/collaborators",

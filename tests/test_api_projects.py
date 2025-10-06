@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import os
@@ -357,6 +358,169 @@ def test_get_project_asset_rejects_invalid_paths(tmp_path: Path) -> None:
 
     directory_response = client.get("/api/projects/atlas/assets/images")
     assert directory_response.status_code == 400
+
+
+def test_upload_project_asset_creates_file(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You look around the room.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={"name": "Atlas"},
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    payload = b"logo-bytes"
+    encoded = base64.b64encode(payload).decode("ascii")
+    response = client.put(
+        "/api/projects/atlas/assets/images/logo.png",
+        json={"content": encoded},
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["path"] == "images/logo.png"
+    assert body["name"] == "logo.png"
+    assert body["type"] == "file"
+    assert body["size"] == len(payload)
+    assert body["content_type"] == "image/png"
+    # Ensure timestamp is returned in ISO format.
+    datetime.fromisoformat(body["updated_at"])
+
+    asset_path = tmp_path / "atlas" / "assets" / "images" / "logo.png"
+    assert asset_path.exists()
+    assert asset_path.read_bytes() == payload
+
+    fetch_response = client.get("/api/projects/atlas/assets/images/logo.png")
+    assert fetch_response.status_code == 200
+    assert fetch_response.content == payload
+
+
+def test_upload_project_asset_rejects_invalid_path(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You look around the room.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={"name": "Atlas"},
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.put(
+        "/api/projects/atlas/assets/../scenes.json",
+        json={"content": base64.b64encode(b"{}").decode("ascii")},
+    )
+
+    assert response.status_code == 400
+
+
+def test_delete_project_asset_removes_file(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You look around the room.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={"name": "Atlas"},
+    )
+
+    assets_root = tmp_path / "atlas" / "assets"
+    assets_root.mkdir(parents=True, exist_ok=True)
+    asset_path = assets_root / "images" / "logo.png"
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+    asset_path.write_bytes(b"logo")
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.delete("/api/projects/atlas/assets/images/logo.png")
+    assert response.status_code == 204
+    assert not asset_path.exists()
+
+    missing_response = client.delete("/api/projects/atlas/assets/images/logo.png")
+    assert missing_response.status_code == 404
+
+
+def test_delete_project_asset_removes_directory(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You look around the room.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={"name": "Atlas"},
+    )
+
+    assets_root = tmp_path / "atlas" / "assets"
+    icon_directory = assets_root / "images" / "icons"
+    icon_directory.mkdir(parents=True, exist_ok=True)
+    (icon_directory / "logo.png").write_bytes(b"logo")
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.delete("/api/projects/atlas/assets/images/icons")
+    assert response.status_code == 204
+    assert not icon_directory.exists()
 
 
 def test_list_project_collaborators_returns_metadata(tmp_path: Path) -> None:
