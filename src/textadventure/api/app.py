@@ -54,6 +54,7 @@ from ..multi_agent import (
     QueuedAgentMessage,
 )
 from ..memory import MemoryRequest
+from .backup import BackupUploadMetadata, BackupUploader, S3BackupUploader
 from .settings import SceneApiSettings
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
@@ -3110,6 +3111,7 @@ class SceneService:
         automatic_backup_dir: Path | None = None,
         automatic_backup_retention: int | None = None,
         automatic_backup_export_format: ExportFormat = ExportFormat.PRETTY,
+        automatic_backup_uploaders: Sequence[BackupUploader] | None = None,
     ) -> None:
         self._repository = repository or SceneRepository()
         self._branch_store = branch_store or SceneBranchStore()
@@ -3118,6 +3120,9 @@ class SceneService:
         self._automatic_backup_dir = automatic_backup_dir
         self._automatic_backup_retention = automatic_backup_retention
         self._automatic_backup_export_format = automatic_backup_export_format
+        self._automatic_backup_uploaders: tuple[BackupUploader, ...] = tuple(
+            automatic_backup_uploaders or ()
+        )
 
     def list_scene_summaries(
         self,
@@ -3419,7 +3424,7 @@ class SceneService:
         if normalised_id in current_serialisable:
             raise SceneAlreadyExistsError(normalised_id)
 
-        if self._automatic_backup_dir is not None:
+        if self._automatic_backup_dir is not None or self._automatic_backup_uploaders:
             self._maybe_create_automatic_backup(
                 dataset=current_serialisable,
                 generated_at=_ensure_timezone(dataset_timestamp),
@@ -3507,7 +3512,7 @@ class SceneService:
         ):
             raise SceneVersionConflictError(current_version_id)
 
-        if self._automatic_backup_dir is not None:
+        if self._automatic_backup_dir is not None or self._automatic_backup_uploaders:
             self._maybe_create_automatic_backup(
                 dataset=current_serialisable,
                 generated_at=_ensure_timezone(dataset_timestamp),
@@ -3600,7 +3605,7 @@ class SceneService:
         if references:
             raise SceneDependencyError(normalised_id, references)
 
-        if self._automatic_backup_dir is not None:
+        if self._automatic_backup_dir is not None or self._automatic_backup_uploaders:
             self._maybe_create_automatic_backup(
                 dataset=current_serialisable,
                 generated_at=_ensure_timezone(dataset_timestamp),
@@ -3974,10 +3979,17 @@ class SceneService:
         *,
         destination_dir: Path,
         export_format: ExportFormat = ExportFormat.PRETTY,
+        uploaders: Sequence[BackupUploader] | None = None,
     ) -> SceneBackupResult:
         """Write the current scene dataset to ``destination_dir``."""
 
         export = self.export_scenes()
+        resolved_uploaders: tuple[BackupUploader, ...]
+        if uploaders is not None:
+            resolved_uploaders = tuple(uploaders)
+        else:
+            resolved_uploaders = self._automatic_backup_uploaders
+
         return self._write_backup(
             destination_dir=destination_dir,
             dataset=export.scenes,
@@ -3985,6 +3997,7 @@ class SceneService:
             version_id=export.metadata.version_id,
             checksum=export.metadata.checksum,
             export_format=export_format,
+            uploaders=resolved_uploaders,
         )
 
     def _maybe_create_automatic_backup(
@@ -3996,21 +4009,34 @@ class SceneService:
         checksum: str,
     ) -> None:
         destination = self._automatic_backup_dir
-        if destination is None:
+        if destination is None and not self._automatic_backup_uploaders:
             return
 
-        self._write_backup(
-            destination_dir=destination,
-            dataset=dataset,
-            generated_at=generated_at,
-            version_id=version_id,
-            checksum=checksum,
-            export_format=self._automatic_backup_export_format,
-        )
+        if destination is not None:
+            self._write_backup(
+                destination_dir=destination,
+                dataset=dataset,
+                generated_at=generated_at,
+                version_id=version_id,
+                checksum=checksum,
+                export_format=self._automatic_backup_export_format,
+                uploaders=self._automatic_backup_uploaders,
+            )
 
-        retention = self._automatic_backup_retention
-        if retention is not None:
-            self._prune_automatic_backups(destination, keep=retention)
+            retention = self._automatic_backup_retention
+            if retention is not None:
+                self._prune_automatic_backups(destination, keep=retention)
+        else:
+            self._dispatch_backup_upload(
+                uploaders=self._automatic_backup_uploaders,
+                filename=_build_backup_filename(version_id),
+                content=self._serialise_backup_dataset(
+                    dataset, export_format=self._automatic_backup_export_format
+                ),
+                version_id=version_id,
+                checksum=checksum,
+                generated_at=generated_at,
+            )
 
     def _write_backup(
         self,
@@ -4021,7 +4047,45 @@ class SceneService:
         version_id: str,
         checksum: str,
         export_format: ExportFormat,
+        uploaders: Sequence[BackupUploader],
     ) -> SceneBackupResult:
+        content = self._serialise_backup_dataset(dataset, export_format=export_format)
+
+        try:
+            destination_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare backup directory '{destination_dir}'."
+            ) from exc
+
+        filename = _build_backup_filename(version_id)
+        backup_path = destination_dir / filename
+
+        try:
+            with backup_path.open("w", encoding="utf-8") as handle:
+                handle.write(content)
+        except OSError as exc:
+            raise RuntimeError(f"Failed to write backup to '{backup_path}'.") from exc
+
+        self._dispatch_backup_upload(
+            uploaders=uploaders,
+            filename=filename,
+            content=content,
+            version_id=version_id,
+            checksum=checksum,
+            generated_at=generated_at,
+        )
+
+        return SceneBackupResult(
+            path=backup_path,
+            version_id=version_id,
+            checksum=checksum,
+            generated_at=generated_at,
+        )
+
+    def _serialise_backup_dataset(
+        self, dataset: Mapping[str, Any], *, export_format: ExportFormat
+    ) -> str:
         try:
             serialisable = json.loads(json.dumps(dataset, ensure_ascii=False))
         except (TypeError, ValueError) as exc:
@@ -4030,23 +4094,32 @@ class SceneService:
         if not isinstance(serialisable, dict):
             raise RuntimeError("Scene data must be a JSON object.")
 
-        destination_dir.mkdir(parents=True, exist_ok=True)
-        filename = _build_backup_filename(version_id)
-        backup_path = destination_dir / filename
         dumps = _dumps_for_export_format(export_format)
+        return dumps(serialisable)
 
-        try:
-            with backup_path.open("w", encoding="utf-8") as handle:
-                handle.write(dumps(serialisable))
-        except OSError as exc:
-            raise RuntimeError(f"Failed to write backup to '{backup_path}'.") from exc
+    def _dispatch_backup_upload(
+        self,
+        *,
+        uploaders: Sequence[BackupUploader],
+        filename: str,
+        content: str,
+        version_id: str,
+        checksum: str,
+        generated_at: datetime,
+    ) -> None:
+        if not uploaders:
+            return
 
-        return SceneBackupResult(
-            path=backup_path,
+        payload = content.encode("utf-8")
+        metadata = BackupUploadMetadata(
+            filename=filename,
             version_id=version_id,
             checksum=checksum,
             generated_at=generated_at,
         )
+
+        for uploader in uploaders:
+            uploader.upload(content=payload, metadata=metadata)
 
     def _prune_automatic_backups(self, destination: Path, *, keep: int) -> None:
         if keep < 1:
@@ -4116,11 +4189,22 @@ def create_app(
     service = scene_service
     if service is None:
         branch_store = SceneBranchStore(root=resolved_settings.branch_root)
+        automatic_backup_uploaders: list[BackupUploader] = []
+        if resolved_settings.automatic_backup_s3_bucket:
+            automatic_backup_uploaders.append(
+                S3BackupUploader(
+                    bucket=resolved_settings.automatic_backup_s3_bucket,
+                    prefix=resolved_settings.automatic_backup_s3_prefix,
+                    region_name=resolved_settings.automatic_backup_s3_region,
+                    endpoint_url=resolved_settings.automatic_backup_s3_endpoint_url,
+                )
+            )
         service = SceneService(
             repository=repository,
             branch_store=branch_store,
             automatic_backup_dir=resolved_settings.automatic_backup_dir,
             automatic_backup_retention=resolved_settings.automatic_backup_retention,
+            automatic_backup_uploaders=automatic_backup_uploaders,
         )
 
     project_store: SceneProjectStore | None = None
