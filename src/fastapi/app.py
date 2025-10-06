@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from inspect import Parameter, Signature, signature
 from types import NoneType, UnionType
-from typing import Any, Callable, Mapping, MutableMapping
+from typing import Any, Callable, Mapping, MutableMapping, Sequence
 from typing import Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel
@@ -34,15 +34,32 @@ class _Route:
     endpoint: Callable[..., Any]
     response_model: Any | None
     status_code: int | None = None
+    tags: tuple[str, ...] = ()
 
 
 class FastAPI:
     """Extremely small FastAPI clone supporting declarative GET/POST routes."""
 
-    def __init__(self, *, title: str = "", version: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        title: str = "",
+        version: str = "",
+        description: str = "",
+        openapi_tags: Sequence[Mapping[str, Any]] | None = None,
+    ) -> None:
         self.title = title
         self.version = version
+        self.description = description
+        self.openapi_tags = (
+            [dict(tag) for tag in openapi_tags] if openapi_tags is not None else []
+        )
         self._routes: MutableMapping[tuple[str, str], _Route] = {}
+
+        def _openapi_handler() -> Mapping[str, Any]:
+            return self.openapi()
+
+        self.get("/openapi.json", status_code=200)(_openapi_handler)
 
     def get(
         self,
@@ -50,16 +67,19 @@ class FastAPI:
         response_model: Any | None = None,
         *,
         status_code: int | None = None,
+        **kwargs: Any,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a handler for ``GET`` requests."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            tags = tuple(str(tag) for tag in kwargs.get("tags", ()))
             self._routes[("GET", path)] = _Route(
                 method="GET",
                 path=path,
                 endpoint=func,
                 response_model=response_model,
                 status_code=status_code,
+                tags=tags,
             )
             return func
 
@@ -71,16 +91,19 @@ class FastAPI:
         response_model: Any | None = None,
         *,
         status_code: int | None = None,
+        **kwargs: Any,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a handler for ``POST`` requests."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            tags = tuple(str(tag) for tag in kwargs.get("tags", ()))
             self._routes[("POST", path)] = _Route(
                 method="POST",
                 path=path,
                 endpoint=func,
                 response_model=response_model,
                 status_code=status_code,
+                tags=tags,
             )
             return func
 
@@ -92,16 +115,19 @@ class FastAPI:
         response_model: Any | None = None,
         *,
         status_code: int | None = None,
+        **kwargs: Any,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a handler for ``PUT`` requests."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            tags = tuple(str(tag) for tag in kwargs.get("tags", ()))
             self._routes[("PUT", path)] = _Route(
                 method="PUT",
                 path=path,
                 endpoint=func,
                 response_model=response_model,
                 status_code=status_code,
+                tags=tags,
             )
             return func
 
@@ -113,20 +139,46 @@ class FastAPI:
         response_model: Any | None = None,
         *,
         status_code: int | None = None,
+        **kwargs: Any,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register a handler for ``DELETE`` requests."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            tags = tuple(str(tag) for tag in kwargs.get("tags", ()))
             self._routes[("DELETE", path)] = _Route(
                 method="DELETE",
                 path=path,
                 endpoint=func,
                 response_model=response_model,
                 status_code=status_code,
+                tags=tags,
             )
             return func
 
         return decorator
+
+    def openapi(self) -> Mapping[str, Any]:
+        paths: dict[str, dict[str, Mapping[str, Any]]] = {}
+        for route in self._routes.values():
+            if route.path == "/openapi.json":
+                continue
+            method_spec: dict[str, Any] = {
+                "responses": {"200": {"description": "Successful Response"}}
+            }
+            if route.tags:
+                method_spec["tags"] = list(route.tags)
+            paths.setdefault(route.path, {})[route.method.lower()] = method_spec
+
+        return {
+            "openapi": "3.0.0",
+            "info": {
+                "title": self.title,
+                "version": self.version,
+                "description": self.description,
+            },
+            "paths": paths,
+            "tags": self.openapi_tags,
+        }
 
     def _resolve_route(self, method: str, path: str) -> tuple[_Route, dict[str, str]]:
         key = (method, path)

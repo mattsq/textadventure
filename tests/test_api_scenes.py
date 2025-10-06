@@ -76,6 +76,31 @@ def _write_dataset(path: Path, payload: Mapping[str, Any]) -> None:
         json.dump(payload, handle)
 
 
+def test_openapi_documents_tag_metadata() -> None:
+    client = _client()
+
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+
+    schema = response.json()
+    assert schema["info"]["description"].startswith(
+        "HTTP API powering the text adventure editor"
+    )
+
+    tags = {entry["name"]: entry for entry in schema.get("tags", [])}
+    expected_tags = {
+        "Scenes",
+        "Scene Branches",
+        "Search",
+        "Projects",
+        "Project Templates",
+    }
+
+    assert expected_tags.issubset(tags.keys())
+    assert "scripted adventure scenes" in tags["Scenes"]["description"]
+    assert "experimental scene branches" in tags["Scene Branches"]["description"]
+
+
 def test_list_scenes_returns_expected_summary_fields() -> None:
     client = _client()
 
