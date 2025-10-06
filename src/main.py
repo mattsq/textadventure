@@ -9,7 +9,11 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence, TextIO, cast
+from types import ModuleType
+from typing import Iterable, Mapping, Sequence, TextIO, cast
+
+from importlib import import_module
+from importlib.util import find_spec
 
 from textadventure import (
     FileSessionStore,
@@ -33,6 +37,14 @@ from textadventure.scripted_story_engine import (
     ScriptedStoryEngine,
     load_scenes_from_file,
 )
+
+
+_READLINE_SPEC = find_spec("readline")
+_READLINE: ModuleType | None
+if _READLINE_SPEC is not None:
+    _READLINE = import_module("readline")
+else:
+    _READLINE = None
 
 
 class EditorLaunchError(RuntimeError):
@@ -239,6 +251,88 @@ class SceneDatasetMonitor:
             return SceneReloadOutcome(reloaded=False)
         self._last_error_key = key
         return SceneReloadOutcome(reloaded=False, message=message)
+
+
+class _TabCompletionManager:
+    """Configure readline so tab cycles through relevant CLI commands."""
+
+    def __init__(self, readline_module: ModuleType) -> None:
+        self._readline = readline_module
+        self._previous_completer = readline_module.get_completer()
+        get_delims = getattr(readline_module, "get_completer_delims", None)
+        self._previous_delims = get_delims() if callable(get_delims) else None
+
+        self._first_level: tuple[str, ...] = ()
+        self._help_topics: tuple[str, ...] = ()
+        self._editor_actions: tuple[str, ...] = ()
+
+        parse_and_bind = getattr(readline_module, "parse_and_bind", None)
+        if callable(parse_and_bind):
+            parse_and_bind("tab: complete")
+        set_delims = getattr(readline_module, "set_completer_delims", None)
+        if callable(set_delims):
+            set_delims(" \t\n")
+        readline_module.set_completer(self._complete)
+
+    def update(
+        self,
+        *,
+        choice_commands: Sequence[str],
+        system_commands: Sequence[str],
+        help_topics: Sequence[str],
+        editor_actions: Sequence[str],
+    ) -> None:
+        self._first_level = self._ordered_unique((*system_commands, *choice_commands))
+        self._help_topics = self._ordered_unique(help_topics)
+        self._editor_actions = tuple(editor_actions)
+
+    def close(self) -> None:
+        self._readline.set_completer(self._previous_completer)
+        set_delims = getattr(self._readline, "set_completer_delims", None)
+        if callable(set_delims) and self._previous_delims is not None:
+            set_delims(self._previous_delims)
+
+    def _complete(self, text: str, state: int) -> str | None:
+        buffer = self._readline.get_line_buffer()
+        begin = self._readline.get_begidx()
+        prefix = buffer[:begin]
+        options: Sequence[str]
+
+        tokens = prefix.split()
+        if not tokens:
+            options = self._first_level
+        else:
+            first_token = tokens[0]
+            second_word = len(tokens) == 1 and prefix.endswith(" ")
+            if second_word or len(tokens) >= 2:
+                if first_token == "help":
+                    options = self._help_topics
+                elif first_token == "editor":
+                    options = self._editor_actions
+                else:
+                    options = ()
+            else:
+                options = self._first_level
+
+        text_lower = text.lower()
+        matches = [option for option in options if option.startswith(text_lower)]
+        if state < len(matches):
+            return matches[state]
+        return None
+
+    @staticmethod
+    def _ordered_unique(values: Iterable[str]) -> tuple[str, ...]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for value in values:
+            if not value:
+                continue
+            lower = value.lower()
+            if lower in seen:
+                continue
+            seen.add(lower)
+            ordered.append(value)
+        return tuple(ordered)
 
 
 class TranscriptLogger:
@@ -494,56 +588,67 @@ def run_cli(
 
         return trimmed
 
+    command_help_cache: dict[str, tuple[str, str]] = {}
+    choice_map_cache: dict[str, str] = {}
+
+    def _build_command_help() -> dict[str, tuple[str, str]]:
+        mapping: dict[str, tuple[str, str]] = {}
+        if session_store is not None:
+            mapping["save"] = (
+                "save <session-id>",
+                "Store your current progress for later.",
+            )
+            mapping["load"] = (
+                "load <session-id>",
+                "Restore a previously saved session.",
+            )
+        else:
+            mapping["save"] = (
+                "save <session-id>",
+                "Unavailable: session persistence is disabled for this session.",
+            )
+            mapping["load"] = (
+                "load <session-id>",
+                "Unavailable: session persistence is disabled for this session.",
+            )
+        mapping["help"] = (
+            "help [command]",
+            "Display help for available commands. Use 'help <command>' for details.",
+        )
+        mapping["tutorial"] = (
+            "tutorial",
+            "Start an interactive walkthrough covering the core CLI commands.",
+        )
+        mapping["status"] = (
+            "status",
+            "Show your location, inventory, and queued agent messages.",
+        )
+        if launcher is None:
+            mapping["editor"] = (
+                "editor",
+                "Unavailable: editor integration is disabled for this session.",
+            )
+        else:
+            mapping["editor"] = (
+                "editor [start|stop|status]",
+                "Launch or control the browser-based scene editor API.",
+            )
+        mapping["quit"] = ("quit", "Exit the adventure immediately.")
+        mapping["exit"] = ("exit", "Alias for 'quit'.")
+        return mapping
+
+    tab_completion = _TabCompletionManager(_READLINE) if _READLINE is not None else None
+
     def _print_help(topic: str | None) -> None:
         if event is None:
             print("\nHelp is unavailable until the first story event is generated.")
             print()
             return
 
-        command_help: dict[str, tuple[str, str]] = {}
-        if session_store is not None:
-            command_help["save"] = (
-                "save <session-id>",
-                "Store your current progress for later.",
-            )
-            command_help["load"] = (
-                "load <session-id>",
-                "Restore a previously saved session.",
-            )
-        else:
-            command_help["save"] = (
-                "save <session-id>",
-                "Unavailable: session persistence is disabled for this session.",
-            )
-            command_help["load"] = (
-                "load <session-id>",
-                "Unavailable: session persistence is disabled for this session.",
-            )
-        command_help["help"] = (
-            "help [command]",
-            "Display help for available commands. Use 'help <command>' for details.",
-        )
-        command_help["tutorial"] = (
-            "tutorial",
-            "Start an interactive walkthrough covering the core CLI commands.",
-        )
-        command_help["status"] = (
-            "status",
-            "Show your location, inventory, and queued agent messages.",
-        )
-        if launcher is None:
-            command_help["editor"] = (
-                "editor",
-                "Unavailable: editor integration is disabled for this session.",
-            )
-        else:
-            command_help["editor"] = (
-                "editor [start|stop|status]",
-                "Launch or control the browser-based scene editor API.",
-            )
-        command_help["quit"] = ("quit", "Exit the adventure immediately.")
-
-        choice_map = {choice.command: choice.description for choice in event.choices}
+        command_help = command_help_cache or _build_command_help()
+        choice_map = choice_map_cache or {
+            choice.command: choice.description for choice in event.choices
+        }
 
         if topic:
             lowered_topic = topic.lower()
@@ -609,6 +714,21 @@ def run_cli(
         if not event.has_choices:
             print("\nThe story has reached a natural stopping point.")
             break
+
+        command_help_cache = _build_command_help()
+        choice_map_cache = {
+            choice.command: choice.description for choice in event.choices
+        }
+
+        if tab_completion is not None:
+            system_commands = list(command_help_cache.keys())
+            help_topics = [*choice_map_cache.keys(), *system_commands]
+            tab_completion.update(
+                choice_commands=tuple(choice_map_cache.keys()),
+                system_commands=tuple(system_commands),
+                help_topics=tuple(help_topics),
+                editor_actions=("start", "stop", "status"),
+            )
 
         try:
             raw_input = input("\n> ")
@@ -773,6 +893,9 @@ def run_cli(
 
         world.remember_action(player_input)
         event = _capture_event(engine.propose_event(world, player_input=player_input))
+
+    if tab_completion is not None:
+        tab_completion.close()
 
     if launcher is not None:
         try:

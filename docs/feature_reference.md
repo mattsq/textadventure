@@ -20,6 +20,9 @@ is available and where to look next.
   in low-vision or low-contrast setups, and the `--screen-reader` flag, which
   removes ANSI styling, simplifies glyphs, and expands choice descriptions to
   improve compatibility with assistive technologies.【F:src/main.py†L218-L327】【F:src/textadventure/markdown.py†L9-L142】【F:src/textadventure/story_engine.py†L61-L97】
+- When readline support is available, pressing <kbd>Tab</kbd> cycles through the
+  current story choices, system commands, and editor actions, making keyboard
+  navigation faster and more discoverable.【F:src/main.py†L603-L734】
 
 ## Multi-Agent Narration & LLM Integration
 
