@@ -112,3 +112,29 @@ services.
 
 Use this reference alongside the architecture overview to dive deeper into specific
 modules when extending the engine or integrating new agent capabilities.
+
+## OpenAPI & Swagger Documentation
+
+The FastAPI service automatically publishes a comprehensive OpenAPI specification and
+interactive Swagger UI. After launching the editor API (for example via
+`python -m uvicorn textadventure.api.app:create_app --factory` or the CLI `editor`
+command), visit:
+
+- **`/openapi.json`** – Machine-readable OpenAPI schema capturing all request and
+  response models, tags, and error formats. This is ideal for generating client
+  SDKs or running automated contract tests.
+- **`/docs`** – Swagger UI that lets you explore tagged endpoints, inspect
+  request/response examples, and execute calls against a running server.
+
+Endpoints are grouped under the following tags to make exploration easier:
+
+- **Scenes** – CRUD, validation, analytics, and import/export workflows for scripted
+  scenes.
+- **Scene Branches** – Snapshot management for experimental branches.
+- **Search** – Full-text queries with field-type and validation filters.
+- **Projects** – Project discovery plus asset and collaborator management.
+- **Project Templates** – Template catalogue and instantiation helpers for spinning
+  up new adventures.
+
+Use these resources to integrate tooling, generate client libraries, or confirm the
+expected payloads when extending the backend.

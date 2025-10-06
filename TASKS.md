@@ -161,7 +161,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Command uniqueness validation
     - [ ] Implement WebSocket endpoint for live adventure testing.
     - [ ] Add unit tests covering all API endpoints and validation logic.
-    - [ ] Document API specification with OpenAPI/Swagger.
+    - [x] Document API specification with OpenAPI/Swagger. *(Documented the FastAPI OpenAPI/Swagger workflow and added tagged metadata so the auto-generated docs surface grouped endpoints.)*
 
   - [ ] **Phase 2: Core Frontend Architecture**
     - [ ] Set up React application with TypeScript for type safety.

@@ -3429,9 +3429,60 @@ def create_app(
             project_service=project,
         )
 
-    app = FastAPI(title="Text Adventure Scene API", version="0.1.0")
+    tags_metadata = [
+        {
+            "name": "Scenes",
+            "description": (
+                "CRUD operations, validation, analytics, and import/export for "
+                "scripted adventure scenes."
+            ),
+        },
+        {
+            "name": "Scene Branches",
+            "description": (
+                "Create and manage experimental scene branches for iterative "
+                "story development."
+            ),
+        },
+        {
+            "name": "Search",
+            "description": (
+                "Full-text search with filtering across the scripted scene "
+                "catalogue."
+            ),
+        },
+        {
+            "name": "Projects",
+            "description": (
+                "Manage adventure projects, including asset inventories and "
+                "collaborator rosters exposed to editor tooling."
+            ),
+        },
+        {
+            "name": "Project Templates",
+            "description": (
+                "Discover reusable templates and instantiate new projects "
+                "from curated datasets."
+            ),
+        },
+    ]
 
-    @app.get("/api/scenes", response_model=SceneListResponse)
+    app = FastAPI(
+        title="Text Adventure Scene API",
+        version="0.1.0",
+        description=(
+            "HTTP API powering the text adventure editor and analytics suite. "
+            "The service exposes endpoints for scripted scenes, validation "
+            "reports, search, project assets, and template management."
+        ),
+        openapi_tags=tags_metadata,
+    )
+
+    @app.get(
+        "/api/scenes",
+        response_model=SceneListResponse,
+        tags=["Scenes"],
+    )
     def get_scenes(
         *,
         search: str | None = Query(
@@ -3465,7 +3516,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.get("/api/scenes/{scene_id}", response_model=SceneDetailResponse)
+    @app.get(
+        "/api/scenes/{scene_id}",
+        response_model=SceneDetailResponse,
+        tags=["Scenes"],
+    )
     def get_scene(
         scene_id: str,
         *,
@@ -3485,7 +3540,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.put("/api/scenes/{scene_id}", response_model=SceneMutationResponse)
+    @app.put(
+        "/api/scenes/{scene_id}",
+        response_model=SceneMutationResponse,
+        tags=["Scenes"],
+    )
     def update_scene_endpoint(
         scene_id: str, payload: SceneUpdateRequest
     ) -> SceneMutationResponse:
@@ -3511,7 +3570,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.get("/api/scenes/graph", response_model=SceneGraphResponse)
+    @app.get(
+        "/api/scenes/graph",
+        response_model=SceneGraphResponse,
+        tags=["Scenes"],
+    )
     def get_scene_graph(
         start_scene: str | None = Query(
             None,
@@ -3528,7 +3591,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.get("/api/search", response_model=SceneSearchResponse)
+    @app.get(
+        "/api/search",
+        response_model=SceneSearchResponse,
+        tags=["Search"],
+    )
     def search_scenes(
         query: str = Query(
             ..., min_length=1, description="Case-insensitive text to search for."
@@ -3564,7 +3631,11 @@ def create_app(
 
         return _build_search_response(results, limit=limit)
 
-    @app.get("/api/scenes/validate", response_model=SceneValidationResponse)
+    @app.get(
+        "/api/scenes/validate",
+        response_model=SceneValidationResponse,
+        tags=["Scenes"],
+    )
     def validate_scenes(
         start_scene: str = Query(
             "starting-area",
@@ -3580,7 +3651,11 @@ def create_app(
 
         return SceneValidationResponse(data=report)
 
-    @app.get("/api/export/scenes", response_model=None)
+    @app.get(
+        "/api/export/scenes",
+        response_model=None,
+        tags=["Scenes"],
+    )
     def export_scenes(
         ids: str | None = Query(
             None,
@@ -3623,7 +3698,11 @@ def create_app(
             export_format=export_format,
         )
 
-    @app.post("/api/import/scenes", response_model=SceneImportResponse)
+    @app.post(
+        "/api/import/scenes",
+        response_model=SceneImportResponse,
+        tags=["Scenes"],
+    )
     def import_scenes(payload: SceneImportRequest) -> SceneImportResponse:
         try:
             return service.validate_import_payload(
@@ -3636,7 +3715,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.post("/api/scenes/rollback", response_model=SceneRollbackResponse)
+    @app.post(
+        "/api/scenes/rollback",
+        response_model=SceneRollbackResponse,
+        tags=["Scenes"],
+    )
     def plan_rollback(payload: SceneRollbackRequest) -> SceneRollbackResponse:
         try:
             return service.plan_rollback(
@@ -3649,7 +3732,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.get("/api/scenes/branches", response_model=SceneBranchListResponse)
+    @app.get(
+        "/api/scenes/branches",
+        response_model=SceneBranchListResponse,
+        tags=["Scene Branches"],
+    )
     def list_branches() -> SceneBranchListResponse:
         try:
             return service.list_branches()
@@ -3659,6 +3746,7 @@ def create_app(
     @app.get(
         "/api/scenes/branches/{branch_id}",
         response_model=SceneBranchDetailResponse,
+        tags=["Scene Branches"],
     )
     def get_branch(branch_id: str) -> SceneBranchDetailResponse:
         try:
@@ -3672,6 +3760,7 @@ def create_app(
         "/api/scenes/branches",
         response_model=SceneBranchResource,
         status_code=201,
+        tags=["Scene Branches"],
     )
     def create_branch(payload: SceneBranchCreateRequest) -> SceneBranchResource:
         try:
@@ -3693,6 +3782,7 @@ def create_app(
         "/api/scenes/branches/{branch_id}",
         response_model=None,
         status_code=204,
+        tags=["Scene Branches"],
     )
     def delete_branch(branch_id: str) -> None:
         try:
@@ -3705,6 +3795,7 @@ def create_app(
     @app.post(
         "/api/scenes/branches/plan",
         response_model=SceneBranchPlanResponse,
+        tags=["Scene Branches"],
     )
     def plan_branch(payload: SceneBranchPlanRequest) -> SceneBranchPlanResponse:
         try:
@@ -3720,7 +3811,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.post("/api/scenes/diff", response_model=SceneDiffResponse)
+    @app.post(
+        "/api/scenes/diff",
+        response_model=SceneDiffResponse,
+        tags=["Scenes"],
+    )
     def diff_scenes(payload: SceneDiffRequest) -> SceneDiffResponse:
         try:
             return service.diff_scenes(
@@ -3732,7 +3827,11 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.get("/api/projects", response_model=AdventureProjectListResponse)
+    @app.get(
+        "/api/projects",
+        response_model=AdventureProjectListResponse,
+        tags=["Projects"],
+    )
     def list_projects() -> AdventureProjectListResponse:
         if project is None:
             raise HTTPException(404, "Project management endpoints are not enabled.")
@@ -3747,6 +3846,7 @@ def create_app(
     @app.get(
         "/api/projects/{project_id}",
         response_model=AdventureProjectDetailResponse,
+        tags=["Projects"],
     )
     def get_project(project_id: str) -> AdventureProjectDetailResponse:
         if project is None:
@@ -3764,6 +3864,7 @@ def create_app(
     @app.get(
         "/api/projects/{project_id}/assets",
         response_model=ProjectAssetListResponse,
+        tags=["Projects"],
     )
     def list_project_assets(project_id: str) -> ProjectAssetListResponse:
         if project is None:
@@ -3778,7 +3879,10 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.get("/api/projects/{project_id}/assets/{asset_path:path}")
+    @app.get(
+        "/api/projects/{project_id}/assets/{asset_path:path}",
+        tags=["Projects"],
+    )
     def get_project_asset(project_id: str, asset_path: str) -> BinaryResponse:
         if project is None:
             raise HTTPException(404, "Project management endpoints are not enabled.")
@@ -3801,6 +3905,7 @@ def create_app(
     @app.put(
         "/api/projects/{project_id}/assets/{asset_path:path}",
         response_model=ProjectAssetResource,
+        tags=["Projects"],
     )
     def upload_project_asset(
         project_id: str,
@@ -3827,6 +3932,7 @@ def create_app(
     @app.delete(
         "/api/projects/{project_id}/assets/{asset_path:path}",
         status_code=204,
+        tags=["Projects"],
     )
     def delete_project_asset(project_id: str, asset_path: str) -> None:
         if project is None:
@@ -3844,6 +3950,7 @@ def create_app(
     @app.get(
         "/api/projects/{project_id}/collaborators",
         response_model=ProjectCollaboratorListResponse,
+        tags=["Projects"],
     )
     def list_project_collaborators(
         project_id: str,
@@ -3863,6 +3970,7 @@ def create_app(
     @app.put(
         "/api/projects/{project_id}/collaborators",
         response_model=ProjectCollaboratorListResponse,
+        tags=["Projects"],
     )
     def replace_project_collaborators(
         project_id: str, payload: ProjectCollaboratorUpdateRequest
@@ -3884,6 +3992,7 @@ def create_app(
     @app.get(
         "/api/project-templates",
         response_model=AdventureProjectTemplateListResponse,
+        tags=["Project Templates"],
     )
     def list_project_templates() -> AdventureProjectTemplateListResponse:
         if template_service is None:
@@ -3900,6 +4009,7 @@ def create_app(
         "/api/project-templates/{template_id}/instantiate",
         response_model=AdventureProjectDetailResponse,
         status_code=201,
+        tags=["Project Templates"],
     )
     def instantiate_project_template(
         template_id: str, payload: ProjectTemplateInstantiateRequest
