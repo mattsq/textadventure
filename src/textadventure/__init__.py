@@ -34,6 +34,7 @@ from .analytics import (
     format_content_distribution_report,
     format_reachability_report,
 )
+from .asset_bundler import AssetBundleResult, BundledAsset, build_asset_bundle
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
 from .llm_providers import (
     AnthropicMessagesClient,
@@ -129,6 +130,9 @@ __all__ = [
     "format_complexity_report",
     "format_content_distribution_report",
     "format_reachability_report",
+    "AssetBundleResult",
+    "BundledAsset",
+    "build_asset_bundle",
     "ScriptedStoryEngine",
     "load_scenes_from_file",
     "load_scenes_from_mapping",
