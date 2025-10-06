@@ -199,18 +199,48 @@ def _match_path(route_path: str, request_path: str) -> dict[str, str] | None:
         segment for segment in request_path.strip("/").split("/") if segment
     ]
 
-    if len(route_segments) != len(request_segments):
-        return None
-
     params: dict[str, str] = {}
-    for template_segment, actual_segment in zip(route_segments, request_segments):
+    route_index = 0
+    request_index = 0
+
+    while route_index < len(route_segments):
+        template_segment = route_segments[route_index]
         if template_segment.startswith("{") and template_segment.endswith("}"):
-            param_name = template_segment[1:-1]
-            if not param_name:
+            inner = template_segment[1:-1]
+            if not inner:
                 return None
-            params[param_name] = actual_segment
-        elif template_segment != actual_segment:
+
+            if ":" in inner:
+                name, converter = inner.split(":", 1)
+            else:
+                name, converter = inner, None
+
+            if converter == "path":
+                remaining = request_segments[request_index:]
+                if route_index != len(route_segments) - 1:
+                    return None
+                params[name] = "/".join(remaining)
+                return params
+
+            if request_index >= len(request_segments):
+                return None
+
+            params[name] = request_segments[request_index]
+            route_index += 1
+            request_index += 1
+            continue
+
+        if request_index >= len(request_segments):
             return None
+
+        if template_segment != request_segments[request_index]:
+            return None
+
+        route_index += 1
+        request_index += 1
+
+    if request_index != len(request_segments):
+        return None
 
     return params
 

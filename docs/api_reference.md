@@ -90,7 +90,9 @@ services.
   field-type and validation filters. The API also exposes project-management
   endpoints backed by `ProjectService`, allowing tooling to discover registered
   adventure datasets, retrieve their scene payloads alongside checksum and
-  version metadata, and enumerate project assets through structured listings.
+  version metadata, enumerate project assets through structured listings, and
+  download individual asset files with appropriate content headers for editor
+  previews.
   `ProjectTemplateService` lists reusable project templates and provides an
   instantiation endpoint that materialises a new project directory by copying the
   template scenes and metadata.

@@ -276,6 +276,89 @@ def test_list_project_assets_returns_files_and_directories(tmp_path: Path) -> No
     assert logo_entry["updated_at"] == logo_timestamp.isoformat()
 
 
+def test_get_project_asset_returns_file_content(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You look around the room.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={"name": "Atlas"},
+    )
+
+    assets_root = tmp_path / "atlas" / "assets"
+    assets_root.mkdir(parents=True, exist_ok=True)
+
+    logo_bytes = b"\x89PNG"
+    logo_path = assets_root / "images" / "logo.png"
+    logo_path.parent.mkdir(parents=True, exist_ok=True)
+    logo_path.write_bytes(logo_bytes)
+
+    notes_text = "Remember the hidden door."
+    (assets_root / "notes.txt").write_text(notes_text, encoding="utf-8")
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/projects/atlas/assets/images/logo.png")
+    assert response.status_code == 200
+    assert response.content == logo_bytes
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["content-disposition"] == 'attachment; filename="logo.png"'
+
+    missing_response = client.get("/api/projects/atlas/assets/images/missing.png")
+    assert missing_response.status_code == 404
+
+
+def test_get_project_asset_rejects_invalid_paths(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You look around the room.",
+                    "target": None,
+                }
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={"name": "Atlas"},
+    )
+
+    assets_root = tmp_path / "atlas" / "assets"
+    (assets_root / "images").mkdir(parents=True, exist_ok=True)
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    traversal_response = client.get("/api/projects/atlas/assets/../scenes.json")
+    assert traversal_response.status_code == 400
+
+    directory_response = client.get("/api/projects/atlas/assets/images")
+    assert directory_response.status_code == 400
+
+
 def test_list_project_collaborators_returns_metadata(tmp_path: Path) -> None:
     scenes: dict[str, Any] = {
         "start": {

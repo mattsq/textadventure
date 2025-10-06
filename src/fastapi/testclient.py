@@ -11,10 +11,20 @@ from .app import FastAPI, HTTPException
 
 
 class _Response:
-    def __init__(self, status_code: int, payload: Any, text: str | None = None) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        payload: Any,
+        text: str | None = None,
+        *,
+        headers: Mapping[str, Any] | None = None,
+        content: bytes | None = None,
+    ) -> None:
         self.status_code = status_code
         self._payload = payload
         self._text = text
+        self.headers = dict(headers or {})
+        self._content = content
 
     def json(self) -> Any:
         return self._payload
@@ -24,6 +34,12 @@ class _Response:
         if self._text is not None:
             return self._text
         return json.dumps(self._payload)
+
+    @property
+    def content(self) -> bytes:
+        if self._content is not None:
+            return self._content
+        return self.text.encode("utf-8")
 
 
 class TestClient:
@@ -40,8 +56,8 @@ class TestClient:
         except HTTPException as exc:
             return _Response(exc.status_code, {"detail": exc.detail})
 
-        payload, text = _serialise(result)
-        return _Response(status, payload, text)
+        payload, text, content, headers = _serialise(result)
+        return _Response(status, payload, text, headers=headers, content=content)
 
     def post(
         self,
@@ -54,8 +70,8 @@ class TestClient:
         except HTTPException as exc:
             return _Response(exc.status_code, {"detail": exc.detail})
 
-        payload, text = _serialise(result)
-        return _Response(status, payload, text)
+        payload, text, content, headers = _serialise(result)
+        return _Response(status, payload, text, headers=headers, content=content)
 
     def put(
         self,
@@ -68,8 +84,8 @@ class TestClient:
         except HTTPException as exc:
             return _Response(exc.status_code, {"detail": exc.detail})
 
-        payload, text = _serialise(result)
-        return _Response(status, payload, text)
+        payload, text, content, headers = _serialise(result)
+        return _Response(status, payload, text, headers=headers, content=content)
 
     def delete(self, path: str, params: Mapping[str, Any] | None = None) -> _Response:
         try:
@@ -77,35 +93,53 @@ class TestClient:
         except HTTPException as exc:
             return _Response(exc.status_code, {"detail": exc.detail})
 
-        payload, text = _serialise(result)
-        return _Response(status, payload, text)
+        payload, text, content, headers = _serialise(result)
+        return _Response(status, payload, text, headers=headers, content=content)
 
 
-def _serialise(value: Any) -> tuple[Any, str | None]:
+def _serialise(value: Any) -> tuple[Any, str | None, bytes | None, Mapping[str, Any]]:
     if hasattr(value, "body"):
         body = getattr(value, "body")
+        headers_mapping = getattr(value, "headers", None)
+        media_type = getattr(value, "media_type", None)
+
+        content: bytes | None
+        text: str | None
+
         if isinstance(body, (bytes, bytearray)):
-            text = body.decode("utf-8")
+            content = bytes(body)
+            try:
+                text = content.decode("utf-8")
+            except UnicodeDecodeError:
+                text = None
         else:
             text = str(body)
+            content = text.encode("utf-8")
 
-        try:
-            payload = json.loads(text)
-        except json.JSONDecodeError:
-            payload = text
+        headers: dict[str, Any] = dict(headers_mapping or {})
+        if media_type and not any(key.lower() == "content-type" for key in headers):
+            headers["content-type"] = media_type
 
-        return payload, text
+        if text is None:
+            payload: Any = content
+        else:
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                payload = text
+
+        return payload, text, content, headers
 
     if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json"), None  # type: ignore[call-arg]
+        return value.model_dump(mode="json"), None, None, {}
     if is_dataclass(value) and not isinstance(value, type):
-        return asdict(value), None
+        return asdict(value), None, None, {}
     if isinstance(value, list):
-        return [_serialise(item)[0] for item in value], None
+        return [_serialise(item)[0] for item in value], None, None, {}
     if isinstance(value, tuple):
-        return [_serialise(item)[0] for item in value], None
+        return [_serialise(item)[0] for item in value], None, None, {}
     if isinstance(value, dict):
-        return {key: _serialise(item)[0] for key, item in value.items()}, None
+        return {key: _serialise(item)[0] for key, item in value.items()}, None, None, {}
     if isinstance(value, datetime):
-        return value.isoformat(), None
-    return value, None
+        return value.isoformat(), None, None, {}
+    return value, None, None, {}

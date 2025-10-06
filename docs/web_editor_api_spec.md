@@ -982,6 +982,26 @@ supporting media.
   disabled.
 - `400 Bad Request` – Project assets directory exists but is not a directory.
 
+### `GET /projects/{project_id}/assets/{path}`
+
+Download an individual asset stored in the project's `assets/` directory. The
+endpoint streams binary content with a best-effort `Content-Type` header and a
+download-friendly `Content-Disposition` filename.
+
+**Path parameters**
+
+- `project_id` – Identifier returned by `GET /projects`.
+- `path` – Relative path to the asset beneath the `assets/` directory.
+
+**Response – 200 OK**
+
+Binary response body containing the file contents.
+
+**Errors**
+
+- `404 Not Found` – Project or asset does not exist.
+- `400 Bad Request` – Asset path is invalid or targets a directory.
+
 ## Notes for Future Iterations
 
 - Introduce `PATCH /scenes/{scene_id}` for partial updates once concurrent edit

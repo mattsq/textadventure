@@ -826,6 +826,30 @@ class ProjectAssetListResponse(BaseModel):
         return value.isoformat()
 
 
+@dataclass(frozen=True)
+class ProjectAssetContent:
+    """Binary payload representing an asset stored alongside a project."""
+
+    filename: str
+    content: bytes
+    content_type: str | None
+
+
+class BinaryResponse:
+    """Minimal response object for returning binary payloads in tests."""
+
+    def __init__(
+        self,
+        *,
+        content: bytes,
+        media_type: str,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
+        self.body = content
+        self.media_type = media_type
+        self.headers = dict(headers or {})
+
+
 class ProjectCollaboratorResource(BaseModel):
     """Representation of a collaborator's access level for a project."""
 
@@ -1358,6 +1382,51 @@ class ProjectService:
             assets=resources,
         )
 
+    def fetch_project_asset(
+        self, identifier: str, asset_path: str
+    ) -> ProjectAssetContent:
+        """Return the binary payload for ``asset_path`` within the project's assets."""
+
+        record = self._store.load(identifier)
+        assets_root = record.scene_path.parent / "assets"
+
+        if assets_root.exists() and not assets_root.is_dir():
+            raise ValueError(
+                f"Project assets directory '{assets_root}' must be a directory when present."
+            )
+
+        if not assets_root.exists():
+            raise FileNotFoundError(
+                f"Project '{record.identifier}' does not have an assets directory."
+            )
+
+        relative_path = _normalise_project_asset_path(asset_path)
+        target_path = assets_root / relative_path
+
+        if not target_path.exists():
+            raise FileNotFoundError(
+                f"Asset '{relative_path.as_posix()}' does not exist for project '{record.identifier}'."
+            )
+
+        if not target_path.is_file():
+            raise ValueError(
+                f"Asset '{relative_path.as_posix()}' is not a file and cannot be downloaded."
+            )
+
+        try:
+            content = target_path.read_bytes()
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to read asset '{relative_path.as_posix()}' for project '{record.identifier}'."
+            ) from exc
+
+        content_type, _ = mimetypes.guess_type(target_path.name)
+        return ProjectAssetContent(
+            filename=target_path.name,
+            content=content,
+            content_type=content_type,
+        )
+
     def list_project_collaborators(
         self, identifier: str
     ) -> ProjectCollaboratorListResponse:
@@ -1556,6 +1625,38 @@ def _build_project_asset_listing(root: Path) -> list[ProjectAssetResource]:
             )
 
     return resources
+
+
+def _normalise_project_asset_path(path: str) -> Path:
+    """Return a sanitised relative path for locating a project asset."""
+
+    if not isinstance(path, str):
+        raise ValueError("Project asset path must be provided as a string.")
+
+    trimmed = path.strip()
+    if not trimmed:
+        raise ValueError("Project asset path must be a non-empty string.")
+
+    relative = Path(trimmed)
+    if relative.is_absolute():
+        raise ValueError("Project asset path must be relative to the assets directory.")
+
+    parts: list[str] = []
+    for segment in relative.parts:
+        if segment in ("", "."):
+            continue
+        if segment == "..":
+            raise ValueError(
+                "Project asset path must not traverse outside the assets directory."
+            )
+        parts.append(segment)
+
+    if not parts:
+        raise ValueError(
+            "Project asset path must reference a file within the assets directory."
+        )
+
+    return Path(*parts)
 
 
 def _build_project_resource(record: AdventureProjectRecord) -> AdventureProjectResource:
@@ -3550,6 +3651,26 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get("/api/projects/{project_id}/assets/{asset_path:path}")
+    def get_project_asset(project_id: str, asset_path: str) -> BinaryResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            asset = project.fetch_project_asset(project_id, asset_path)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        headers = {"content-disposition": f'attachment; filename="{asset.filename}"'}
+        media_type = asset.content_type or "application/octet-stream"
+        return BinaryResponse(
+            content=asset.content, media_type=media_type, headers=headers
+        )
 
     @app.get(
         "/api/projects/{project_id}/collaborators",
