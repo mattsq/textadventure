@@ -147,12 +147,12 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] `GET /api/scenes` - List all scenes with metadata *(Implemented read-only endpoint backed by the scripted scene store, including pagination, filtering, and validation summaries.)*
       - [x] `GET /api/scenes/{scene_id}` - Get detailed scene data *(Implemented read-only detail endpoint returning full scene definitions with optional validation metadata.)*
       - [x] `PUT /api/scenes/{scene_id}` - Update existing scene *(Adds optimistic concurrency checks, persistence, and regression tests.)*
-      - [ ] `POST /api/scenes` - Create new scene
-      - [ ] `DELETE /api/scenes/{scene_id}` - Delete scene (with dependency checks)
+      - [x] `POST /api/scenes` - Create new scene *(Adds optimistic concurrency checks, validation summaries, and persistence with regression tests.)*
+      - [x] `DELETE /api/scenes/{scene_id}` - Delete scene (with dependency checks) *(Prevents removal when other scenes reference the target and updates dataset version metadata.)*
       - [x] `GET /api/scenes/validate` - Full integrity validation *(Added read-only endpoint returning quality, reachability, and item-flow summaries with test coverage.)*
       - [x] `GET /api/scenes/graph` - Scene connectivity graph data *(returns node/edge metadata with transition details and start-scene selection.)*
-      - [ ] `POST /api/scenes/import` - Import JSON scene data
-      - [ ] `GET /api/scenes/export` - Export current scenes as JSON
+      - [x] `POST /api/scenes/import` - Import JSON scene data *(Provides REST-aligned endpoint alongside legacy path.)*
+      - [x] `GET /api/scenes/export` - Export current scenes as JSON *(Adds REST-aligned alias mirroring the legacy endpoint.)*
     - [ ] Add comprehensive validation engine:
       - [ ] Scene reference integrity (no broken targets)
       - [ ] Item flow analysis (sources vs requirements)
@@ -161,6 +161,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Command uniqueness validation
     - [ ] Implement WebSocket endpoint for live adventure testing.
     - [ ] Add unit tests covering all API endpoints and validation logic.
+      - [x] Added regression coverage for the create/delete endpoints and import/export aliases.
     - [x] Document API specification with OpenAPI/Swagger. *(Documented the FastAPI OpenAPI/Swagger workflow and added tagged metadata so the auto-generated docs surface grouped endpoints.)*
 
   - [ ] **Phase 2: Core Frontend Architecture**

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -640,6 +641,17 @@ def test_export_endpoint_supports_minified_formatting() -> None:
     )
 
 
+def test_export_scenes_alias_matches_legacy_endpoint() -> None:
+    client = _client()
+
+    legacy = client.get("/api/export/scenes")
+    alias = client.get("/api/scenes/export")
+
+    assert alias.status_code == legacy.status_code
+    assert alias.content == legacy.content
+    assert alias.headers["content-type"] == legacy.headers["content-type"]
+
+
 def test_import_endpoint_validates_uploaded_scenes() -> None:
     client = _client()
     dataset = _import_dataset()
@@ -753,6 +765,29 @@ def test_import_endpoint_rejects_newer_schema_version() -> None:
         json={"scenes": dataset, "schema_version": CURRENT_SCENE_SCHEMA_VERSION + 1},
     )
     assert response.status_code == 400
+
+
+def test_import_scenes_alias_matches_legacy_endpoint() -> None:
+    client = _client()
+    dataset = _import_dataset()
+
+    payload = {"scenes": dataset, "start_scene": "alpha"}
+
+    legacy = client.post("/api/import/scenes", json=payload)
+    alias = client.post("/api/scenes/import", json=payload)
+
+    assert alias.status_code == legacy.status_code
+    legacy_payload = legacy.json()
+    alias_payload = alias.json()
+
+    def _normalise(payload: dict[str, Any]) -> dict[str, Any]:
+        normalised = copy.deepcopy(payload)
+        validation = normalised.get("validation")
+        if isinstance(validation, dict):
+            validation.pop("generated_at", None)
+        return normalised
+
+    assert _normalise(alias_payload) == _normalise(legacy_payload)
 
 
 def test_import_endpoint_reports_merge_and_replace_plans() -> None:
@@ -1993,6 +2028,190 @@ def test_update_scene_rejects_version_conflicts(tmp_path: Path) -> None:
 
     persisted_definitions, _ = repository.load()
     assert persisted_definitions == stored_definitions
+
+
+def test_create_scene_persists_new_definition(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    stored_definitions, stored_timestamp = repository.load()
+    metadata = _expected_metadata(stored_definitions, stored_timestamp)
+
+    new_scene = {
+        "description": "Gamma",
+        "choices": [
+            {"command": "wait", "description": "Wait patiently."},
+        ],
+        "transitions": {
+            "wait": {"narration": "Time drifts by.", "target": None},
+        },
+    }
+
+    response = client.post(
+        "/api/scenes",
+        json={
+            "id": "gamma",
+            "scene": new_scene,
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "expected_version_id": metadata["version_id"],
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["data"]["id"] == "gamma"
+    assert payload["data"]["description"] == "Gamma"
+    assert payload["validation"] is None
+
+    updated_definitions, updated_timestamp = repository.load()
+    expected_metadata = _expected_metadata(updated_definitions, updated_timestamp)
+
+    version = payload["version"]
+    assert version["version_id"] == expected_metadata["version_id"]
+    assert version["checksum"] == expected_metadata["checksum"]
+    assert "gamma" in updated_definitions
+    assert updated_definitions["gamma"]["description"] == "Gamma"
+
+
+def test_create_scene_rejects_existing_identifier(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    stored_definitions, stored_timestamp = repository.load()
+    metadata = _expected_metadata(stored_definitions, stored_timestamp)
+
+    response = client.post(
+        "/api/scenes",
+        json={
+            "id": "alpha",
+            "scene": dataset["alpha"],
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "expected_version_id": metadata["version_id"],
+        },
+    )
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_create_scene_rejects_version_conflicts(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    stored_definitions, stored_timestamp = repository.load()
+    metadata = _expected_metadata(stored_definitions, stored_timestamp)
+
+    new_scene = {
+        "description": "Gamma",
+        "choices": [
+            {"command": "wait", "description": "Wait patiently."},
+        ],
+        "transitions": {
+            "wait": {"narration": "Time drifts by.", "target": None},
+        },
+    }
+
+    response = client.post(
+        "/api/scenes",
+        json={
+            "id": "gamma",
+            "scene": new_scene,
+            "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+            "expected_version_id": "outdated-version",
+        },
+    )
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["current_version_id"] == metadata["version_id"]
+
+    persisted_definitions, _ = repository.load()
+    assert persisted_definitions == stored_definitions
+
+
+def test_delete_scene_removes_definition(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    dataset["gamma"] = {
+        "description": "Gamma",
+        "choices": [
+            {"command": "wait", "description": "Wait patiently."},
+        ],
+        "transitions": {
+            "wait": {"narration": "Time drifts by.", "target": None},
+        },
+    }
+
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    stored_definitions, stored_timestamp = repository.load()
+    metadata = _expected_metadata(stored_definitions, stored_timestamp)
+
+    response = client.delete(
+        "/api/scenes/gamma",
+        params={"expected_version_id": metadata["version_id"]},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scene_id"] == "gamma"
+
+    updated_definitions, updated_timestamp = repository.load()
+    expected_metadata = _expected_metadata(updated_definitions, updated_timestamp)
+
+    version = payload["version"]
+    assert version["version_id"] == expected_metadata["version_id"]
+    assert version["checksum"] == expected_metadata["checksum"]
+    assert "gamma" not in updated_definitions
+
+
+def test_delete_scene_rejects_unknown_identifier(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.delete("/api/scenes/unknown")
+
+    assert response.status_code == 404
+
+
+def test_delete_scene_blocks_referenced_targets(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.delete("/api/scenes/beta")
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert any(ref["scene_id"] == "alpha" for ref in detail["references"])
 
 
 def test_create_app_uses_environment_scene_path(

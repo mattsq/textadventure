@@ -415,6 +415,35 @@ class SceneUpdateRequest(BaseModel):
     )
 
 
+class SceneCreateRequest(BaseModel):
+    """Request payload for creating a new scene definition."""
+
+    id: str = Field(
+        ...,
+        description="Identifier for the new scene.",
+    )
+    scene: dict[str, Any] = Field(
+        ...,
+        description="Scene definition matching the export format.",
+    )
+    schema_version: int | None = Field(
+        None,
+        ge=1,
+        description=(
+            "Optional schema version for the uploaded scene. Legacy formats are "
+            "migrated automatically when supported."
+        ),
+    )
+    expected_version_id: str | None = Field(
+        None,
+        description=(
+            "Optional optimistic concurrency token derived from the current "
+            "dataset version. When provided, creation is rejected if the dataset "
+            "has changed."
+        ),
+    )
+
+
 class SceneDiffRequest(BaseModel):
     """Request payload for computing a diff against the current dataset."""
 
@@ -2546,6 +2575,41 @@ class SceneVersionConflictError(RuntimeError):
         self.current_version_id = current_version_id
 
 
+@dataclass(frozen=True)
+class SceneReference:
+    """Location where a scene is referenced by another definition."""
+
+    scene_id: str
+    command: str
+
+
+class SceneAlreadyExistsError(RuntimeError):
+    """Raised when attempting to create a scene that already exists."""
+
+    def __init__(self, scene_id: str) -> None:
+        super().__init__(f"Scene '{scene_id}' already exists.")
+        self.scene_id = scene_id
+
+
+class SceneDependencyError(RuntimeError):
+    """Raised when deleting a scene that is still referenced elsewhere."""
+
+    def __init__(self, scene_id: str, references: Sequence[SceneReference]) -> None:
+        self.scene_id = scene_id
+        self.references = tuple(references)
+        if references:
+            summary = ", ".join(
+                f"{ref.scene_id} (command '{ref.command}')" for ref in references
+            )
+            message = (
+                f"Scene '{scene_id}' cannot be deleted because it is referenced by: "
+                f"{summary}."
+            )
+        else:
+            message = f"Scene '{scene_id}' cannot be deleted because it is referenced by other scenes."
+        super().__init__(message)
+
+
 class SceneService:
     """Business logic supporting the API endpoints."""
 
@@ -2827,6 +2891,94 @@ class SceneService:
             ),
         )
 
+    def create_scene(
+        self,
+        *,
+        scene_id: str,
+        scene: Mapping[str, Any],
+        schema_version: int | None = None,
+        expected_version_id: str | None = None,
+    ) -> SceneMutationResponse:
+        """Persist a new scene definition identified by ``scene_id``."""
+
+        if not scene_id or not scene_id.strip():
+            raise ValueError("Scene identifier must be a non-empty string.")
+
+        normalised_id = scene_id.strip()
+
+        existing_definitions, dataset_timestamp = self._repository.load()
+
+        try:
+            current_serialisable = json.loads(
+                json.dumps(existing_definitions, ensure_ascii=False)
+            )
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Scene data could not be serialised to JSON.") from exc
+
+        if not isinstance(current_serialisable, dict):
+            raise RuntimeError("Scene data must be a JSON object.")
+
+        current_checksum = _compute_scene_checksum(current_serialisable)
+        current_version_id = _format_version_id(dataset_timestamp, current_checksum)
+
+        if (
+            expected_version_id is not None
+            and expected_version_id != current_version_id
+        ):
+            raise SceneVersionConflictError(current_version_id)
+
+        if normalised_id in current_serialisable:
+            raise SceneAlreadyExistsError(normalised_id)
+
+        if self._automatic_backup_dir is not None:
+            self._maybe_create_automatic_backup(
+                dataset=current_serialisable,
+                generated_at=_ensure_timezone(dataset_timestamp),
+                version_id=current_version_id,
+                checksum=current_checksum,
+            )
+
+        try:
+            migrated = _migrate_scene_dataset(
+                {normalised_id: scene}, schema_version=schema_version
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
+        migrated_scene = migrated[normalised_id]
+
+        updated_definitions = dict(existing_definitions)
+        updated_definitions[normalised_id] = migrated_scene
+
+        serialisable_dataset = _ensure_serialisable_scene_mapping(updated_definitions)
+
+        updated_timestamp = self._repository.save(serialisable_dataset)
+
+        checksum = _compute_scene_checksum(serialisable_dataset)
+        version_id = _format_version_id(updated_timestamp, checksum)
+
+        scenes = load_scenes_from_mapping(serialisable_dataset)
+        scene_object = scenes[normalised_id]
+
+        validation_issues = _collect_validation_issues(
+            normalised_id, cast(Mapping[str, Any], scenes)
+        )
+        validation = (
+            SceneValidation(issues=validation_issues) if validation_issues else None
+        )
+
+        resource = _build_scene_resource(normalised_id, scene_object, updated_timestamp)
+
+        return SceneMutationResponse(
+            data=resource,
+            validation=validation,
+            version=SceneVersionInfo(
+                generated_at=updated_timestamp,
+                version_id=version_id,
+                checksum=checksum,
+            ),
+        )
+
     def update_scene(
         self,
         *,
@@ -2908,6 +3060,77 @@ class SceneService:
         return SceneMutationResponse(
             data=resource,
             validation=validation,
+            version=SceneVersionInfo(
+                generated_at=updated_timestamp,
+                version_id=version_id,
+                checksum=checksum,
+            ),
+        )
+
+    def delete_scene(
+        self,
+        *,
+        scene_id: str,
+        expected_version_id: str | None = None,
+    ) -> SceneDeleteResponse:
+        """Remove the scene identified by ``scene_id`` from the dataset."""
+
+        if not scene_id or not scene_id.strip():
+            raise ValueError("Scene identifier must be a non-empty string.")
+
+        normalised_id = scene_id.strip()
+
+        existing_definitions, dataset_timestamp = self._repository.load()
+
+        if normalised_id not in existing_definitions:
+            raise KeyError(f"Scene '{normalised_id}' does not exist.")
+
+        try:
+            current_serialisable = json.loads(
+                json.dumps(existing_definitions, ensure_ascii=False)
+            )
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Scene data could not be serialised to JSON.") from exc
+
+        if not isinstance(current_serialisable, dict):
+            raise RuntimeError("Scene data must be a JSON object.")
+
+        current_checksum = _compute_scene_checksum(current_serialisable)
+        current_version_id = _format_version_id(dataset_timestamp, current_checksum)
+
+        if (
+            expected_version_id is not None
+            and expected_version_id != current_version_id
+        ):
+            raise SceneVersionConflictError(current_version_id)
+
+        scenes = load_scenes_from_mapping(existing_definitions)
+        references = _find_scene_references(
+            normalised_id, cast(Mapping[str, Any], scenes)
+        )
+        if references:
+            raise SceneDependencyError(normalised_id, references)
+
+        if self._automatic_backup_dir is not None:
+            self._maybe_create_automatic_backup(
+                dataset=current_serialisable,
+                generated_at=_ensure_timezone(dataset_timestamp),
+                version_id=current_version_id,
+                checksum=current_checksum,
+            )
+
+        updated_definitions = dict(existing_definitions)
+        updated_definitions.pop(normalised_id)
+
+        serialisable_dataset = _ensure_serialisable_scene_mapping(updated_definitions)
+
+        updated_timestamp = self._repository.save(serialisable_dataset)
+
+        checksum = _compute_scene_checksum(serialisable_dataset)
+        version_id = _format_version_id(updated_timestamp, checksum)
+
+        return SceneDeleteResponse(
+            scene_id=normalised_id,
             version=SceneVersionInfo(
                 generated_at=updated_timestamp,
                 version_id=version_id,
@@ -3540,6 +3763,35 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @app.post(
+        "/api/scenes",
+        response_model=SceneMutationResponse,
+        status_code=201,
+        tags=["Scenes"],
+    )
+    def create_scene_endpoint(payload: SceneCreateRequest) -> SceneMutationResponse:
+        try:
+            return service.create_scene(
+                scene_id=payload.id,
+                scene=payload.scene,
+                schema_version=payload.schema_version,
+                expected_version_id=payload.expected_version_id,
+            )
+        except SceneAlreadyExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except SceneVersionConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "current_version_id": exc.current_version_id,
+                },
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @app.put(
         "/api/scenes/{scene_id}",
         response_model=SceneMutationResponse,
@@ -3563,6 +3815,51 @@ def create_app(
                 detail={
                     "message": str(exc),
                     "current_version_id": exc.current_version_id,
+                },
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.delete(
+        "/api/scenes/{scene_id}",
+        response_model=SceneDeleteResponse,
+        tags=["Scenes"],
+    )
+    def delete_scene_endpoint(
+        scene_id: str,
+        expected_version_id: str | None = Query(
+            None,
+            description=(
+                "Optional scene dataset version identifier used for optimistic "
+                "concurrency checks."
+            ),
+        ),
+    ) -> SceneDeleteResponse:
+        try:
+            return service.delete_scene(
+                scene_id=scene_id, expected_version_id=expected_version_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except SceneVersionConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "current_version_id": exc.current_version_id,
+                },
+            ) from exc
+        except SceneDependencyError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": str(exc),
+                    "references": [
+                        {"scene_id": ref.scene_id, "command": ref.command}
+                        for ref in exc.references
+                    ],
                 },
             ) from exc
         except ValueError as exc:
@@ -3651,8 +3948,74 @@ def create_app(
 
         return SceneValidationResponse(data=report)
 
+    def _handle_scene_export(
+        ids_param: str | None, format_param: ExportFormat
+    ) -> FormattedJSONResponse:
+        try:
+            parsed_ids = _parse_scene_id_filter(ids_param)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            export_format = (
+                format_param
+                if isinstance(format_param, ExportFormat)
+                else ExportFormat(format_param)
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        try:
+            export = service.export_scenes(ids=parsed_ids)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return FormattedJSONResponse(
+            content=export.model_dump(),
+            export_format=export_format,
+        )
+
+    def _handle_scene_import(payload: SceneImportRequest) -> SceneImportResponse:
+        try:
+            return service.validate_import_payload(
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
+                start_scene=payload.start_scene,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @app.get(
         "/api/export/scenes",
+        response_model=None,
+        tags=["Scenes"],
+    )
+    def export_scenes_legacy(
+        ids: str | None = Query(
+            None,
+            description=(
+                "Comma-separated list of scene identifiers to export. "
+                "When omitted, the full dataset is returned."
+            ),
+        ),
+        format: ExportFormat = Query(
+            ExportFormat.MINIFIED,
+            description=(
+                "Serialisation style for the JSON payload. "
+                "Use 'pretty' for indented output or 'minified' for compact output."
+            ),
+        ),
+    ) -> FormattedJSONResponse:
+        return _handle_scene_export(ids, format)
+
+    @app.get(
+        "/api/scenes/export",
         response_model=None,
         tags=["Scenes"],
     )
@@ -3672,48 +4035,23 @@ def create_app(
             ),
         ),
     ) -> FormattedJSONResponse:
-        try:
-            parsed_ids = _parse_scene_id_filter(ids)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        try:
-            export_format = (
-                format if isinstance(format, ExportFormat) else ExportFormat(format)
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        try:
-            export = service.export_scenes(ids=parsed_ids)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return FormattedJSONResponse(
-            content=export.model_dump(),
-            export_format=export_format,
-        )
+        return _handle_scene_export(ids, format)
 
     @app.post(
         "/api/import/scenes",
         response_model=SceneImportResponse,
         tags=["Scenes"],
     )
+    def import_scenes_legacy(payload: SceneImportRequest) -> SceneImportResponse:
+        return _handle_scene_import(payload)
+
+    @app.post(
+        "/api/scenes/import",
+        response_model=SceneImportResponse,
+        tags=["Scenes"],
+    )
     def import_scenes(payload: SceneImportRequest) -> SceneImportResponse:
-        try:
-            return service.validate_import_payload(
-                scenes=payload.scenes,
-                schema_version=payload.schema_version,
-                start_scene=payload.start_scene,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return _handle_scene_import(payload)
 
     @app.post(
         "/api/scenes/rollback",
@@ -4303,6 +4641,13 @@ class SceneMutationResponse(BaseModel):
     version: SceneVersionInfo
 
 
+class SceneDeleteResponse(BaseModel):
+    """Response payload returned after deleting a scene definition."""
+
+    scene_id: str
+    version: SceneVersionInfo
+
+
 def _build_scene_resource(
     scene_id: str,
     scene: Any,
@@ -4360,6 +4705,28 @@ def _compute_scene_checksum(scenes: Mapping[str, Any]) -> str:
         ensure_ascii=False,
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _find_scene_references(
+    scene_id: str, scenes: Mapping[str, Any]
+) -> list[SceneReference]:
+    """Return transitions that reference ``scene_id`` from other scenes."""
+
+    references: list[SceneReference] = []
+    for candidate_id, scene in scenes.items():
+        if candidate_id == scene_id:
+            continue
+
+        transitions = getattr(scene, "transitions", {})
+        for command, transition in transitions.items():
+            target = getattr(transition, "target", None)
+            if target == scene_id:
+                references.append(
+                    SceneReference(scene_id=candidate_id, command=command)
+                )
+
+    references.sort(key=lambda entry: (entry.scene_id, entry.command))
+    return references
 
 
 def _format_version_id(timestamp: datetime, checksum: str) -> str:
