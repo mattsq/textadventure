@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from io import StringIO
 from pathlib import Path
 import json
@@ -16,6 +16,7 @@ from main import (
     EditorLauncher,
     SceneDatasetMonitor,
     TranscriptLogger,
+    _TabCompletionManager,
     run_cli,
 )
 from textadventure import (
@@ -76,6 +77,60 @@ class _IteratorInput:
     def __call__(self, prompt: str = "") -> str:  # pragma: no cover - trivial wrapper
         del prompt
         return next(self._values)
+
+
+class _FakeReadline:
+    """Minimal readline-compatible stub for exercising tab completion logic."""
+
+    def __init__(self) -> None:
+        self._completer: Callable[[str, int], str | None] | None = None
+        self._delims = " \t\n"
+        self._line_buffer = ""
+        self._begidx = 0
+        self._endidx = 0
+        self.bindings: list[str] = []
+
+    def parse_and_bind(self, command: str) -> None:
+        self.bindings.append(command)
+
+    def set_completer(self, completer: Callable[[str, int], str | None] | None) -> None:
+        self._completer = completer
+
+    def get_completer(self) -> Callable[[str, int], str | None] | None:
+        return self._completer
+
+    def set_completer_delims(self, delims: str) -> None:
+        self._delims = delims
+
+    def get_completer_delims(self) -> str:
+        return self._delims
+
+    def get_line_buffer(self) -> str:
+        return self._line_buffer
+
+    def get_begidx(self) -> int:
+        return self._begidx
+
+    def get_endidx(self) -> int:
+        return self._endidx
+
+    def set_state(self, buffer: str, begidx: int, endidx: int) -> None:
+        self._line_buffer = buffer
+        self._begidx = begidx
+        self._endidx = endidx
+
+
+def _gather_completions(readline: _FakeReadline, text: str) -> list[str]:
+    completer = readline.get_completer()
+    assert completer is not None
+
+    results: list[str] = []
+    for index in range(20):
+        candidate = completer(text, index)
+        if candidate is None:
+            break
+        results.append(candidate)
+    return results
 
 
 class _EndingEngine(StoryEngine):
@@ -436,6 +491,83 @@ def test_run_cli_supports_common_shortcuts(monkeypatch, capsys) -> None:
     assert "=== Help ===" in output
     assert "=== Adventure Status ===" in output
     assert "Thanks for playing!" in output
+
+
+def test_tab_completion_cycles_commands_and_choices() -> None:
+    """Readline tab completion should surface commands, choices, and editor actions."""
+
+    readline = _FakeReadline()
+
+    def previous(text: str, state: int) -> str | None:
+        del text, state
+        return "noop"
+
+    readline.set_completer(previous)
+    readline.set_completer_delims("abc")
+
+    manager = _TabCompletionManager(readline)
+    manager.update(
+        choice_commands=("explore", "wait"),
+        system_commands=("help", "status", "quit", "exit"),
+        help_topics=("help", "status", "quit", "exit", "explore"),
+        editor_actions=("start", "stop", "status"),
+    )
+
+    assert readline.bindings == ["tab: complete"]
+    active_completer = readline.get_completer()
+    assert active_completer is not None
+    assert active_completer is not previous
+
+    readline.set_state("", 0, 0)
+    assert _gather_completions(readline, "") == [
+        "help",
+        "status",
+        "quit",
+        "exit",
+        "explore",
+        "wait",
+    ]
+
+    readline.set_state("help ", 5, 5)
+    assert _gather_completions(readline, "") == [
+        "help",
+        "status",
+        "quit",
+        "exit",
+        "explore",
+    ]
+
+    readline.set_state("help st", 5, 7)
+    assert _gather_completions(readline, "st") == ["status"]
+
+    readline.set_state("editor ", 7, 7)
+    assert _gather_completions(readline, "") == ["start", "stop", "status"]
+
+    manager.close()
+    assert readline.get_completer() is previous
+    assert readline.get_completer_delims() == "abc"
+
+
+def test_tab_completion_deduplicates_case_insensitively() -> None:
+    """Duplicate commands should collapse regardless of their casing."""
+
+    readline = _FakeReadline()
+    manager = _TabCompletionManager(readline)
+    manager.update(
+        choice_commands=("Look", "look"),
+        system_commands=("help", "Quit", "quit"),
+        help_topics=("Quit", "quit", "Look", "look"),
+        editor_actions=(),
+    )
+
+    readline.set_state("", 0, 0)
+    assert _gather_completions(readline, "") == ["help", "Quit", "Look"]
+
+    readline.set_state("help ", 5, 5)
+    assert _gather_completions(readline, "") == ["Quit", "Look"]
+
+    manager.close()
+    assert readline.get_completer() is None
 
 
 def test_transcript_logger_captures_inputs_and_events(monkeypatch) -> None:

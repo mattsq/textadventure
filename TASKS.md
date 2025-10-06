@@ -344,7 +344,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Add regression tests covering reference detection scenarios.
     - [ ] Add keyboard shortcuts and accessibility:
       - [x] Common action shortcuts *(Added CLI single-key shortcuts for quit/help/status/tutorial with documentation and tests.)*
-      - [ ] Tab navigation
+      - [x] Tab navigation *(Added readline-powered tab completion covering system commands, story choices, and editor actions with regression tests and documentation updates.)*
       - [x] Screen reader support *(Added a `--screen-reader` CLI flag that removes ANSI styling, simplifies glyphs, and expands choice descriptions for assistive tech.)*
       - [x] High contrast mode *(Added a `--high-contrast` CLI flag that swaps in a brighter Markdown palette with documentation and tests.)*
     - [ ] Create help system:
