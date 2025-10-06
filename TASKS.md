@@ -378,11 +378,13 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Support an `--editor-reload` flag to launch the embedded server with uvicorn auto-reload for iterative testing.
     - [ ] Create deployment pipeline:
       - [x] Docker containerization *(Added a Dockerfile and README instructions for running the API via Uvicorn in a container.)*
-      - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
-      - [ ] Production build optimization
+    - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
+    - [ ] Production build optimization
       - [ ] Static asset management
         - [x] Expose API endpoint to download project asset files for editors.
-        - [ ] Provide asset upload and deletion endpoints.
+      - [x] Provide asset upload and deletion endpoints.
+        - [x] Outline upload and deletion API contracts and validation rules.
+        - [x] Implement asset storage/deletion logic, FastAPI endpoints, and regression tests.
     - [ ] Add authentication and user management:
       - [ ] User accounts and profiles
       - [ ] Project sharing and permissions
