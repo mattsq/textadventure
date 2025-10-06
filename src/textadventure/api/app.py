@@ -18,7 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Literal, Sequence, cast, get_args
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from functools import partial
 
 from starlette.background import BackgroundTask
@@ -44,7 +44,15 @@ from ..analytics import (
     compute_scene_reachability,
 )
 from ..search import FieldType, SearchResults, _SceneLike, search_scene_text
-from ..scripted_story_engine import load_scenes_from_mapping
+from ..scripted_story_engine import ScriptedStoryEngine, load_scenes_from_mapping
+from ..story_engine import StoryEngine, StoryEvent
+from ..world_state import WorldState
+from ..multi_agent import (
+    MultiAgentCoordinator,
+    ScriptedStoryAgent,
+    QueuedAgentMessage,
+)
+from ..memory import MemoryRequest
 from .settings import SceneApiSettings
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
@@ -3617,13 +3625,14 @@ def create_app(
 
     resolved_settings = settings or SceneApiSettings.from_env()
 
+    repository = SceneRepository(
+        package=resolved_settings.scene_package,
+        resource_name=resolved_settings.scene_resource_name,
+        path=resolved_settings.scene_path,
+    )
+
     service = scene_service
     if service is None:
-        repository = SceneRepository(
-            package=resolved_settings.scene_package,
-            resource_name=resolved_settings.scene_resource_name,
-            path=resolved_settings.scene_path,
-        )
         branch_store = SceneBranchStore(root=resolved_settings.branch_root)
         service = SceneService(
             repository=repository,
@@ -3651,6 +3660,11 @@ def create_app(
             template_store=template_store,
             project_service=project,
         )
+
+    playtest_manager = PlaytestManager(
+        repository=repository,
+        project_service=project,
+    )
 
     tags_metadata = [
         {
@@ -4371,6 +4385,161 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @app.websocket("/api/playtest")
+    def playtest_endpoint(websocket: WebSocket) -> None:
+        websocket.accept()
+
+        initial_project_id = websocket.query_params.get("project_id")
+
+        try:
+            session = playtest_manager.create_session(project_id=initial_project_id)
+            initial_event = session.reset()
+        except FileNotFoundError as exc:
+            websocket.send_json(
+                _build_playtest_error_message("project-not-found", str(exc)).model_dump(
+                    mode="json"
+                )
+            )
+            websocket.close(code=4404)
+            return
+        except ValueError as exc:
+            websocket.send_json(
+                _build_playtest_error_message("invalid-project", str(exc)).model_dump(
+                    mode="json"
+                )
+            )
+            websocket.close(code=4400)
+            return
+        except RuntimeError as exc:
+            websocket.send_json(
+                _build_playtest_error_message("session-error", str(exc)).model_dump(
+                    mode="json"
+                )
+            )
+            websocket.close(code=1011)
+            return
+
+        websocket.send_json(
+            _build_playtest_event_message(initial_event, session).model_dump(
+                mode="json"
+            )
+        )
+
+        while True:
+            try:
+                payload = websocket.receive_json()
+            except WebSocketDisconnect:
+                break
+
+            if not isinstance(payload, Mapping):
+                websocket.send_json(
+                    _build_playtest_error_message(
+                        "invalid-message", "Payload must be a JSON object."
+                    ).model_dump(mode="json")
+                )
+                continue
+
+            raw_type = payload.get("type")
+            if not isinstance(raw_type, str):
+                websocket.send_json(
+                    _build_playtest_error_message(
+                        "invalid-message", "Message type must be a string."
+                    ).model_dump(mode="json")
+                )
+                continue
+
+            message_type = raw_type.strip().lower()
+
+            if message_type == "player_input":
+                command_value = payload.get("input", "")
+                if not isinstance(command_value, str):
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "invalid-message", "Player input must be a string."
+                        ).model_dump(mode="json")
+                    )
+                    continue
+                try:
+                    event = session.apply_player_input(command_value)
+                except Exception as exc:  # pragma: no cover - surfaced to client
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "session-error", str(exc)
+                        ).model_dump(mode="json")
+                    )
+                    continue
+                websocket.send_json(
+                    _build_playtest_event_message(event, session).model_dump(
+                        mode="json"
+                    )
+                )
+                continue
+
+            if message_type == "reset":
+                try:
+                    event = session.reset()
+                except Exception as exc:  # pragma: no cover - surfaced to client
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "session-error", str(exc)
+                        ).model_dump(mode="json")
+                    )
+                    continue
+                websocket.send_json(
+                    _build_playtest_event_message(event, session).model_dump(
+                        mode="json"
+                    )
+                )
+                continue
+
+            if message_type == "configure":
+                project_value = payload.get("project_id")
+                if not isinstance(project_value, str) or not project_value.strip():
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "invalid-project",
+                            "Project identifier must be a non-empty string.",
+                        ).model_dump(mode="json")
+                    )
+                    continue
+                try:
+                    session = playtest_manager.create_session(project_id=project_value)
+                    event = session.reset()
+                except FileNotFoundError as exc:
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "project-not-found", str(exc)
+                        ).model_dump(mode="json")
+                    )
+                    continue
+                except ValueError as exc:
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "invalid-project", str(exc)
+                        ).model_dump(mode="json")
+                    )
+                    continue
+                except RuntimeError as exc:
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "session-error", str(exc)
+                        ).model_dump(mode="json")
+                    )
+                    continue
+                websocket.send_json(
+                    _build_playtest_event_message(event, session).model_dump(
+                        mode="json"
+                    )
+                )
+                continue
+
+            websocket.send_json(
+                _build_playtest_error_message(
+                    "unknown-message",
+                    f"Unsupported message type '{message_type}'.",
+                ).model_dump(mode="json")
+            )
+
     return app
 
 
@@ -4559,11 +4728,227 @@ def _build_item_flow_resource(report: ItemFlowReport) -> ItemFlowSummaryResource
     )
 
 
+class PlaytestSession:
+    """Manage story state for a single live playtest connection."""
+
+    def __init__(self, engine_factory: Callable[[], StoryEngine]) -> None:
+        self._engine_factory = engine_factory
+        self._engine = engine_factory()
+        self._world = WorldState()
+
+    def reset(self) -> StoryEvent:
+        """Reset the session and return the initial narrative event."""
+
+        new_engine = self._engine_factory()
+        new_world = WorldState()
+
+        previous_engine = self._engine
+        previous_world = self._world
+
+        self._engine = new_engine
+        self._world = new_world
+
+        try:
+            return self._produce_event(None)
+        except Exception:  # pragma: no cover - propagated to caller
+            self._engine = previous_engine
+            self._world = previous_world
+            raise
+
+    def apply_player_input(self, player_input: str) -> StoryEvent:
+        """Advance the story using ``player_input`` and return the next event."""
+
+        return self._produce_event(player_input)
+
+    def world_snapshot(self) -> PlaytestWorldStateResource:
+        """Return a serialisable snapshot of the current world state."""
+
+        return PlaytestWorldStateResource(
+            location=self._world.location,
+            inventory=sorted(self._world.inventory),
+            history=list(self._world.history),
+            recent_actions=list(self._world.recent_actions()),
+            recent_observations=list(self._world.recent_observations()),
+            queued_messages=_build_queued_message_resources(self._engine),
+        )
+
+    def _produce_event(self, player_input: str | None) -> StoryEvent:
+        if player_input is not None:
+            command_text = str(player_input)
+            trimmed = command_text.strip()
+            if trimmed:
+                self._world.remember_action(trimmed)
+        else:
+            command_text = None
+
+        event = self._engine.propose_event(self._world, player_input=command_text)
+        self._world.remember_observation(event.narration)
+        return event
+
+
+class PlaytestManager:
+    """Factory for creating playtest sessions bound to specific datasets."""
+
+    def __init__(
+        self,
+        repository: "SceneRepository",
+        *,
+        project_service: "ProjectService" | None = None,
+    ) -> None:
+        self._repository = repository
+        self._project_service = project_service
+
+    def create_session(self, *, project_id: str | None = None) -> PlaytestSession:
+        """Return a new playtest session optionally scoped to ``project_id``."""
+
+        resolved_project_id = self._normalise_project_identifier(project_id)
+
+        def _engine_factory() -> StoryEngine:
+            definitions = self._load_scene_definitions(project_id=resolved_project_id)
+            scenes = load_scenes_from_mapping(definitions)
+            base_engine = ScriptedStoryEngine(scenes=scenes)
+            return MultiAgentCoordinator(
+                ScriptedStoryAgent("scripted-primary", base_engine)
+            )
+
+        return PlaytestSession(_engine_factory)
+
+    def _load_scene_definitions(self, *, project_id: str | None) -> Mapping[str, Any]:
+        if project_id is None:
+            definitions, _ = self._repository.load()
+            return dict(definitions)
+
+        if self._project_service is None:
+            raise FileNotFoundError(
+                "Project playtesting is not enabled for this server instance."
+            )
+
+        response = self._project_service.get_project(project_id)
+        return dict(response.scenes)
+
+    @staticmethod
+    def _normalise_project_identifier(identifier: str | None) -> str | None:
+        if identifier is None:
+            return None
+        if not isinstance(identifier, str):
+            raise ValueError("Project identifier must be provided as a string.")
+        trimmed = identifier.strip()
+        return trimmed or None
+
+
+def _build_memory_request_resource(
+    request: MemoryRequest | None,
+) -> MemoryRequestResource | None:
+    if request is None:
+        return None
+    return MemoryRequestResource(
+        action_limit=request.action_limit,
+        observation_limit=request.observation_limit,
+    )
+
+
+def _build_queued_message_resources(engine: StoryEngine) -> list[QueuedMessageResource]:
+    debug_snapshot = getattr(engine, "debug_snapshot", None)
+    if not callable(debug_snapshot):
+        return []
+
+    snapshot = debug_snapshot()
+    resources: list[QueuedMessageResource] = []
+    for message in getattr(snapshot, "queued_messages", ()):  # type: ignore[attr-defined]
+        if not isinstance(message, QueuedAgentMessage):
+            continue
+        resources.append(
+            QueuedMessageResource(
+                origin_agent=message.origin_agent,
+                trigger_kind=message.trigger_kind,
+                player_input=message.player_input,
+                metadata=dict(message.metadata),
+                memory_request=_build_memory_request_resource(message.memory_request),
+            )
+        )
+    return resources
+
+
+def _build_playtest_event_message(
+    event: StoryEvent, session: PlaytestSession
+) -> PlaytestEventMessage:
+    return PlaytestEventMessage(
+        type="event",
+        event=PlaytestEventResource(
+            narration=event.narration,
+            choices=[
+                ChoiceResource(command=choice.command, description=choice.description)
+                for choice in event.choices
+            ],
+            metadata=dict(cast(Mapping[str, str], event.metadata)),
+            has_choices=event.has_choices,
+        ),
+        world=session.world_snapshot(),
+    )
+
+
+def _build_playtest_error_message(code: str, message: str) -> PlaytestErrorMessage:
+    return PlaytestErrorMessage(type="error", code=str(code), message=str(message))
+
+
 class ChoiceResource(BaseModel):
     """Representation of a single scene choice."""
 
     command: str
     description: str
+
+
+class MemoryRequestResource(BaseModel):
+    """Description of a queued agent memory request."""
+
+    action_limit: int | None = None
+    observation_limit: int | None = None
+
+
+class QueuedMessageResource(BaseModel):
+    """Metadata describing a queued coordinator message."""
+
+    origin_agent: str
+    trigger_kind: str
+    player_input: str | None = None
+    metadata: dict[str, str] = Field(default_factory=dict)
+    memory_request: MemoryRequestResource | None = None
+
+
+class PlaytestWorldStateResource(BaseModel):
+    """Summary of the playtest world state surfaced via WebSocket."""
+
+    location: str
+    inventory: list[str] = Field(default_factory=list)
+    history: list[str] = Field(default_factory=list)
+    recent_actions: list[str] = Field(default_factory=list)
+    recent_observations: list[str] = Field(default_factory=list)
+    queued_messages: list[QueuedMessageResource] = Field(default_factory=list)
+
+
+class PlaytestEventResource(BaseModel):
+    """Narrative event broadcast to live preview clients."""
+
+    narration: str
+    choices: list[ChoiceResource] = Field(default_factory=list)
+    metadata: dict[str, str] = Field(default_factory=dict)
+    has_choices: bool
+
+
+class PlaytestEventMessage(BaseModel):
+    """Envelope describing an event message pushed over the WebSocket."""
+
+    type: Literal["event"]
+    event: PlaytestEventResource
+    world: PlaytestWorldStateResource
+
+
+class PlaytestErrorMessage(BaseModel):
+    """Error payload returned for invalid playtest commands."""
+
+    type: Literal["error"]
+    code: str
+    message: str
 
 
 class NarrationOverrideResource(BaseModel):

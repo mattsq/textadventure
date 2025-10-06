@@ -159,7 +159,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Reachability analysis (unreachable scenes/items)
       - [ ] Circular dependency detection
       - [ ] Command uniqueness validation
-    - [ ] Implement WebSocket endpoint for live adventure testing.
+    - [x] Implement WebSocket endpoint for live adventure testing.
     - [ ] Add unit tests covering all API endpoints and validation logic.
       - [x] Added regression coverage for the create/delete endpoints and import/export aliases.
     - [x] Document API specification with OpenAPI/Swagger. *(Documented the FastAPI OpenAPI/Swagger workflow and added tagged metadata so the auto-generated docs surface grouped endpoints.)*
