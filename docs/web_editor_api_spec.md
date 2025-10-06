@@ -337,7 +337,13 @@ automatically before mutating scene data. Setting
 ``TEXTADVENTURE_AUTOMATIC_BACKUP_DIR`` directs the API to snapshot the current
 dataset ahead of operations such as ``PUT /api/scenes/{scene_id}``, while
 ``TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION`` limits how many automatic backups
-are kept on disk after each write.
+are kept on disk after each write. Deployments that need off-site copies can
+also set ``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_BUCKET`` (alongside optional
+``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_PREFIX``, ``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_REGION``,
+and ``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_ENDPOINT_URL``) to mirror every backup
+into an Amazon S3 compatible object store. When the bucket is configured the API
+uploads snapshots even if no local backup directory is provided, enabling cloud
+only retention strategies.
 
 
 ### `POST /scenes/diff`

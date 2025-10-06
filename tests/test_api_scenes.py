@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from textadventure.api import SceneApiSettings, create_app
+from textadventure.api.backup import BackupUploadMetadata
 from textadventure.api.app import (
     CURRENT_SCENE_SCHEMA_VERSION,
     ExportFormat,
@@ -1098,6 +1099,79 @@ def test_scene_service_creates_minified_backup(tmp_path) -> None:
     )
     assert result.path.read_text(encoding="utf-8") == expected_content
     assert json.loads(result.path.read_text(encoding="utf-8")) == export.scenes
+
+
+def test_scene_service_uploads_automatic_backup_to_cloud() -> None:
+    initial_dataset: Mapping[str, Any] = {
+        "alpha": {
+            "description": "Alpha original",
+            "choices": [
+                {"command": "wait", "description": "Wait for a moment."},
+            ],
+            "transitions": {
+                "wait": {
+                    "narration": "You pause briefly.",
+                    "target": None,
+                }
+            },
+        }
+    }
+    initial_timestamp = datetime(2024, 7, 1, 10, 30, tzinfo=timezone.utc)
+
+    class _Repository:
+        def __init__(self) -> None:
+            self._dataset = json.loads(json.dumps(initial_dataset))
+            self._timestamp = initial_timestamp
+
+        def load(self) -> tuple[Mapping[str, Any], datetime]:
+            return json.loads(json.dumps(self._dataset)), self._timestamp
+
+        def save(self, payload: Mapping[str, Any]) -> datetime:
+            self._dataset = json.loads(json.dumps(payload))
+            self._timestamp = self._timestamp + timedelta(minutes=5)
+            return self._timestamp
+
+    recorded_uploads: list[tuple[bytes, BackupUploadMetadata]] = []
+
+    class _Recorder:
+        def upload(self, *, content: bytes, metadata: BackupUploadMetadata) -> None:
+            recorded_uploads.append((content, metadata))
+
+    service = SceneService(
+        repository=_Repository(),
+        automatic_backup_dir=None,
+        automatic_backup_uploaders=[_Recorder()],
+    )
+
+    updated_scene = {
+        "description": "Alpha updated",
+        "choices": [
+            {"command": "wait", "description": "Wait for a moment."},
+        ],
+        "transitions": {
+            "wait": {
+                "narration": "You wait a little longer.",
+                "target": None,
+            }
+        },
+    }
+
+    service.update_scene(
+        scene_id="alpha",
+        scene=updated_scene,
+        schema_version=CURRENT_SCENE_SCHEMA_VERSION,
+    )
+
+    assert len(recorded_uploads) == 1
+    payload, metadata = recorded_uploads[0]
+
+    expected = _expected_metadata(initial_dataset, initial_timestamp)
+    assert metadata.filename == expected["suggested_filename"]
+    assert metadata.version_id == expected["version_id"]
+    assert metadata.checksum == expected["checksum"]
+    assert metadata.generated_at == initial_timestamp
+
+    assert json.loads(payload.decode("utf-8")) == initial_dataset
 
 
 def test_update_scene_creates_automatic_backup(tmp_path: Path) -> None:
