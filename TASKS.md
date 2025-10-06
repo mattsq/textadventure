@@ -388,7 +388,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Outline upload and deletion API contracts and validation rules.
         - [x] Implement asset storage/deletion logic, FastAPI endpoints, and regression tests.
     - [ ] Add authentication and user management:
-      - [ ] User accounts and profiles
+      - [x] User accounts and profiles
+        - [x] Define filesystem-backed storage and services for user profiles.
+        - [x] Expose `/api/users` endpoints for managing user profiles.
+        - [x] Cover the user profile workflow with automated tests.
       - [ ] Project sharing and permissions
       - [ ] Collaborative editing features
       - [ ] Access control

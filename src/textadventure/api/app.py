@@ -29,6 +29,7 @@ from pydantic import (
     ValidationError,
     field_serializer,
     field_validator,
+    model_validator,
 )
 
 from ..analytics import (
@@ -57,6 +58,18 @@ from .settings import SceneApiSettings
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
 DiffStatus = Literal["added", "removed", "modified"]
+
+
+class _UnsetType:
+    """Sentinel indicating that an optional field was not provided."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - trivial representation
+        return "_UNSET"
+
+
+_UNSET = _UnsetType()
 
 
 class ExportFormat(str, Enum):
@@ -962,6 +975,138 @@ class ProjectCollaboratorUpdateRequest(BaseModel):
     )
 
 
+class UserProfileResource(BaseModel):
+    """Representation of a user account exposed through the API."""
+
+    id: str = Field(..., description="Stable identifier for the user profile.")
+    display_name: str = Field(
+        ..., description="Human readable label to present in user interfaces."
+    )
+    email: str | None = Field(
+        None, description="Optional contact email address associated with the user."
+    )
+    bio: str | None = Field(
+        None, description="Optional free-form biography or profile summary."
+    )
+    created_at: datetime = Field(
+        ..., description="Timestamp indicating when the profile was created."
+    )
+    updated_at: datetime = Field(
+        ..., description="Timestamp indicating when the profile was last updated."
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("updated_at")
+    def _serialise_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class UserProfileListResponse(BaseModel):
+    """Response envelope listing registered user profiles."""
+
+    data: list[UserProfileResource] = Field(
+        default_factory=list,
+        description="Collection of user profiles ordered by identifier.",
+    )
+
+
+class UserProfileCreateRequest(BaseModel):
+    """Request payload for creating a new user profile."""
+
+    id: str = Field(..., description="Identifier to persist for the new profile.")
+    display_name: str = Field(
+        ..., description="Human readable name to associate with the profile."
+    )
+    email: str | None = Field(
+        None, description="Optional contact email address for the profile."
+    )
+    bio: str | None = Field(
+        None, description="Optional free-form biography to associate with the user."
+    )
+
+    @field_validator("display_name")
+    @classmethod
+    def _normalise_display_name(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Display name must be a non-empty string.")
+        return trimmed
+
+    @field_validator("email")
+    @classmethod
+    def _normalise_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        if "@" not in trimmed:
+            raise ValueError("Email address must contain an '@' symbol.")
+        return trimmed
+
+    @field_validator("bio")
+    @classmethod
+    def _normalise_bio(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
+
+class UserProfileUpdateRequest(BaseModel):
+    """Request payload for updating an existing user profile."""
+
+    display_name: str | None = Field(
+        None,
+        description="Optional replacement for the human readable profile name.",
+    )
+    email: str | None = Field(
+        None, description="Optional replacement contact email for the profile."
+    )
+    bio: str | None = Field(
+        None, description="Optional replacement biography to persist for the user."
+    )
+
+    @field_validator("display_name")
+    @classmethod
+    def _normalise_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("Display name cannot be null when provided.")
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Display name must be a non-empty string when provided.")
+        return trimmed
+
+    @field_validator("email")
+    @classmethod
+    def _normalise_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        if "@" not in trimmed:
+            raise ValueError("Email address must contain an '@' symbol.")
+        return trimmed
+
+    @field_validator("bio")
+    @classmethod
+    def _normalise_bio(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
+    @model_validator(mode="after")
+    def _ensure_fields_provided(self) -> "UserProfileUpdateRequest":
+        if not self.model_fields_set:
+            raise ValueError("At least one field must be provided to update a profile.")
+        return self
+
+
 @dataclass(frozen=True)
 class SceneBranchRecord:
     """Representation of a branch definition stored on disk."""
@@ -1117,6 +1262,19 @@ class ProjectCollaboratorRecord:
     user_id: str
     role: CollaboratorRole
     display_name: str | None
+
+
+@dataclass(frozen=True)
+class UserAccountRecord:
+    """Filesystem-backed representation of a user profile."""
+
+    identifier: str
+    display_name: str
+    email: str | None
+    bio: str | None
+    created_at: datetime
+    updated_at: datetime
+    path: Path
 
 
 @dataclass(frozen=True)
@@ -1397,6 +1555,212 @@ class SceneProjectStore:
             ) from exc
 
 
+class UserAccountStore:
+    """Filesystem-backed registry for user profile data."""
+
+    def __init__(self, root: Path) -> None:
+        self._root = root
+
+    def list(self) -> list[UserAccountRecord]:
+        """Return all stored user profiles ordered by identifier."""
+
+        if not self._root.exists():
+            return []
+
+        records: list[UserAccountRecord] = []
+        for entry in sorted(self._root.glob("*.json"), key=lambda path: path.name):
+            if not entry.is_file():
+                continue
+            records.append(self._record_from_file(entry))
+
+        return records
+
+    def load(self, identifier: str) -> UserAccountRecord:
+        """Return the user profile identified by ``identifier``."""
+
+        normalised = _normalise_user_identifier(identifier)
+        path = self._path_for(normalised)
+        if not path.exists():
+            raise FileNotFoundError(f"User '{normalised}' does not exist.")
+
+        return self._record_from_file(path)
+
+    def create(
+        self,
+        *,
+        identifier: str,
+        display_name: str,
+        email: str | None = None,
+        bio: str | None = None,
+    ) -> UserAccountRecord:
+        """Persist a new user profile."""
+
+        normalised = _normalise_user_identifier(identifier)
+        validated_display_name = _validate_display_name(display_name)
+        validated_email = _normalise_optional_email(email)
+        validated_bio = _normalise_optional_text(bio)
+
+        path = self._path_for(normalised)
+        if path.exists():
+            raise FileExistsError(f"User '{normalised}' already exists.")
+
+        now = datetime.now(timezone.utc)
+        payload: dict[str, Any] = {
+            "id": normalised,
+            "display_name": validated_display_name,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        if validated_email is not None:
+            payload["email"] = validated_email
+        if validated_bio is not None:
+            payload["bio"] = validated_bio
+
+        self._write_payload(path, payload, identifier=normalised)
+
+        return UserAccountRecord(
+            identifier=normalised,
+            display_name=validated_display_name,
+            email=validated_email,
+            bio=validated_bio,
+            created_at=now,
+            updated_at=now,
+            path=path,
+        )
+
+    def update(
+        self,
+        identifier: str,
+        *,
+        display_name: str | _UnsetType | None = _UNSET,
+        email: str | _UnsetType | None = _UNSET,
+        bio: str | _UnsetType | None = _UNSET,
+    ) -> UserAccountRecord:
+        """Persist field updates for an existing user profile."""
+
+        record = self.load(identifier)
+
+        updated_display = record.display_name
+        if not isinstance(display_name, _UnsetType):
+            if display_name is None:
+                raise ValueError("Display name cannot be removed from a user profile.")
+            updated_display = _validate_display_name(display_name)
+
+        updated_email = record.email
+        if not isinstance(email, _UnsetType):
+            updated_email = _normalise_optional_email(email)
+
+        updated_bio = record.bio
+        if not isinstance(bio, _UnsetType):
+            updated_bio = _normalise_optional_text(bio)
+
+        now = datetime.now(timezone.utc)
+        payload: dict[str, Any] = {
+            "id": record.identifier,
+            "display_name": updated_display,
+            "created_at": record.created_at.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        if updated_email is not None:
+            payload["email"] = updated_email
+        if updated_bio is not None:
+            payload["bio"] = updated_bio
+
+        self._write_payload(record.path, payload, identifier=record.identifier)
+
+        return UserAccountRecord(
+            identifier=record.identifier,
+            display_name=updated_display,
+            email=updated_email,
+            bio=updated_bio,
+            created_at=record.created_at,
+            updated_at=now,
+            path=record.path,
+        )
+
+    def _record_from_file(self, path: Path) -> UserAccountRecord:
+        try:
+            payload = _load_json(path)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Failed to load user profile from '{path}'.") from exc
+
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"User profile in '{path}' must be a mapping.")
+
+        try:
+            identifier_raw = payload["id"]
+            display_name_raw = payload["display_name"]
+        except KeyError as exc:
+            raise ValueError(
+                f"User profile in '{path}' is missing required fields."
+            ) from exc
+
+        if not isinstance(identifier_raw, str):
+            raise ValueError(f"User profile in '{path}' has an invalid 'id' field.")
+        if not isinstance(display_name_raw, str):
+            raise ValueError(
+                f"User profile in '{path}' has an invalid 'display_name' field."
+            )
+
+        identifier = _normalise_user_identifier(identifier_raw)
+        display_name = _validate_display_name(display_name_raw)
+        email = _normalise_optional_email(payload.get("email"))
+        bio = _normalise_optional_text(payload.get("bio"))
+
+        created_at = self._parse_timestamp(
+            payload.get("created_at"), path, "created_at"
+        )
+        updated_at = self._parse_timestamp(
+            payload.get("updated_at"), path, "updated_at"
+        )
+
+        return UserAccountRecord(
+            identifier=identifier,
+            display_name=display_name,
+            email=email,
+            bio=bio,
+            created_at=created_at,
+            updated_at=updated_at,
+            path=path,
+        )
+
+    def _parse_timestamp(self, value: Any, path: Path, field: str) -> datetime:
+        if not isinstance(value, str):
+            raise ValueError(
+                f"User profile in '{path}' has an invalid '{field}' field."
+            )
+
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError(
+                f"User profile in '{path}' has an invalid '{field}' field."
+            ) from exc
+
+        return _ensure_timezone(parsed)
+
+    def _write_payload(
+        self, path: Path, payload: Mapping[str, Any], *, identifier: str
+    ) -> None:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare directory for user '{identifier}'."
+            ) from exc
+
+        try:
+            with path.open("w", encoding="utf-8") as handle:
+                json.dump(dict(payload), handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to write user profile for '{identifier}'."
+            ) from exc
+
+    def _path_for(self, identifier: str) -> Path:
+        return self._root / f"{identifier}.json"
+
+
 class ProjectService:
     """Business logic supporting the project management endpoints."""
 
@@ -1659,6 +2023,54 @@ class ProjectService:
         )
 
 
+class UserService:
+    """Business logic supporting the user management endpoints."""
+
+    def __init__(self, store: UserAccountStore) -> None:
+        self._store = store
+
+    def list_users(self) -> UserProfileListResponse:
+        records = self._store.list()
+        resources = [_build_user_profile_resource(record) for record in records]
+        return UserProfileListResponse(data=resources)
+
+    def get_user(self, identifier: str) -> UserProfileResource:
+        record = self._store.load(identifier)
+        return _build_user_profile_resource(record)
+
+    def create_user(
+        self,
+        *,
+        identifier: str,
+        display_name: str,
+        email: str | None = None,
+        bio: str | None = None,
+    ) -> UserProfileResource:
+        record = self._store.create(
+            identifier=identifier,
+            display_name=display_name,
+            email=email,
+            bio=bio,
+        )
+        return _build_user_profile_resource(record)
+
+    def update_user(
+        self,
+        identifier: str,
+        *,
+        display_name: str | _UnsetType | None = _UNSET,
+        email: str | _UnsetType | None = _UNSET,
+        bio: str | _UnsetType | None = _UNSET,
+    ) -> UserProfileResource:
+        record = self._store.update(
+            identifier,
+            display_name=display_name,
+            email=email,
+            bio=bio,
+        )
+        return _build_user_profile_resource(record)
+
+
 class ProjectTemplateService:
     """Service exposing project template listing and instantiation helpers."""
 
@@ -1734,6 +2146,17 @@ def _build_branch_detail(record: SceneBranchRecord) -> SceneBranchDetailResponse
         entries=record.plan.entries,
         plans=record.plan.plans,
         scenes=record.scenes,
+    )
+
+
+def _build_user_profile_resource(record: UserAccountRecord) -> UserProfileResource:
+    return UserProfileResource(
+        id=record.identifier,
+        display_name=record.display_name,
+        email=record.email,
+        bio=record.bio,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
     )
 
 
@@ -1885,6 +2308,64 @@ def _load_project_dataset(
     checksum = _compute_scene_checksum(serialisable)
     version_id = _format_version_id(record.updated_at, checksum)
     return serialisable, checksum, version_id
+
+
+_USER_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._@-]*$")
+
+
+def _normalise_user_identifier(identifier: str) -> str:
+    if not isinstance(identifier, str):
+        raise ValueError("User identifier must be provided as a string.")
+
+    slug = identifier.strip().casefold()
+    if not slug:
+        raise ValueError("User identifier must be a non-empty string.")
+
+    if not _USER_IDENTIFIER_PATTERN.fullmatch(slug):
+        raise ValueError(
+            "User identifier must only contain lowercase letters, numbers, periods, underscores, hyphens, and '@' symbols."
+        )
+
+    return slug
+
+
+def _validate_display_name(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("Display name must be provided as a string.")
+
+    trimmed = value.strip()
+    if not trimmed:
+        raise ValueError("Display name must be a non-empty string.")
+
+    return trimmed
+
+
+def _normalise_optional_email(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    if not isinstance(value, str):
+        raise ValueError("Email address must be provided as a string.")
+
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+
+    if "@" not in trimmed:
+        raise ValueError("Email address must contain an '@' symbol.")
+
+    return trimmed
+
+
+def _normalise_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    if not isinstance(value, str):
+        raise ValueError("Profile text must be provided as a string.")
+
+    trimmed = value.strip()
+    return trimmed or None
 
 
 _PROJECT_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -3619,6 +4100,7 @@ def create_app(
     *,
     project_service: ProjectService | None = None,
     project_template_service: ProjectTemplateService | None = None,
+    user_service: UserService | None = None,
     settings: SceneApiSettings | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -3661,6 +4143,11 @@ def create_app(
             project_service=project,
         )
 
+    user = user_service
+    if user is None and resolved_settings.user_root is not None:
+        user_store = UserAccountStore(root=resolved_settings.user_root)
+        user = UserService(store=user_store)
+
     playtest_manager = PlaytestManager(
         repository=repository,
         project_service=project,
@@ -3693,6 +4180,13 @@ def create_app(
             "description": (
                 "Manage adventure projects, including asset inventories and "
                 "collaborator rosters exposed to editor tooling."
+            ),
+        },
+        {
+            "name": "Users",
+            "description": (
+                "Manage user profiles used for collaboration and access "
+                "control within the editor ecosystem."
             ),
         },
         {
@@ -4334,6 +4828,92 @@ def create_app(
             return project.replace_project_collaborators(
                 project_id, payload.collaborators
             )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/users",
+        response_model=UserProfileListResponse,
+        tags=["Users"],
+    )
+    def list_users() -> UserProfileListResponse:
+        if user is None:
+            raise HTTPException(404, "User management endpoints are not enabled.")
+
+        try:
+            return user.list_users()
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/users/{user_id}",
+        response_model=UserProfileResource,
+        tags=["Users"],
+    )
+    def get_user(user_id: str) -> UserProfileResource:
+        if user is None:
+            raise HTTPException(404, "User management endpoints are not enabled.")
+
+        try:
+            return user.get_user(user_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/users",
+        response_model=UserProfileResource,
+        status_code=201,
+        tags=["Users"],
+    )
+    def create_user(payload: UserProfileCreateRequest) -> UserProfileResource:
+        if user is None:
+            raise HTTPException(404, "User management endpoints are not enabled.")
+
+        try:
+            return user.create_user(
+                identifier=payload.id,
+                display_name=payload.display_name,
+                email=payload.email,
+                bio=payload.bio,
+            )
+        except FileExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.put(
+        "/api/users/{user_id}",
+        response_model=UserProfileResource,
+        tags=["Users"],
+    )
+    def update_user(
+        user_id: str, payload: UserProfileUpdateRequest
+    ) -> UserProfileResource:
+        if user is None:
+            raise HTTPException(404, "User management endpoints are not enabled.")
+
+        update_kwargs: dict[str, Any] = {}
+        if "display_name" in payload.model_fields_set:
+            update_kwargs["display_name"] = payload.display_name
+        if "email" in payload.model_fields_set:
+            update_kwargs["email"] = payload.email
+        if "bio" in payload.model_fields_set:
+            update_kwargs["bio"] = payload.bio
+
+        try:
+            return user.update_user(user_id, **update_kwargs)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
