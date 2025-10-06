@@ -343,7 +343,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Implement utilities to locate structured references with optional filters.
         - [x] Add regression tests covering reference detection scenarios.
     - [ ] Add keyboard shortcuts and accessibility:
-      - [ ] Common action shortcuts
+      - [x] Common action shortcuts *(Added CLI single-key shortcuts for quit/help/status/tutorial with documentation and tests.)*
       - [ ] Tab navigation
       - [ ] Screen reader support
       - [x] High contrast mode *(Added a `--high-contrast` CLI flag that swaps in a brighter Markdown palette with documentation and tests.)*

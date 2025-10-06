@@ -444,6 +444,9 @@ def run_cli(
     print("Welcome to the Text Adventure prototype!")
     print("Type 'quit' at any time to end the session.")
     print("Type 'help' for a command overview or 'tutorial' for a guided tour.")
+    print(
+        "Quick shortcuts: 'q' to quit, '?' for help, 's' for status, 't' for the tutorial."
+    )
     if session_store is not None:
         print("Type 'save <name>' or 'load <name>' to manage checkpoints.")
     print()
@@ -467,6 +470,28 @@ def run_cli(
             print(f"\n[scene-watch] {outcome.message}\n")
         if outcome.reloaded:
             event = _capture_event(engine.propose_event(world))
+
+    def _normalise_shortcut(text: str) -> str:
+        trimmed = text.strip()
+        if not trimmed:
+            return trimmed
+
+        lowered = trimmed.lower()
+        shortcuts = {
+            "q": "quit",
+            "h": "help",
+            "s": "status",
+            "t": "tutorial",
+        }
+
+        if trimmed.startswith("?"):
+            remainder = trimmed[1:].lstrip()
+            return "help" if not remainder else f"help {remainder}"
+
+        if lowered in shortcuts:
+            return shortcuts[lowered]
+
+        return trimmed
 
     def _print_help(topic: str | None) -> None:
         if event is None:
@@ -553,6 +578,12 @@ def run_cli(
         print("\nSystem commands:")
         for usage, description in command_help.values():
             print(f"  {usage} - {description}")
+
+        print("\nKeyboard shortcuts:")
+        print("  q - Quit the adventure immediately.")
+        print("  ? - Open this help overview.")
+        print("  s - Show the adventure status summary.")
+        print("  t - Start the interactive tutorial.")
         print()
 
     if session_store is not None and autoload_session:
@@ -593,6 +624,8 @@ def run_cli(
         if not player_input:
             event = _capture_event(engine.propose_event(world))
             continue
+
+        player_input = _normalise_shortcut(player_input)
 
         command, _, argument = player_input.partition(" ")
         command_lower = command.lower()

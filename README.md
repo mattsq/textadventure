@@ -95,6 +95,10 @@ Run `python src/main.py --help` to discover options for enabling persistence
   setup, optional features, and troubleshooting lives in
   [`docs/getting_started.md`](docs/getting_started.md).
 
+Common single-key shortcuts are also available inside the CLI: press `q` to
+quit, `?` for the help overview, `s` for the status summary, and `t` to launch
+the tutorial.
+
 ### Adding an LLM Co-narrator
 
 Use the provider registry flags to experiment with LLM-driven agents alongside

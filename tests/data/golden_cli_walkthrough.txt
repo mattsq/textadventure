@@ -1,6 +1,7 @@
 Welcome to the Text Adventure prototype!
 Type 'quit' at any time to end the session.
 Type 'help' for a command overview or 'tutorial' for a guided tour.
+Quick shortcuts: 'q' to quit, '?' for help, 's' for status, 't' for the tutorial.
 
 Sunlight filters through tall trees at the forest trailhead. An old stone gate lies to the north, while flag-marked paths lead toward a scavenger camp and a ranger lookout.
 
