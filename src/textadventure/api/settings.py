@@ -27,6 +27,14 @@ def _normalise_string(value: str | None, *, default: str) -> str:
     return trimmed or default
 
 
+def _normalise_optional_string(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    trimmed = value.strip()
+    return trimmed or None
+
+
 @dataclass(frozen=True)
 class SceneApiSettings:
     """Deployment settings for the FastAPI application.
@@ -45,6 +53,10 @@ class SceneApiSettings:
     user_root: Path | None = None
     automatic_backup_dir: Path | None = None
     automatic_backup_retention: int | None = None
+    automatic_backup_s3_bucket: str | None = None
+    automatic_backup_s3_prefix: str | None = None
+    automatic_backup_s3_region: str | None = None
+    automatic_backup_s3_endpoint_url: str | None = None
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "SceneApiSettings":
@@ -75,6 +87,18 @@ class SceneApiSettings:
         automatic_backup_dir = _normalise_path(
             source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_DIR")
         )
+        automatic_backup_s3_bucket = _normalise_optional_string(
+            source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_S3_BUCKET")
+        )
+        automatic_backup_s3_prefix = _normalise_optional_string(
+            source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_S3_PREFIX")
+        )
+        automatic_backup_s3_region = _normalise_optional_string(
+            source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_S3_REGION")
+        )
+        automatic_backup_s3_endpoint_url = _normalise_optional_string(
+            source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_S3_ENDPOINT_URL")
+        )
 
         automatic_backup_retention: int | None = None
         retention_raw = source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION")
@@ -103,6 +127,10 @@ class SceneApiSettings:
             user_root=user_root,
             automatic_backup_dir=automatic_backup_dir,
             automatic_backup_retention=automatic_backup_retention,
+            automatic_backup_s3_bucket=automatic_backup_s3_bucket,
+            automatic_backup_s3_prefix=automatic_backup_s3_prefix,
+            automatic_backup_s3_region=automatic_backup_s3_region,
+            automatic_backup_s3_endpoint_url=automatic_backup_s3_endpoint_url,
         )
 
 

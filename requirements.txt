@@ -7,3 +7,4 @@ python-dotenv>=1.0
 mypy>=1.5.1
 fastapi>=0.110
 uvicorn[standard]>=0.24
+boto3>=1.34
