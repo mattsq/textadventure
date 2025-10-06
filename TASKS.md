@@ -381,6 +381,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
       - [ ] Production build optimization
       - [ ] Static asset management
+        - [x] Expose API endpoint to download project asset files for editors.
+        - [ ] Provide asset upload and deletion endpoints.
     - [ ] Add authentication and user management:
       - [ ] User accounts and profiles
       - [ ] Project sharing and permissions
