@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from inspect import Parameter, Signature, signature
 from types import NoneType, UnionType
 from typing import Any, Callable, Mapping, MutableMapping, Sequence
 from typing import Union, get_args, get_origin, get_type_hints
+from queue import Queue
 
 from pydantic import BaseModel
 
@@ -37,6 +38,103 @@ class _Route:
     tags: tuple[str, ...] = ()
 
 
+@dataclass
+class _WebSocketRoute:
+    path: str
+    endpoint: Callable[..., Any]
+
+
+@dataclass
+class _ServerCloseMessage:
+    code: int
+
+
+@dataclass
+class _ServerCloseSignal:
+    code: int
+
+
+@dataclass
+class _ClientCloseEvent:
+    code: int
+
+
+class WebSocketDisconnect(Exception):
+    """Raised when the WebSocket connection is terminated."""
+
+    def __init__(self, code: int = 1000) -> None:
+        super().__init__(f"WebSocket disconnected with code {code}")
+        self.code = code
+
+
+@dataclass
+class _WebSocketState:
+    route: _WebSocketRoute
+    path: str
+    path_params: Mapping[str, Any]
+    query_params: Mapping[str, str]
+    incoming: Queue[Any] = field(default_factory=Queue)
+    outgoing: Queue[Any] = field(default_factory=Queue)
+    accepted: bool = False
+    closed: bool = False
+    close_code: int = 1000
+    exception: BaseException | None = None
+
+
+class WebSocket:
+    """Simplified WebSocket interface for the lightweight FastAPI shim."""
+
+    def __init__(self, state: _WebSocketState) -> None:
+        self._state = state
+
+    @property
+    def query_params(self) -> Mapping[str, str]:
+        return self._state.query_params
+
+    @property
+    def path_params(self) -> Mapping[str, Any]:
+        return self._state.path_params
+
+    def accept(self) -> None:
+        """Mark the connection as accepted."""
+
+        self._state.accepted = True
+
+    def receive_json(self) -> Any:
+        """Return the next JSON message sent by the client."""
+
+        if self._state.closed:
+            raise WebSocketDisconnect(self._state.close_code)
+
+        message = self._state.incoming.get()
+        if isinstance(message, _ClientCloseEvent):
+            self._state.closed = True
+            self._state.close_code = message.code
+            raise WebSocketDisconnect(message.code)
+        if isinstance(message, _ServerCloseSignal):
+            self._state.closed = True
+            self._state.close_code = message.code
+            raise WebSocketDisconnect(message.code)
+        return message
+
+    def send_json(self, message: Any) -> None:
+        """Queue ``message`` so the client can receive it."""
+
+        if self._state.closed:
+            raise RuntimeError("WebSocket connection is closed.")
+        self._state.outgoing.put(message)
+
+    def close(self, code: int = 1000) -> None:
+        """Close the connection with the provided ``code``."""
+
+        if self._state.closed:
+            return
+        self._state.closed = True
+        self._state.close_code = code
+        self._state.outgoing.put(_ServerCloseMessage(code))
+        self._state.incoming.put(_ServerCloseSignal(code))
+
+
 class FastAPI:
     """Extremely small FastAPI clone supporting declarative GET/POST routes."""
 
@@ -55,6 +153,7 @@ class FastAPI:
             [dict(tag) for tag in openapi_tags] if openapi_tags is not None else []
         )
         self._routes: MutableMapping[tuple[str, str], _Route] = {}
+        self._websocket_routes: list[_WebSocketRoute] = []
 
         def _openapi_handler() -> Mapping[str, Any]:
             return self.openapi()
@@ -180,6 +279,17 @@ class FastAPI:
             "tags": self.openapi_tags,
         }
 
+    def websocket(
+        self, path: str, **_: Any
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register a handler for WebSocket connections."""
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            self._websocket_routes.append(_WebSocketRoute(path=path, endpoint=func))
+            return func
+
+        return decorator
+
     def _resolve_route(self, method: str, path: str) -> tuple[_Route, dict[str, str]]:
         key = (method, path)
         if key in self._routes:
@@ -217,6 +327,14 @@ class FastAPI:
         result = route.endpoint(**kwargs)
         status = route.status_code or 200
         return result, status
+
+    def _resolve_websocket(self, path: str) -> tuple[_WebSocketRoute, dict[str, str]]:
+        for route in self._websocket_routes:
+            params = _match_path(route.path, path)
+            if params is not None:
+                return route, params
+
+        raise HTTPException(404, f"WebSocket route '{path}' is not registered")
 
 
 def _build_keyword_arguments(
