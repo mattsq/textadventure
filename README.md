@@ -216,6 +216,17 @@ where scene data and branch definitions are loaded from:
 - ``TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION`` – Optional positive integer
   limiting how many automatic backups are kept. When unset all automatic
   backups are retained.
+- ``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_BUCKET`` – Optional Amazon S3 bucket used
+  to mirror each automatic backup. When set the service uploads the JSON
+  snapshot alongside writing to disk (or can operate without a local backup
+  directory).
+- ``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_PREFIX`` – Optional key prefix prepended
+  to uploaded backups. Useful for grouping backups by environment.
+- ``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_REGION`` – Optional AWS region override
+  when creating the S3 client. Defaults to the standard region resolution
+  rules when unset.
+- ``TEXTADVENTURE_AUTOMATIC_BACKUP_S3_ENDPOINT_URL`` – Optional custom endpoint
+  for S3 compatible storage (e.g. MinIO or LocalStack).
 
 All values accept ``~`` prefixes, making it easy to redirect the service towards
 shared datasets or persistent storage locations.
