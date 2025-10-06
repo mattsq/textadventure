@@ -418,6 +418,24 @@ def test_help_command_offers_contextual_guidance(monkeypatch, capsys) -> None:
         "No help is available for 'unknown'. Showing general guidance instead."
         in output
     )
+    assert "Keyboard shortcuts:" in output
+
+
+def test_run_cli_supports_common_shortcuts(monkeypatch, capsys) -> None:
+    """Single-character shortcuts should map to the corresponding commands."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["?", "s", "q"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world)
+
+    output = capsys.readouterr().out
+    assert "=== Help ===" in output
+    assert "=== Adventure Status ===" in output
+    assert "Thanks for playing!" in output
 
 
 def test_transcript_logger_captures_inputs_and_events(monkeypatch) -> None:
