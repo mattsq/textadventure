@@ -182,6 +182,9 @@ agents.
 [`docs/advanced_techniques.md`](docs/advanced_techniques.md) collects power-user
 workflows for composing multi-agent setups, wiring tools, tuning memory, and
 automating analytics.
+[`docs/disaster_recovery.md`](docs/disaster_recovery.md) outlines the operational
+runbook for restoring scene datasets when accidents or infrastructure failures
+occur.
 The [extension guide](docs/extension_guide.md) walks through concrete recipes
 for introducing new story engines, agents, tools, persistence backends, and CLI
 helpers on top of the existing runtime.
