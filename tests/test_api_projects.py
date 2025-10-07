@@ -389,7 +389,13 @@ def test_get_project_asset_returns_file_content(tmp_path: Path) -> None:
         tmp_path,
         "atlas",
         scenes,
-        metadata={"name": "Atlas"},
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+            ],
+        },
     )
 
     assets_root = tmp_path / "atlas" / "assets"
@@ -436,7 +442,12 @@ def test_get_project_asset_rejects_invalid_paths(tmp_path: Path) -> None:
         tmp_path,
         "atlas",
         scenes,
-        metadata={"name": "Atlas"},
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+            ],
+        },
     )
 
     assets_root = tmp_path / "atlas" / "assets"
@@ -472,7 +483,13 @@ def test_upload_project_asset_creates_file(tmp_path: Path) -> None:
         tmp_path,
         "atlas",
         scenes,
-        metadata={"name": "Atlas"},
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+            ],
+        },
     )
 
     settings = SceneApiSettings(project_root=tmp_path)
@@ -482,6 +499,7 @@ def test_upload_project_asset_creates_file(tmp_path: Path) -> None:
     encoded = base64.b64encode(payload).decode("ascii")
     response = client.put(
         "/api/projects/atlas/assets/images/logo.png",
+        params={"acting_user_id": "editor@example.com"},
         json={"content": encoded},
     )
 
@@ -525,7 +543,13 @@ def test_upload_project_asset_rejects_invalid_path(tmp_path: Path) -> None:
         tmp_path,
         "atlas",
         scenes,
-        metadata={"name": "Atlas"},
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+            ],
+        },
     )
 
     settings = SceneApiSettings(project_root=tmp_path)
@@ -533,10 +557,63 @@ def test_upload_project_asset_rejects_invalid_path(tmp_path: Path) -> None:
 
     response = client.put(
         "/api/projects/atlas/assets/../scenes.json",
+        params={"acting_user_id": "owner@example.com"},
         json={"content": base64.b64encode(b"{}").decode("ascii")},
     )
 
     assert response.status_code == 400
+
+
+def test_upload_project_asset_enforces_collaborator_permissions(
+    tmp_path: Path,
+) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting scene",
+            "choices": [
+                {"command": "look", "description": "Look around."},
+            ],
+            "transitions": {
+                "look": {"narration": "You look around the room.", "target": None}
+            },
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "viewer@example.com", "role": "viewer"},
+            ],
+        },
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    asset_path = tmp_path / "atlas" / "assets" / "images" / "logo.png"
+
+    encoded = base64.b64encode(b"logo-bytes").decode("ascii")
+
+    missing_context = client.put(
+        "/api/projects/atlas/assets/images/logo.png",
+        json={"content": encoded},
+    )
+    assert missing_context.status_code == 403
+    assert "collaborator context" in missing_context.json()["detail"]
+
+    viewer_response = client.put(
+        "/api/projects/atlas/assets/images/logo.png",
+        params={"acting_user_id": "viewer@example.com"},
+        json={"content": encoded},
+    )
+    assert viewer_response.status_code == 403
+    assert "permission" in viewer_response.json()["detail"].lower()
+    assert not asset_path.exists()
 
 
 def test_delete_project_asset_removes_file(tmp_path: Path) -> None:
@@ -559,7 +636,13 @@ def test_delete_project_asset_removes_file(tmp_path: Path) -> None:
         tmp_path,
         "atlas",
         scenes,
-        metadata={"name": "Atlas"},
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+            ],
+        },
     )
 
     assets_root = tmp_path / "atlas" / "assets"
@@ -571,11 +654,17 @@ def test_delete_project_asset_removes_file(tmp_path: Path) -> None:
     settings = SceneApiSettings(project_root=tmp_path)
     client = TestClient(create_app(settings=settings))
 
-    response = client.delete("/api/projects/atlas/assets/images/logo.png")
+    response = client.delete(
+        "/api/projects/atlas/assets/images/logo.png",
+        params={"acting_user_id": "editor@example.com"},
+    )
     assert response.status_code == 204
     assert not asset_path.exists()
 
-    missing_response = client.delete("/api/projects/atlas/assets/images/logo.png")
+    missing_response = client.delete(
+        "/api/projects/atlas/assets/images/logo.png",
+        params={"acting_user_id": "editor@example.com"},
+    )
     assert missing_response.status_code == 404
 
 
@@ -599,7 +688,13 @@ def test_delete_project_asset_removes_directory(tmp_path: Path) -> None:
         tmp_path,
         "atlas",
         scenes,
-        metadata={"name": "Atlas"},
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+            ],
+        },
     )
 
     assets_root = tmp_path / "atlas" / "assets"
@@ -610,7 +705,10 @@ def test_delete_project_asset_removes_directory(tmp_path: Path) -> None:
     settings = SceneApiSettings(project_root=tmp_path)
     client = TestClient(create_app(settings=settings))
 
-    response = client.delete("/api/projects/atlas/assets/images/icons")
+    response = client.delete(
+        "/api/projects/atlas/assets/images/icons",
+        params={"acting_user_id": "editor@example.com"},
+    )
     assert response.status_code == 204
     assert not icon_directory.exists()
 
@@ -680,7 +778,12 @@ def test_replace_project_collaborators_updates_metadata(tmp_path: Path) -> None:
         tmp_path,
         "editable",
         scenes,
-        metadata={"name": "Editable"},
+        metadata={
+            "name": "Editable",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+            ],
+        },
     )
 
     settings = SceneApiSettings(project_root=tmp_path)
@@ -688,6 +791,7 @@ def test_replace_project_collaborators_updates_metadata(tmp_path: Path) -> None:
 
     response = client.put(
         "/api/projects/editable/collaborators",
+        params={"acting_user_id": "owner@example.com"},
         json={
             "collaborators": [
                 {
@@ -740,7 +844,12 @@ def test_replace_project_collaborators_requires_owner(tmp_path: Path) -> None:
         tmp_path,
         "solo",
         scenes,
-        metadata={"name": "Solo"},
+        metadata={
+            "name": "Solo",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+            ],
+        },
     )
 
     settings = SceneApiSettings(project_root=tmp_path)
@@ -748,6 +857,7 @@ def test_replace_project_collaborators_requires_owner(tmp_path: Path) -> None:
 
     response = client.put(
         "/api/projects/solo/collaborators",
+        params={"acting_user_id": "owner@example.com"},
         json={"collaborators": [{"user_id": "viewer@example.com", "role": "viewer"}]},
     )
 
@@ -758,7 +868,9 @@ def test_replace_project_collaborators_requires_owner(tmp_path: Path) -> None:
     if metadata_path.exists():
         with metadata_path.open("r", encoding="utf-8") as handle:
             metadata = json.load(handle)
-        assert "collaborators" not in metadata
+        assert metadata["collaborators"] == [
+            {"user_id": "owner@example.com", "role": "owner"}
+        ]
 
 
 def test_replace_project_collaborators_requires_existing_users(tmp_path: Path) -> None:
@@ -775,7 +887,17 @@ def test_replace_project_collaborators_requires_existing_users(tmp_path: Path) -
     project_root = tmp_path / "projects"
     user_root = tmp_path / "users"
 
-    _write_project(project_root, "shared", scenes, metadata={"name": "Shared"})
+    _write_project(
+        project_root,
+        "shared",
+        scenes,
+        metadata={
+            "name": "Shared",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+            ],
+        },
+    )
     _create_user_profile(user_root, "owner@example.com", "Owner")
 
     settings = SceneApiSettings(project_root=project_root, user_root=user_root)
@@ -783,6 +905,7 @@ def test_replace_project_collaborators_requires_existing_users(tmp_path: Path) -
 
     response = client.put(
         "/api/projects/shared/collaborators",
+        params={"acting_user_id": "owner@example.com"},
         json={
             "collaborators": [
                 {"user_id": "owner@example.com", "role": "owner"},
@@ -812,7 +935,17 @@ def test_project_collaborator_display_name_defaults_to_user_profile(
     project_root = tmp_path / "projects"
     user_root = tmp_path / "users"
 
-    _write_project(project_root, "shared", scenes, metadata={"name": "Shared"})
+    _write_project(
+        project_root,
+        "shared",
+        scenes,
+        metadata={
+            "name": "Shared",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+            ],
+        },
+    )
     _create_user_profile(user_root, "owner@example.com", "Owner")
     _create_user_profile(user_root, "editor@example.com", "Editor Example")
 
@@ -821,6 +954,7 @@ def test_project_collaborator_display_name_defaults_to_user_profile(
 
     response = client.put(
         "/api/projects/shared/collaborators",
+        params={"acting_user_id": "owner@example.com"},
         json={
             "collaborators": [
                 {
@@ -852,6 +986,48 @@ def test_project_collaborator_display_name_defaults_to_user_profile(
     assert list_response.status_code == 200
     collaborators = list_response.json()["collaborators"]
     assert collaborators[1]["display_name"] == "Editor Example"
+
+
+def test_replace_project_collaborators_rejects_non_owner(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "shared",
+        scenes,
+        metadata={
+            "name": "Shared",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+            ],
+        },
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.put(
+        "/api/projects/shared/collaborators",
+        params={"acting_user_id": "editor@example.com"},
+        json={
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+            ]
+        },
+    )
+
+    assert response.status_code == 403
+    assert "required role" in response.json()["detail"].lower()
 
 
 def test_projects_endpoints_return_404_when_disabled() -> None:

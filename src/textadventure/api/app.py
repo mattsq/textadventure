@@ -90,6 +90,14 @@ class CollaboratorRole(str, Enum):
     VIEWER = "viewer"
 
 
+class ProjectPermissionError(RuntimeError):
+    """Raised when a collaborator attempts an unauthorised project mutation."""
+
+    def __init__(self, project_id: str, message: str) -> None:
+        super().__init__(message)
+        self.project_id = project_id
+
+
 class FormattedJSONResponse(JSONResponse):
     """JSON response that respects minified vs pretty-print formatting styles."""
 
@@ -1936,7 +1944,12 @@ class ProjectService:
         )
 
     def store_project_asset(
-        self, identifier: str, asset_path: str, content: bytes | bytearray
+        self,
+        identifier: str,
+        asset_path: str,
+        content: bytes | bytearray,
+        *,
+        acting_user_id: str | None = None,
     ) -> ProjectAssetResource:
         """Persist ``content`` under ``asset_path`` within the project's assets."""
 
@@ -1944,6 +1957,12 @@ class ProjectService:
             raise ValueError("Project asset content must be provided as bytes.")
 
         record = self._store.load(identifier)
+        self._require_project_permission(
+            record,
+            acting_user_id=acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
+            action="upload assets",
+        )
         assets_root = record.scene_path.parent / "assets"
 
         if assets_root.exists() and not assets_root.is_dir():
@@ -1998,10 +2017,22 @@ class ProjectService:
             updated_at=_timestamp_for(target_path),
         )
 
-    def delete_project_asset(self, identifier: str, asset_path: str) -> None:
+    def delete_project_asset(
+        self,
+        identifier: str,
+        asset_path: str,
+        *,
+        acting_user_id: str | None = None,
+    ) -> None:
         """Remove ``asset_path`` from the project's assets directory."""
 
         record = self._store.load(identifier)
+        self._require_project_permission(
+            record,
+            acting_user_id=acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
+            action="delete assets",
+        )
         assets_root = record.scene_path.parent / "assets"
 
         if assets_root.exists() and not assets_root.is_dir():
@@ -2065,10 +2096,20 @@ class ProjectService:
         self,
         identifier: str,
         collaborators: Sequence[ProjectCollaboratorResource],
+        *,
+        acting_user_id: str | None = None,
     ) -> ProjectCollaboratorListResponse:
         trimmed_identifier = identifier.strip()
         if not trimmed_identifier:
             raise ValueError("Project identifier must be provided.")
+
+        record = self._store.load(trimmed_identifier)
+        self._require_project_permission(
+            record,
+            acting_user_id=acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER,),
+            action="manage collaborators",
+        )
 
         collaborator_records = [
             ProjectCollaboratorRecord(
@@ -2113,6 +2154,75 @@ class ProjectService:
             project_id=updated_record.identifier,
             collaborators=updated_collaborators,
         )
+
+    def _require_project_permission(
+        self,
+        record: AdventureProjectRecord,
+        *,
+        acting_user_id: str | None,
+        allowed_roles: Sequence[CollaboratorRole],
+        action: str,
+    ) -> None:
+        if not record.collaborators:
+            raise ProjectPermissionError(
+                record.identifier,
+                (
+                    f"Project '{record.identifier}' cannot {action} because no collaborators "
+                    "are configured to authorise the request."
+                ),
+            )
+
+        if acting_user_id is None:
+            raise ProjectPermissionError(
+                record.identifier,
+                (
+                    f"Project '{record.identifier}' collaborator context is required to {action}."
+                ),
+            )
+
+        trimmed_user_id = acting_user_id.strip()
+        if not trimmed_user_id:
+            raise ProjectPermissionError(
+                record.identifier,
+                (
+                    f"Project '{record.identifier}' collaborator context is required to {action}."
+                ),
+            )
+
+        for entry in record.collaborators:
+            if entry.user_id == trimmed_user_id:
+                if entry.role in allowed_roles:
+                    return
+
+                required = self._format_role_requirement(allowed_roles)
+                raise ProjectPermissionError(
+                    record.identifier,
+                    (
+                        f"Project '{record.identifier}' collaborator '{trimmed_user_id}' does not "
+                        f"have permission to {action}. Required role: {required}."
+                    ),
+                )
+
+        raise ProjectPermissionError(
+            record.identifier,
+            (
+                f"Project '{record.identifier}' does not list '{trimmed_user_id}' as a collaborator "
+                f"and cannot authorise the request to {action}."
+            ),
+        )
+
+    @staticmethod
+    def _format_role_requirement(
+        roles: Sequence[CollaboratorRole],
+    ) -> str:
+        labels = [role.value for role in roles]
+        if not labels:
+            return ""
+        if len(labels) == 1:
+            return labels[0]
+        if len(labels) == 2:
+            return " or ".join(labels)
+        return ", ".join(labels[:-1]) + f", or {labels[-1]}"
 
     def _resolve_collaborator_display_name(self, user_id: str) -> str | None:
         service = self._user_service
@@ -5004,6 +5114,10 @@ def create_app(
         project_id: str,
         asset_path: str,
         payload: ProjectAssetUploadRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description=("Identifier of the collaborator performing the upload."),
+        ),
     ) -> ProjectAssetResource:
         if project is None:
             raise HTTPException(404, "Project management endpoints are not enabled.")
@@ -5014,11 +5128,18 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         try:
-            return project.store_project_asset(project_id, asset_path, content)
+            return project.store_project_asset(
+                project_id,
+                asset_path,
+                content,
+                acting_user_id=acting_user_id,
+            )
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -5027,16 +5148,29 @@ def create_app(
         status_code=204,
         tags=["Projects"],
     )
-    def delete_project_asset(project_id: str, asset_path: str) -> None:
+    def delete_project_asset(
+        project_id: str,
+        asset_path: str,
+        acting_user_id: str | None = Query(
+            None,
+            description=("Identifier of the collaborator performing the deletion."),
+        ),
+    ) -> None:
         if project is None:
             raise HTTPException(404, "Project management endpoints are not enabled.")
 
         try:
-            project.delete_project_asset(project_id, asset_path)
+            project.delete_project_asset(
+                project_id,
+                asset_path,
+                acting_user_id=acting_user_id,
+            )
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -5066,19 +5200,28 @@ def create_app(
         tags=["Projects"],
     )
     def replace_project_collaborators(
-        project_id: str, payload: ProjectCollaboratorUpdateRequest
+        project_id: str,
+        payload: ProjectCollaboratorUpdateRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description=("Identifier of the collaborator performing the update."),
+        ),
     ) -> ProjectCollaboratorListResponse:
         if project is None:
             raise HTTPException(404, "Project management endpoints are not enabled.")
 
         try:
             return project.replace_project_collaborators(
-                project_id, payload.collaborators
+                project_id,
+                payload.collaborators,
+                acting_user_id=acting_user_id,
             )
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
