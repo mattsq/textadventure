@@ -2067,6 +2067,27 @@ class ProjectService:
                 f"Failed to delete asset '{relative_path.as_posix()}' for project '{record.identifier}'."
             ) from exc
 
+    def require_scene_dataset_permission(
+        self,
+        *,
+        scene_path: Path,
+        acting_user_id: str | None,
+        allowed_roles: Sequence[CollaboratorRole],
+        action: str,
+    ) -> None:
+        """Ensure the collaborator can perform ``action`` on the active dataset."""
+
+        record = self._find_project_by_scene_path(scene_path)
+        if record is None:
+            return
+
+        self._require_project_permission(
+            record,
+            acting_user_id=acting_user_id,
+            allowed_roles=allowed_roles,
+            action=action,
+        )
+
     def list_project_collaborators(
         self, identifier: str
     ) -> ProjectCollaboratorListResponse:
@@ -2210,6 +2231,56 @@ class ProjectService:
                 f"and cannot authorise the request to {action}."
             ),
         )
+
+    def _find_project_by_scene_path(
+        self, scene_path: Path
+    ) -> AdventureProjectRecord | None:
+        """Return the project whose dataset matches ``scene_path`` if available."""
+
+        try:
+            target = scene_path.expanduser().resolve(strict=False)
+        except (OSError, RuntimeError):
+            target = scene_path.expanduser()
+
+        candidate_identifier = target.parent.name
+        if candidate_identifier:
+            try:
+                candidate_record = self._store.load(candidate_identifier)
+            except (FileNotFoundError, ValueError):
+                candidate_record = None
+            if candidate_record is not None and self._paths_equal(
+                candidate_record.scene_path, target
+            ):
+                return candidate_record
+
+        records: list[AdventureProjectRecord] = []
+        try:
+            records = self._store.list()
+        except (FileNotFoundError, ValueError):
+            root = getattr(self._store, "_root", None)
+            if isinstance(root, Path) and root.exists():
+                for entry in sorted(root.iterdir()):
+                    if not entry.is_dir():
+                        continue
+                    try:
+                        loaded = self._store.load(entry.name)
+                    except (FileNotFoundError, ValueError):
+                        continue
+                    records.append(loaded)
+
+        for record in records:
+            if self._paths_equal(record.scene_path, target):
+                return record
+
+        return None
+
+    @staticmethod
+    def _paths_equal(candidate: Path, target: Path) -> bool:
+        try:
+            resolved_candidate = candidate.expanduser().resolve(strict=False)
+        except (OSError, RuntimeError):
+            resolved_candidate = candidate.expanduser()
+        return resolved_candidate == target
 
     @staticmethod
     def _format_role_requirement(
@@ -3229,6 +3300,12 @@ class SceneRepository:
         self._package = package
         self._resource_name = resource_name
         self._path = path
+
+    @property
+    def path(self) -> Path | None:
+        """Return the filesystem path backing the repository when editable."""
+
+        return self._path
 
     def load(self) -> tuple[Mapping[str, Any], datetime]:
         """Load scene definitions along with their last modified timestamp."""
@@ -4479,6 +4556,27 @@ def create_app(
         project_service=project,
     )
 
+    active_scene_path = repository.path
+
+    def _enforce_scene_permission(
+        acting_user_id: str | None,
+        *,
+        allowed_roles: Sequence[CollaboratorRole],
+        action: str,
+    ) -> None:
+        if project is None or active_scene_path is None:
+            return
+
+        try:
+            project.require_scene_dataset_permission(
+                scene_path=active_scene_path,
+                acting_user_id=acting_user_id,
+                allowed_roles=allowed_roles,
+                action=action,
+            )
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     tags_metadata = [
         {
             "name": "Scenes",
@@ -4603,7 +4701,20 @@ def create_app(
         status_code=201,
         tags=["Scenes"],
     )
-    def create_scene_endpoint(payload: SceneCreateRequest) -> SceneMutationResponse:
+    def create_scene_endpoint(
+        payload: SceneCreateRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description=(
+                "Identifier of the collaborator performing the scene mutation."
+            ),
+        ),
+    ) -> SceneMutationResponse:
+        _enforce_scene_permission(
+            acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
+            action="create scenes",
+        )
         try:
             return service.create_scene(
                 scene_id=payload.id,
@@ -4632,8 +4743,20 @@ def create_app(
         tags=["Scenes"],
     )
     def update_scene_endpoint(
-        scene_id: str, payload: SceneUpdateRequest
+        scene_id: str,
+        payload: SceneUpdateRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description=(
+                "Identifier of the collaborator performing the scene mutation."
+            ),
+        ),
     ) -> SceneMutationResponse:
+        _enforce_scene_permission(
+            acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
+            action="update scenes",
+        )
         try:
             return service.update_scene(
                 scene_id=scene_id,
@@ -4670,7 +4793,18 @@ def create_app(
                 "concurrency checks."
             ),
         ),
+        acting_user_id: str | None = Query(
+            None,
+            description=(
+                "Identifier of the collaborator performing the scene mutation."
+            ),
+        ),
     ) -> SceneDeleteResponse:
+        _enforce_scene_permission(
+            acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
+            action="delete scenes",
+        )
         try:
             return service.delete_scene(
                 scene_id=scene_id, expected_version_id=expected_version_id
@@ -4934,7 +5068,20 @@ def create_app(
         status_code=201,
         tags=["Scene Branches"],
     )
-    def create_branch(payload: SceneBranchCreateRequest) -> SceneBranchResource:
+    def create_branch(
+        payload: SceneBranchCreateRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description=(
+                "Identifier of the collaborator performing the branch mutation."
+            ),
+        ),
+    ) -> SceneBranchResource:
+        _enforce_scene_permission(
+            acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
+            action="create branches",
+        )
         try:
             return service.create_branch(
                 branch_name=payload.branch_name,
@@ -4956,7 +5103,20 @@ def create_app(
         status_code=204,
         tags=["Scene Branches"],
     )
-    def delete_branch(branch_id: str) -> None:
+    def delete_branch(
+        branch_id: str,
+        acting_user_id: str | None = Query(
+            None,
+            description=(
+                "Identifier of the collaborator performing the branch mutation."
+            ),
+        ),
+    ) -> None:
+        _enforce_scene_permission(
+            acting_user_id,
+            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
+            action="delete branches",
+        )
         try:
             service.delete_branch(branch_id)
         except FileNotFoundError as exc:

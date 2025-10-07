@@ -11,7 +11,7 @@ from typing import Any, Mapping
 from fastapi.testclient import TestClient
 
 from textadventure.api import SceneApiSettings, create_app
-from textadventure.api.app import UserAccountStore
+from textadventure.api.app import CURRENT_SCENE_SCHEMA_VERSION, UserAccountStore
 
 
 def _write_project(
@@ -60,6 +60,152 @@ def _checksum_and_version(
 def _create_user_profile(root: Path, identifier: str, display_name: str) -> None:
     store = UserAccountStore(root=root)
     store.create(identifier=identifier, display_name=display_name)
+
+
+def test_scene_mutations_enforce_project_collaborator_roles(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting point",
+            "choices": [
+                {"command": "look", "description": "Survey the room."},
+            ],
+            "transitions": {
+                "look": {
+                    "narration": "You take in your surroundings.",
+                    "target": "hall",
+                }
+            },
+        },
+        "hall": {
+            "description": "A quiet hallway",
+            "choices": [
+                {"command": "return", "description": "Head back."},
+            ],
+            "transitions": {
+                "return": {
+                    "narration": "You walk back to the starting point.",
+                    "target": "start",
+                }
+            },
+        },
+    }
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata={
+            "name": "Atlas",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+                {"user_id": "viewer@example.com", "role": "viewer"},
+            ],
+        },
+    )
+
+    scene_path = tmp_path / "atlas" / "scenes.json"
+    settings = SceneApiSettings(
+        project_root=tmp_path,
+        scene_path=scene_path,
+        branch_root=tmp_path / "branches",
+    )
+    client = TestClient(create_app(settings=settings))
+
+    new_scene = {
+        "description": "Hidden cellar",
+        "choices": [
+            {"command": "wait", "description": "Pause for a moment."},
+        ],
+        "transitions": {"wait": {"narration": "Time passes quietly.", "target": None}},
+    }
+
+    body = {
+        "id": "cellar",
+        "scene": new_scene,
+        "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+    }
+
+    missing_context = client.post("/api/scenes", json=body)
+    assert missing_context.status_code == 403
+    assert "collaborator" in missing_context.json()["detail"].lower()
+
+    viewer_response = client.post(
+        "/api/scenes",
+        params={"acting_user_id": "viewer@example.com"},
+        json=body,
+    )
+    assert viewer_response.status_code == 403
+
+    editor_response = client.post(
+        "/api/scenes",
+        params={"acting_user_id": "editor@example.com"},
+        json=body,
+    )
+    assert editor_response.status_code == 201
+
+    persisted = json.loads(scene_path.read_text())
+    assert "cellar" in persisted
+    assert persisted["cellar"]["description"] == "Hidden cellar"
+
+    branch_payload = {
+        "branch_name": "New Path",
+        "scenes": {
+            "start": {
+                "description": "Starting point (branch)",
+                "choices": [
+                    {"command": "step", "description": "Step forward."},
+                ],
+                "transitions": {
+                    "step": {
+                        "narration": "You discover a balcony.",
+                        "target": "balcony",
+                    }
+                },
+            },
+            "balcony": {
+                "description": "An open balcony",
+                "choices": [
+                    {"command": "rest", "description": "Take a short rest."},
+                ],
+                "transitions": {
+                    "rest": {"narration": "You catch your breath.", "target": None}
+                },
+            },
+        },
+        "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+    }
+
+    branch_missing = client.post("/api/scenes/branches", json=branch_payload)
+    assert branch_missing.status_code == 403
+
+    branch_viewer = client.post(
+        "/api/scenes/branches",
+        params={"acting_user_id": "viewer@example.com"},
+        json=branch_payload,
+    )
+    assert branch_viewer.status_code == 403
+
+    branch_owner = client.post(
+        "/api/scenes/branches",
+        params={"acting_user_id": "owner@example.com"},
+        json=branch_payload,
+    )
+    assert branch_owner.status_code == 201
+
+    branch_id = branch_owner.json()["id"]
+
+    delete_unauthorised = client.delete(
+        f"/api/scenes/branches/{branch_id}",
+        params={"acting_user_id": "viewer@example.com"},
+    )
+    assert delete_unauthorised.status_code == 403
+
+    delete_authorised = client.delete(
+        f"/api/scenes/branches/{branch_id}",
+        params={"acting_user_id": "owner@example.com"},
+    )
+    assert delete_authorised.status_code == 204
 
 
 def test_list_projects_returns_registered_metadata(tmp_path: Path) -> None:
