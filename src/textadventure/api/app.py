@@ -6,11 +6,13 @@ import base64
 import binascii
 import difflib
 import hashlib
+import io
 import json
 import mimetypes
 import os
 import re
 import shutil
+import zipfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from importlib import resources
@@ -889,6 +891,20 @@ class ProjectAssetContent:
     content_type: str | None
 
 
+@dataclass(frozen=True)
+class ProjectExportArchive:
+    """ZIP archive containing a project's dataset, metadata, and assets."""
+
+    project_id: str
+    filename: str
+    content: bytes
+    content_type: str
+    size: int
+    generated_at: datetime
+    version_id: str
+    checksum: str
+
+
 class ProjectAssetUploadRequest(BaseModel):
     """Payload describing the contents of an uploaded project asset."""
 
@@ -1326,6 +1342,60 @@ class SceneProjectStore:
             raise FileNotFoundError(f"Project '{identifier}' does not exist.")
 
         return self._record_from_directory(directory, identifier_override=identifier)
+
+    def export_archive(self, identifier: str) -> ProjectExportArchive:
+        """Package the full project directory into a ZIP archive."""
+
+        if not isinstance(identifier, str):
+            raise ValueError("Project identifier must be provided as a string.")
+
+        trimmed_identifier = identifier.strip()
+        if not trimmed_identifier:
+            raise ValueError("Project identifier must be provided.")
+
+        record = self.load(trimmed_identifier)
+        _, checksum, version_id = _load_project_dataset(record)
+
+        project_root = record.scene_path.parent
+        generated_at = datetime.now(timezone.utc)
+
+        buffer = io.BytesIO()
+        root_prefix = f"{record.identifier}/"
+
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(root_prefix, b"")
+
+            for dirpath, dirnames, filenames in os.walk(project_root):
+                dirnames.sort()
+                filenames.sort()
+
+                current_dir = Path(dirpath)
+                relative_dir = current_dir.relative_to(project_root)
+
+                if relative_dir == Path("."):
+                    dir_prefix = ""
+                else:
+                    dir_prefix = f"{relative_dir.as_posix()}/"
+                    archive.writestr(f"{root_prefix}{dir_prefix}", b"")
+
+                for filename in filenames:
+                    file_path = current_dir / filename
+                    arcname = f"{root_prefix}{dir_prefix}{filename}"
+                    archive.write(file_path, arcname=arcname)
+
+        content = buffer.getvalue()
+
+        filename = f"{record.identifier}-project-export-{version_id}.zip"
+        return ProjectExportArchive(
+            project_id=record.identifier,
+            filename=filename,
+            content=content,
+            content_type="application/zip",
+            size=len(content),
+            generated_at=generated_at,
+            version_id=version_id,
+            checksum=checksum,
+        )
 
     def create(
         self,
@@ -1778,6 +1848,11 @@ class ProjectService:
         record = self._store.load(identifier)
         resource, scenes = _build_project_detail(record)
         return AdventureProjectDetailResponse(data=resource, scenes=scenes)
+
+    def export_project(self, identifier: str) -> ProjectExportArchive:
+        """Return a ZIP archive capturing the full project directory."""
+
+        return self._store.export_archive(identifier)
 
     def create_project(
         self,
@@ -4790,6 +4865,37 @@ def create_app(
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/projects/{project_id}/export",
+        tags=["Projects"],
+    )
+    def export_project_archive(project_id: str) -> BinaryResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            archive = project.export_project(project_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        headers = {
+            "content-disposition": f'attachment; filename="{archive.filename}"',
+            "content-length": str(archive.size),
+            "x-textadventure-project-id": archive.project_id,
+            "x-textadventure-project-version": archive.version_id,
+            "x-textadventure-project-checksum": archive.checksum,
+        }
+
+        return BinaryResponse(
+            content=archive.content,
+            media_type=archive.content_type,
+            headers=headers,
+        )
 
     @app.get(
         "/api/projects/{project_id}/assets",

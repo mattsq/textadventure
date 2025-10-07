@@ -935,6 +935,29 @@ editor workspace or downloading a dataset for offline review.
 }
 ```
 
+### `GET /projects/{project_id}/export`
+
+Download a ZIP archive containing the project's scene dataset, metadata, and
+bundled assets. Useful for migrating adventures between environments or
+capturing an offline backup that mirrors the on-disk layout used by the editor.
+
+**Path parameters**
+
+- `project_id` – Identifier returned by `GET /projects`.
+
+**Response – 200 OK**
+
+- Binary payload with media type `application/zip`.
+- `Content-Disposition` header suggests a filename in the form
+  `atlas-project-export-20240501T100000Z-9a1b2c3d.zip`.
+- Custom headers expose version metadata extracted from the dataset:
+  - `X-TextAdventure-Project-Id`
+  - `X-TextAdventure-Project-Version`
+  - `X-TextAdventure-Project-Checksum`
+- The archive root is the project identifier (for example `atlas/`) and includes
+  `project.json`, the primary scene dataset (for example `scenes.json`), and the
+  entire `assets/` directory tree with empty folders preserved.
+
 ### `GET /projects/{project_id}/assets`
 
 Enumerate static assets stored alongside a project. Responses list directories

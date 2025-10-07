@@ -1,7 +1,9 @@
 import base64
 import hashlib
+import io
 import json
 import os
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -196,6 +198,90 @@ def test_get_project_returns_scene_payload(tmp_path: Path) -> None:
     assert payload["data"]["version_id"] == version_id
     assert payload["data"]["collaborator_count"] == 0
     assert payload["scenes"] == scenes
+
+
+def test_export_project_returns_zip_archive(tmp_path: Path) -> None:
+    timestamp = datetime(2024, 5, 1, 10, tzinfo=timezone.utc)
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Starting point",
+            "choices": [
+                {"command": "north", "description": "Head north."},
+            ],
+            "transitions": {
+                "north": {
+                    "narration": "You walk into the forest.",
+                    "target": "clearing",
+                }
+            },
+        },
+        "clearing": {
+            "description": "A quiet clearing",
+            "choices": [
+                {"command": "rest", "description": "Take a short rest."},
+            ],
+            "transitions": {
+                "rest": {
+                    "narration": "You feel refreshed.",
+                    "target": None,
+                }
+            },
+        },
+    }
+
+    metadata = {"name": "Atlas Migration", "description": "Adventure export"}
+
+    _write_project(
+        tmp_path,
+        "atlas",
+        scenes,
+        metadata=metadata,
+        timestamp=timestamp,
+    )
+
+    assets_root = tmp_path / "atlas" / "assets"
+    (assets_root / "images").mkdir(parents=True, exist_ok=True)
+    (assets_root / "empty").mkdir(parents=True, exist_ok=True)
+
+    logo_bytes = b"\x89PNG"
+    (assets_root / "images" / "logo.png").write_bytes(logo_bytes)
+
+    notes_text = "Remember the hidden door."
+    (assets_root / "notes.txt").write_text(notes_text, encoding="utf-8")
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.get("/api/projects/atlas/export")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+
+    checksum, version_id = _checksum_and_version(scenes, timestamp)
+    disposition = response.headers["content-disposition"]
+    assert f'filename="atlas-project-export-{version_id}.zip"' in disposition
+    assert response.headers["x-textadventure-project-id"] == "atlas"
+    assert response.headers["x-textadventure-project-version"] == version_id
+    assert response.headers["x-textadventure-project-checksum"] == checksum
+
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        names = sorted(archive.namelist())
+        assert names == [
+            "atlas/",
+            "atlas/assets/",
+            "atlas/assets/empty/",
+            "atlas/assets/images/",
+            "atlas/assets/images/logo.png",
+            "atlas/assets/notes.txt",
+            "atlas/project.json",
+            "atlas/scenes.json",
+        ]
+
+        assert json.loads(archive.read("atlas/scenes.json").decode("utf-8")) == scenes
+        assert (
+            json.loads(archive.read("atlas/project.json").decode("utf-8")) == metadata
+        )
+        assert archive.read("atlas/assets/images/logo.png") == logo_bytes
+        assert archive.read("atlas/assets/notes.txt").decode("utf-8") == notes_text
 
 
 def test_list_project_assets_returns_files_and_directories(tmp_path: Path) -> None:
