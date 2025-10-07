@@ -289,6 +289,16 @@ The image installs all runtime dependencies and launches Uvicorn with
 `http://localhost:8000/docs` to explore the automatically generated OpenAPI UI
 or hit `/api/scenes` to fetch the bundled demo scenes.
 
+### Automated container builds
+
+Repository maintainers can publish the Docker image without leaving GitHub by
+using the **Container Deployment** workflow. Tag releases that start with `v`
+trigger an automated build that publishes to GitHub Container Registry. You can
+also dispatch the workflow manually and choose whether the build should be
+published or run as a dry run. See
+[`docs/deployment_pipeline.md`](docs/deployment_pipeline.md) for detailed usage
+instructions and configuration tips.
+
 ## Contributing
 
 Read the detailed contributor guidelines in
