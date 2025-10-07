@@ -398,7 +398,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Validate collaborator assignments reference existing user profiles when a user registry is configured.
         - [x] Enrich collaborator listings with user profile display names when available.
         - [x] Enforce collaborator role restrictions when mutating project resources.
-      - [ ] Collaborative editing features
+      - [x] Collaborative editing features
+        - [x] Track active collaboration sessions with TTL persistence.
+        - [x] Expose API endpoints to join, heartbeat, list, and leave sessions.
+        - [x] Cover the collaboration session workflow with automated tests.
+        - [x] Document collaboration session usage for tooling integrators.
       - [x] Access control *(Scene and branch mutations now require authorised collaborators with regression coverage.)*
     - [ ] Implement backup and recovery:
       - [x] Automatic backups
