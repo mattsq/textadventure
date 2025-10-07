@@ -395,7 +395,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Project sharing and permissions
         - [x] Validate collaborator assignments reference existing user profiles when a user registry is configured.
         - [x] Enrich collaborator listings with user profile display names when available.
-        - [ ] Enforce collaborator role restrictions when mutating project resources.
+        - [x] Enforce collaborator role restrictions when mutating project resources.
       - [ ] Collaborative editing features
       - [ ] Access control
     - [ ] Implement backup and recovery:
