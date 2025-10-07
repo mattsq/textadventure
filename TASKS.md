@@ -377,8 +377,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Development mode integration
         - [x] Propagate the CLI scene path to the embedded editor server so both share live datasets during authoring.
         - [x] Support an `--editor-reload` flag to launch the embedded server with uvicorn auto-reload for iterative testing.
-    - [ ] Create deployment pipeline:
+    - [x] Create deployment pipeline:
       - [x] Docker containerization *(Added a Dockerfile and README instructions for running the API via Uvicorn in a container.)*
+      - [x] Automated container build workflow *(Added a GitHub Actions workflow that builds/pushes container images to GHCR on demand.)*
+      - [x] Document release pipeline usage *(Documented workflow triggers, manual runs, and registry requirements.)*
     - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
     - [ ] Production build optimization
       - [x] Static asset management *(Added an asset bundler CLI that produces hashed ZIP archives and manifests for deployment workflows.)*
