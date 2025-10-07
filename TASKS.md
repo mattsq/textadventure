@@ -401,8 +401,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Persist pre-mutation automatic backups with regression tests.
         - [x] Document the automatic backup workflow and settings for operators.
       - [x] Cloud storage integration *(Automatic backups can now mirror to S3-compatible buckets with configuration, docs, and tests covering the upload path.)*
-      - [x] Disaster recovery procedures *(Documented end-to-end recovery runbook covering preparation, rollback validation, and restore execution.)*
-      - [ ] Data export for migration
+    - [x] Disaster recovery procedures *(Documented end-to-end recovery runbook covering preparation, rollback validation, and restore execution.)*
+      - [x] Data export for migration *(Added project export API returning ZIP archives with scenes, metadata, and assets plus regression tests.)*
 
   - [ ] **Phase 10: Documentation & Community**
   - [ ] Create comprehensive user documentation:
