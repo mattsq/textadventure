@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from fastapi.testclient import TestClient
 
 from textadventure.api import SceneApiSettings, create_app
+from textadventure.api.app import UserAccountStore
 
 
 def _write_project(
@@ -54,6 +55,11 @@ def _checksum_and_version(
     version_prefix = timestamp.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     version_id = f"{version_prefix}-{checksum[:8]}"
     return checksum, version_id
+
+
+def _create_user_profile(root: Path, identifier: str, display_name: str) -> None:
+    store = UserAccountStore(root=root)
+    store.create(identifier=identifier, display_name=display_name)
 
 
 def test_list_projects_returns_registered_metadata(tmp_path: Path) -> None:
@@ -753,6 +759,99 @@ def test_replace_project_collaborators_requires_owner(tmp_path: Path) -> None:
         with metadata_path.open("r", encoding="utf-8") as handle:
             metadata = json.load(handle)
         assert "collaborators" not in metadata
+
+
+def test_replace_project_collaborators_requires_existing_users(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    project_root = tmp_path / "projects"
+    user_root = tmp_path / "users"
+
+    _write_project(project_root, "shared", scenes, metadata={"name": "Shared"})
+    _create_user_profile(user_root, "owner@example.com", "Owner")
+
+    settings = SceneApiSettings(project_root=project_root, user_root=user_root)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.put(
+        "/api/projects/shared/collaborators",
+        json={
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "missing@example.com", "role": "editor"},
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert "missing@example.com" in payload["detail"]
+
+
+def test_project_collaborator_display_name_defaults_to_user_profile(
+    tmp_path: Path,
+) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    project_root = tmp_path / "projects"
+    user_root = tmp_path / "users"
+
+    _write_project(project_root, "shared", scenes, metadata={"name": "Shared"})
+    _create_user_profile(user_root, "owner@example.com", "Owner")
+    _create_user_profile(user_root, "editor@example.com", "Editor Example")
+
+    settings = SceneApiSettings(project_root=project_root, user_root=user_root)
+    client = TestClient(create_app(settings=settings))
+
+    response = client.put(
+        "/api/projects/shared/collaborators",
+        json={
+            "collaborators": [
+                {
+                    "user_id": "owner@example.com",
+                    "role": "owner",
+                    "display_name": "Owner",
+                },
+                {"user_id": "editor@example.com", "role": "editor"},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["collaborators"] == [
+        {
+            "user_id": "owner@example.com",
+            "role": "owner",
+            "display_name": "Owner",
+        },
+        {
+            "user_id": "editor@example.com",
+            "role": "editor",
+            "display_name": "Editor Example",
+        },
+    ]
+
+    list_response = client.get("/api/projects/shared/collaborators")
+    assert list_response.status_code == 200
+    collaborators = list_response.json()["collaborators"]
+    assert collaborators[1]["display_name"] == "Editor Example"
 
 
 def test_projects_endpoints_return_404_when_disabled() -> None:
