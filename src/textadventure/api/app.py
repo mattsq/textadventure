@@ -1835,8 +1835,14 @@ class UserAccountStore:
 class ProjectService:
     """Business logic supporting the project management endpoints."""
 
-    def __init__(self, store: SceneProjectStore) -> None:
+    def __init__(
+        self,
+        store: SceneProjectStore,
+        *,
+        user_service: "UserService | None" = None,
+    ) -> None:
         self._store = store
+        self._user_service = user_service
 
     def list_projects(self) -> AdventureProjectListResponse:
         records = self._store.list()
@@ -2042,7 +2048,11 @@ class ProjectService:
             ProjectCollaboratorResource(
                 user_id=collaborator.user_id,
                 role=collaborator.role,
-                display_name=collaborator.display_name,
+                display_name=(
+                    collaborator.display_name
+                    if collaborator.display_name is not None
+                    else self._resolve_collaborator_display_name(collaborator.user_id)
+                ),
             )
             for collaborator in record.collaborators
         ]
@@ -2080,6 +2090,8 @@ class ProjectService:
             collaborator_records, trimmed_identifier
         )
 
+        self._validate_collaborators_exist(validated, trimmed_identifier)
+
         updated_record = self._store.replace_collaborators(
             trimmed_identifier, validated
         )
@@ -2088,7 +2100,11 @@ class ProjectService:
             ProjectCollaboratorResource(
                 user_id=collaborator.user_id,
                 role=collaborator.role,
-                display_name=collaborator.display_name,
+                display_name=(
+                    collaborator.display_name
+                    if collaborator.display_name is not None
+                    else self._resolve_collaborator_display_name(collaborator.user_id)
+                ),
             )
             for collaborator in updated_record.collaborators
         ]
@@ -2097,6 +2113,47 @@ class ProjectService:
             project_id=updated_record.identifier,
             collaborators=updated_collaborators,
         )
+
+    def _resolve_collaborator_display_name(self, user_id: str) -> str | None:
+        service = self._user_service
+        if service is None:
+            return None
+
+        try:
+            profile = service.get_user(user_id)
+        except FileNotFoundError:
+            return None
+        except ValueError:
+            return None
+
+        return profile.display_name
+
+    def _validate_collaborators_exist(
+        self,
+        collaborators: Sequence[ProjectCollaboratorRecord],
+        project_id: str,
+    ) -> None:
+        service = self._user_service
+        if service is None or not collaborators:
+            return
+
+        missing: list[str] = []
+        for entry in collaborators:
+            try:
+                service.get_user(entry.user_id)
+            except FileNotFoundError:
+                missing.append(entry.user_id)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Project '{project_id}' collaborator '{entry.user_id}' is invalid: {exc}"
+                ) from exc
+
+        if missing:
+            ordered = sorted(dict.fromkeys(missing))
+            formatted = ", ".join(ordered)
+            raise ValueError(
+                f"Project '{project_id}' references unknown collaborators: {formatted}."
+            )
 
 
 class UserService:
@@ -4282,13 +4339,18 @@ def create_app(
             automatic_backup_uploaders=automatic_backup_uploaders,
         )
 
+    user = user_service
+    if user is None and resolved_settings.user_root is not None:
+        user_store = UserAccountStore(root=resolved_settings.user_root)
+        user = UserService(store=user_store)
+
     project_store: SceneProjectStore | None = None
     if resolved_settings.project_root is not None:
         project_store = SceneProjectStore(root=resolved_settings.project_root)
 
     project = project_service
     if project is None and project_store is not None:
-        project = ProjectService(store=project_store)
+        project = ProjectService(store=project_store, user_service=user)
 
     template_service = project_template_service
     if (
@@ -4301,11 +4363,6 @@ def create_app(
             template_store=template_store,
             project_service=project,
         )
-
-    user = user_service
-    if user is None and resolved_settings.user_root is not None:
-        user_store = UserAccountStore(root=resolved_settings.user_root)
-        user = UserService(store=user_store)
 
     playtest_manager = PlaytestManager(
         repository=repository,
