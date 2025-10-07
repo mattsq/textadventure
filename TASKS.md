@@ -397,7 +397,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Enrich collaborator listings with user profile display names when available.
         - [x] Enforce collaborator role restrictions when mutating project resources.
       - [ ] Collaborative editing features
-      - [ ] Access control
+      - [x] Access control *(Scene and branch mutations now require authorised collaborators with regression coverage.)*
     - [ ] Implement backup and recovery:
       - [x] Automatic backups
         - [x] Add configurable automatic backup directory and retention settings.
