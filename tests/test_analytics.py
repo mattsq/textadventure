@@ -9,6 +9,7 @@ import pytest
 from textadventure.analytics import (
     AdventureABCollectionDifference,
     AdventureABTestReport,
+    AdventureQualityReport,
     AdventureReachabilityReport,
     ItemConsumption,
     ItemFlowDetails,
@@ -221,7 +222,7 @@ _QUALITY_SCENES = {
         transitions={
             "go": _StubTransition(
                 narration="You continue onward.",
-                target="empty",
+                target="unknown-target",
             )
         },
     ),
@@ -560,6 +561,9 @@ def test_assess_adventure_quality_highlights_issues() -> None:
     assert report.transitions_missing_narration == (("empty", "noop"),)
     assert report.gated_transitions_missing_failure == (("empty", "noop"),)
     assert report.conditional_overrides_missing_narration == (("empty", "noop", 0),)
+    assert report.transitions_with_unknown_targets == (
+        ("complete", "go", "unknown-target"),
+    )
 
 
 def test_assess_adventure_quality_from_definitions_matches_direct() -> None:
@@ -580,6 +584,22 @@ def test_format_quality_report_lists_detected_issues() -> None:
     assert "Total issues detected: 3" in formatted
     assert "Scenes missing descriptions" not in formatted
     assert "Conditional overrides missing narration" in formatted
+
+
+def test_format_quality_report_includes_unknown_targets() -> None:
+    report = AdventureQualityReport(
+        scenes_missing_description=(),
+        choices_missing_description=(),
+        transitions_missing_narration=(),
+        gated_transitions_missing_failure=(),
+        conditional_overrides_missing_narration=(),
+        transitions_with_unknown_targets=(("alpha", "go", "missing"),),
+    )
+    formatted = format_quality_report(report)
+
+    assert "Total issues detected: 1" in formatted
+    assert "Transitions targeting unknown scenes" in formatted
+    assert "alpha :: go -> missing" in formatted
 
 
 def test_analyse_item_flow_tracks_sources_and_usage() -> None:

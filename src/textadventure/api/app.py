@@ -255,6 +255,14 @@ class SceneCommandIssueResource(BaseModel):
     command: str
 
 
+class SceneTargetIssueResource(BaseModel):
+    """Issue descriptor referencing a command targeting another scene."""
+
+    scene_id: str
+    command: str
+    target: str
+
+
 class SceneOverrideIssueResource(BaseModel):
     """Issue descriptor referencing a conditional narration override."""
 
@@ -278,6 +286,9 @@ class QualityIssuesResource(BaseModel):
         default_factory=list
     )
     conditional_overrides_missing_narration: list[SceneOverrideIssueResource] = Field(
+        default_factory=list
+    )
+    transitions_with_unknown_target: list[SceneTargetIssueResource] = Field(
         default_factory=list
     )
 
@@ -6397,6 +6408,9 @@ def _compute_validation_statuses(
     error_scenes.update(
         scene for scene, _, _ in report.conditional_overrides_missing_narration
     )
+    error_scenes.update(
+        scene for scene, _, _ in report.transitions_with_unknown_targets
+    )
 
     warning_scenes: set[str] = set(
         scene for scene, _ in report.choices_missing_description
@@ -6475,6 +6489,10 @@ def _build_quality_resource(report: AdventureQualityReport) -> QualityIssuesReso
         SceneOverrideIssueResource(scene_id=scene, command=command, index=index)
         for scene, command, index in report.conditional_overrides_missing_narration
     ]
+    unknown_targets = [
+        SceneTargetIssueResource(scene_id=scene, command=command, target=target)
+        for scene, command, target in report.transitions_with_unknown_targets
+    ]
 
     return QualityIssuesResource(
         issue_count=report.issue_count,
@@ -6483,6 +6501,7 @@ def _build_quality_resource(report: AdventureQualityReport) -> QualityIssuesReso
         transitions_missing_narration=transitions,
         gated_transitions_missing_failure=gated,
         conditional_overrides_missing_narration=overrides,
+        transitions_with_unknown_target=unknown_targets,
     )
 
 
@@ -7000,6 +7019,19 @@ def _collect_validation_issues(
                         f"Narration override #{index + 1} for transition '{command}' is empty."
                     ),
                     path=f"transitions.{command}.narration_overrides[{index}].narration",
+                )
+            )
+
+    for candidate_scene, command, target in report.transitions_with_unknown_targets:
+        if candidate_scene == scene_id:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="unknown_transition_target",
+                    message=(
+                        f"Transition '{command}' targets unknown scene '{target}'."
+                    ),
+                    path=f"transitions.{command}.target",
                 )
             )
 
