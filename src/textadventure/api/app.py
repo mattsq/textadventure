@@ -6552,6 +6552,46 @@ def _build_item_flow_resource(report: ItemFlowReport) -> ItemFlowSummaryResource
     )
 
 
+@dataclass(frozen=True)
+class PlaytestTranscriptEntry:
+    """Single turn recorded during a live playtest session."""
+
+    turn: int
+    player_input: str | None
+    event: StoryEvent
+
+
+class PlaytestTranscriptRecorder:
+    """Accumulates a chronological transcript of playtest turns."""
+
+    def __init__(self) -> None:
+        self._entries: list[PlaytestTranscriptEntry] = []
+        self._turn = 0
+
+    def reset(self) -> None:
+        """Clear the recorded transcript and reset the turn counter."""
+
+        self._entries.clear()
+        self._turn = 0
+
+    def record(self, *, player_input: str | None, event: StoryEvent) -> None:
+        """Append a new entry describing the latest turn."""
+
+        self._turn += 1
+        self._entries.append(
+            PlaytestTranscriptEntry(
+                turn=self._turn,
+                player_input=player_input,
+                event=event,
+            )
+        )
+
+    def entries(self) -> tuple[PlaytestTranscriptEntry, ...]:
+        """Return an immutable view of the recorded transcript."""
+
+        return tuple(self._entries)
+
+
 class PlaytestSession:
     """Manage story state for a single live playtest connection."""
 
@@ -6559,6 +6599,7 @@ class PlaytestSession:
         self._engine_factory = engine_factory
         self._engine = engine_factory()
         self._world = WorldState()
+        self._transcript = PlaytestTranscriptRecorder()
 
     def reset(self) -> StoryEvent:
         """Reset the session and return the initial narrative event."""
@@ -6571,6 +6612,7 @@ class PlaytestSession:
 
         self._engine = new_engine
         self._world = new_world
+        self._transcript.reset()
 
         try:
             return self._produce_event(None)
@@ -6596,6 +6638,11 @@ class PlaytestSession:
             queued_messages=_build_queued_message_resources(self._engine),
         )
 
+    def transcript(self) -> tuple[PlaytestTranscriptEntry, ...]:
+        """Return the currently recorded playtest transcript."""
+
+        return self._transcript.entries()
+
     def _produce_event(self, player_input: str | None) -> StoryEvent:
         if player_input is not None:
             command_text = str(player_input)
@@ -6607,6 +6654,7 @@ class PlaytestSession:
 
         event = self._engine.propose_event(self._world, player_input=command_text)
         self._world.remember_observation(event.narration)
+        self._transcript.record(player_input=command_text, event=event)
         return event
 
 
