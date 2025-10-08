@@ -35,6 +35,13 @@ from .analytics import (
     format_reachability_report,
 )
 from .asset_bundler import AssetBundleResult, BundledAsset, build_asset_bundle
+from .community_templates import (
+    CommunityTemplate,
+    TemplateNotFoundError,
+    get_community_template,
+    list_community_templates,
+    load_template_scenes,
+)
 from .llm import LLMClient, LLMClientError, LLMMessage, LLMResponse, iter_contents
 from .llm_providers import (
     AnthropicMessagesClient,
@@ -98,6 +105,11 @@ __all__ = [
     "StoryChoice",
     "StoryEvent",
     "StoryEngine",
+    "CommunityTemplate",
+    "TemplateNotFoundError",
+    "list_community_templates",
+    "get_community_template",
+    "load_template_scenes",
     "AdventureABCollectionDifference",
     "AdventureABMetricDelta",
     "AdventureABTestReport",

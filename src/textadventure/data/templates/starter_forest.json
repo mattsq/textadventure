@@ -1,0 +1,142 @@
+{
+  "trailhead": {
+    "description": "Dawn light spills across the ranger trailhead. A weathered noticeboard leans beside a supply crate, while footpaths diverge toward a grove and a scavenger camp.",
+    "choices": [
+      {"command": "look", "description": "Survey the quiet forest entrance."},
+      {"command": "map", "description": "Check the supply crate for navigation aids."},
+      {"command": "grove", "description": "Follow the path toward the whispering grove."},
+      {"command": "camp", "description": "Visit the scavenger camp down the ridge."},
+      {"command": "ruins", "description": "Head straight for the distant ruins."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "look": {
+        "narration": "Birdsong mingles with the creak of the noticeboard. Footprints criss-cross the mud, hinting at fellow explorers nearby."
+      },
+      "map": {
+        "narration": "Inside the crate you find a folded ranger map annotated with safe paths and hazard icons.",
+        "item": "trail-map",
+        "records": ["Collected the ranger map"]
+      },
+      "grove": {
+        "narration": "You follow soft chimes deeper into the trees as the air cools around you.",
+        "target": "ancient-grove"
+      },
+      "camp": {
+        "narration": "You descend the ridge toward a ring of tents where scavengers share breakfast stew.",
+        "target": "campfire"
+      },
+      "ruins": {
+        "narration": "Guided by the annotations you hike toward the ruin's outer gate, careful to avoid the bogs marked in red.",
+        "target": "ruined-gate",
+        "requires": ["trail-map"],
+        "failure_narration": "Without the ranger map you'd likely wander into the bogs. Better secure a guide first."
+      }
+    }
+  },
+  "ancient-grove": {
+    "description": "Luminescent spores drift between the trees. Wind sculptures hum above a spring-fed pool that glitters with moonlight even at dawn.",
+    "choices": [
+      {"command": "listen", "description": "Tune in to the grove's harmonic whispers."},
+      {"command": "harvest", "description": "Gather a few moonseed pods from the water's edge."},
+      {"command": "return", "description": "Head back to the trailhead."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "listen": {
+        "narration": "The grove's chords synchronize with your heartbeat. A resonance pattern lodges itself in your memory.",
+        "records": ["Memorised the grove resonance"]
+      },
+      "harvest": {
+        "narration": "You scoop up a moonseed pod, its shell warm and softly glowing.",
+        "item": "moonseed-pod",
+        "records": ["Collected a moonseed pod"]
+      },
+      "return": {
+        "narration": "You retrace your steps to the ranger trailhead.",
+        "target": "trailhead"
+      }
+    }
+  },
+  "campfire": {
+    "description": "A handful of scavengers lounge around a low fire. Charts and salvage crates lie neatly stacked beside them.",
+    "choices": [
+      {"command": "greet", "description": "Chat with the lead scavenger."},
+      {"command": "trade", "description": "Offer supplies in exchange for gear."},
+      {"command": "return", "description": "Climb back up to the trailhead."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "greet": {
+        "narration": "The scavenger captain thanks you for lending an ear and mentions a spare lockpick kit they could part with.",
+        "records": ["Met the scavenger captain"]
+      },
+      "trade": {
+        "narration": "You trade the moonseed pod for a compact lockpick kit reinforced with resonance-tuned picks.",
+        "requires": ["moonseed-pod"],
+        "consumes": ["moonseed-pod"],
+        "item": "lockpick-kit",
+        "records": ["Secured a lockpick kit from the scavengers"],
+        "failure_narration": "The scavengers are intrigued, but they want something rare from the grove before parting with their kit."
+      },
+      "return": {
+        "narration": "You hike back to the ranger trailhead, the fire's warmth lingering behind you.",
+        "target": "trailhead"
+      }
+    }
+  },
+  "ruined-gate": {
+    "description": "Cracked stone pillars flank a sealed archway. Resonant glyphs glimmer faintly along the frame, reacting to nearby motion.",
+    "choices": [
+      {"command": "survey", "description": "Study the glyphs etched into the arch."},
+      {"command": "unlock", "description": "Pick the gate's resonant lock."},
+      {"command": "retreat", "description": "Return to the trailhead to prepare."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "survey": {
+        "narration": "The glyphs depict past expeditions. You note a symbol matching the resonance you heard in the grove.",
+        "records": ["Studied the ruin glyphs"]
+      },
+      "unlock": {
+        "narration": "Tuning the lockpick kit to the grove's harmony, you release the gate's final latch. The arch yawns open toward a misty courtyard.",
+        "requires": ["lockpick-kit"],
+        "target": "inner-courtyard",
+        "failure_narration": "Without specialized tools, the resonance lock resists every attempt."
+      },
+      "retreat": {
+        "narration": "You retreat to the trailhead, planning your next move.",
+        "target": "trailhead"
+      }
+    }
+  },
+  "inner-courtyard": {
+    "description": "Mist drifts between statues surrounding an ancient bonfire pit. Paths branch toward archives, workshops, and a silent bell tower.",
+    "choices": [
+      {"command": "celebrate", "description": "Take a moment to celebrate your progress."},
+      {"command": "plan", "description": "Sketch ideas for expanding this adventure."},
+      {"command": "return", "description": "Head back to the trailhead to reset."},
+      {"command": "inventory", "description": "Check your belongings."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "celebrate": {
+        "narration": "You breathe in the cool mist, proud of reaching the courtyard. New chapters await future authors.",
+        "records": ["Celebrated reaching the courtyard"]
+      },
+      "plan": {
+        "narration": "You jot down hooks for archives, workshops, and bell tower scenes future designers can build out.",
+        "records": ["Outlined expansion ideas"]
+      },
+      "return": {
+        "narration": "You retrace your path to the trailhead, ready to iterate on the template.",
+        "target": "trailhead"
+      }
+    }
+  }
+}
+

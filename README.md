@@ -173,7 +173,9 @@ Running the CLI with this engine lets designers iterate on adventures without
 changing the Python source. See
 [`docs/data_driven_scenes.md`](docs/data_driven_scenes.md) for a full breakdown
 of the JSON schema, validation rules, and tips for wiring custom files into the
-demo.
+demo. When you want an opinionated starting point instead of a blank slate,
+[`docs/community_templates.md`](docs/community_templates.md) walks through the
+bundled template catalogue and how to load it programmatically.
 [`docs/best_practices.md`](docs/best_practices.md) captures field-tested guidance
 for structuring scenes, gating progression, and preparing analytics reports.
 [`docs/multi_agent_orchestration.md`](docs/multi_agent_orchestration.md)

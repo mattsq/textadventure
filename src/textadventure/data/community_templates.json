@@ -1,0 +1,21 @@
+{
+  "templates": [
+    {
+      "id": "starter-forest",
+      "name": "Starter Forest Expedition",
+      "summary": "A compact three-scene adventure that demonstrates branching exploration and inventory gates.",
+      "tags": ["starter", "branching", "inventory"],
+      "scene_file": "templates/starter_forest.json",
+      "recommended_use": "Use as a tutorial-friendly baseline for outdoor adventures and onboarding new authors."
+    },
+    {
+      "id": "heist-blueprint",
+      "name": "Heist Blueprint",
+      "summary": "A scaffold for planning a multi-stage heist with fail-forward options and optional objectives.",
+      "tags": ["advanced", "multi-agent", "fail-forward"],
+      "scene_file": "templates/heist_blueprint.json",
+      "recommended_use": "Adapt for complex mission structures that benefit from conditional branches and regroup scenes."
+    }
+  ]
+}
+

@@ -1,0 +1,165 @@
+{
+  "safehouse": {
+    "description": "A dim safehouse hums with holo-displays. Crew dossiers cover the walls beside a map of the corporate tower you're about to infiltrate.",
+    "choices": [
+      {"command": "brief", "description": "Review the plan with the crew."},
+      {"command": "keycard", "description": "Clone a keycard from last night's surveillance."},
+      {"command": "charge", "description": "Assemble a plasma charge for emergency breaches."},
+      {"command": "support", "description": "Assign remote support roles to off-site allies."},
+      {"command": "infiltrate", "description": "Head to the tower lobby to begin the operation."},
+      {"command": "inventory", "description": "Check your gear."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "brief": {
+        "narration": "You coordinate entry points and diversion signals, ensuring every crew member knows their cue.",
+        "records": ["Outlined infiltration routes"]
+      },
+      "keycard": {
+        "narration": "You clone a mid-level executive's keycard and slip it into a concealed pocket.",
+        "item": "vault-keycard",
+        "records": ["Prepared a cloned keycard"]
+      },
+      "charge": {
+        "narration": "You pack the plasma charge into a noise-dampened case with remote detonation safeguards.",
+        "item": "plasma-charge",
+        "records": ["Packed a plasma charge"]
+      },
+      "support": {
+        "narration": "You patch the comms through an ally who can spin up diversions or guidance on demand.",
+        "records": ["Assigned remote support overwatch"]
+      },
+      "infiltrate": {
+        "narration": "Dressed as maintenance staff, you stride toward the tower lobby ready to blend in.",
+        "target": "tower-lobby",
+        "requires": ["vault-keycard"],
+        "failure_narration": "Security checkpoints will stop you cold without a cloned keycard." 
+      }
+    }
+  },
+  "tower-lobby": {
+    "description": "Polished marble floors reflect the neon skyline. Drones sweep the area while security officers chat near the elevator bank.",
+    "choices": [
+      {"command": "blend", "description": "Blend in with maintenance staff while scouting."},
+      {"command": "hack", "description": "Access a service terminal to compromise the elevator."},
+      {"command": "vault", "description": "Ride the secure elevator toward the vault levels."},
+      {"command": "retreat", "description": "Abort to regroup at the safehouse."},
+      {"command": "inventory", "description": "Check your gear."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "blend": {
+        "narration": "You swap badges with a sleepy custodian and drift toward the maintenance alcove unnoticed.",
+        "records": ["Blended with maintenance crew"]
+      },
+      "hack": {
+        "narration": "A quick splice into the service terminal yields elevator control and a looping camera feed.",
+        "item": "elevator-override",
+        "records": ["Captured the elevator override"]
+      },
+      "vault": {
+        "narration": "You swipe the override and keycard, sending the elevator descending toward restricted levels.",
+        "target": "vault-access",
+        "requires": ["elevator-override"],
+        "failure_narration": "Without the elevator override you'll trigger the vault alarms instantly."
+      },
+      "retreat": {
+        "narration": "You abandon the lobby and slip back through a staff exit, returning to the safehouse.",
+        "target": "safehouse"
+      }
+    }
+  },
+  "vault-access": {
+    "description": "A reinforced corridor hums with containment fields. Laser grids cycle in overlapping patterns guarding the vault door.",
+    "choices": [
+      {"command": "survey", "description": "Assess patrol patterns and vent access."},
+      {"command": "breach", "description": "Use the plasma charge to breach the vault casing."},
+      {"command": "assist", "description": "Request a diversion from remote support."},
+      {"command": "retreat", "description": "Ride the elevator back to the lobby."},
+      {"command": "inventory", "description": "Check your gear."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "survey": {
+        "narration": "You note blind spots where a diversion could let you slip through the grids unharmed.",
+        "records": ["Mapped vault patrol cycle"]
+      },
+      "breach": {
+        "narration": "The plasma charge melts a clean opening. You duck through as emergency shutters slam down behind you.",
+        "requires": ["plasma-charge"],
+        "consumes": ["plasma-charge"],
+        "target": "vault-inner",
+        "failure_narration": "Without the charge you'd need another creative entry strategy."
+      },
+      "assist": {
+        "narration": "Your support ally triggers a fake fire alarm two floors up, drawing patrols away for a critical window.",
+        "records": ["Triggered remote diversion"],
+        "narration_overrides": [
+          {
+            "narration": "With the patrols distracted, you slip a bypass card into the vault seal—no explosives needed.",
+            "requires_history_any": ["Captured the elevator override"],
+            "requires_inventory_any": ["vault-keycard"],
+            "records": ["Bypassed the vault seal via diversion"],
+            "requires_inventory_all": [],
+            "requires_history_all": [],
+            "forbids_history_any": [],
+            "forbids_inventory_any": []
+          }
+        ]
+      },
+      "retreat": {
+        "narration": "You ride the elevator back to the lobby, regrouping with the entry team.",
+        "target": "tower-lobby"
+      }
+    }
+  },
+  "vault-inner": {
+    "description": "Stacks of quantum lockboxes line the circular chamber. Holographic ledgers shimmer above a central console.",
+    "choices": [
+      {"command": "loot", "description": "Seize the target artifacts."},
+      {"command": "divert", "description": "Re-route funds to allied cells."},
+      {"command": "escape", "description": "Signal the getaway team."},
+      {"command": "inventory", "description": "Check your gear."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "loot": {
+        "narration": "You secure the artifact crates and stash them in collapsible grav-sleds.",
+        "records": ["Secured the vault artifacts"]
+      },
+      "divert": {
+        "narration": "You siphon encrypted credits into resistance accounts, leaving minimal traces behind.",
+        "records": ["Diverted vault funds to allies"]
+      },
+      "escape": {
+        "narration": "You signal the getaway pilot. Escape pods align to the maintenance chute for a rapid extraction.",
+        "target": "getaway"
+      }
+    }
+  },
+  "getaway": {
+    "description": "A stealth shuttle rockets away from the tower. Crew celebrations erupt over comms as the cityscape recedes behind you.",
+    "choices": [
+      {"command": "celebrate", "description": "Toast to a clean escape."},
+      {"command": "debrief", "description": "Log lessons for future crews."},
+      {"command": "reset", "description": "Return to the safehouse to iterate on the plan."},
+      {"command": "inventory", "description": "Check your gear."},
+      {"command": "journal", "description": "Review your recent actions."}
+    ],
+    "transitions": {
+      "celebrate": {
+        "narration": "Cheers echo through the cabin as the city lights fade.",
+        "records": ["Celebrated the successful heist"]
+      },
+      "debrief": {
+        "narration": "You annotate the mission log with outcomes, risks, and follow-up opportunities.",
+        "records": ["Debriefed the heist team"]
+      },
+      "reset": {
+        "narration": "You swing the shuttle back toward the safehouse, ready to try alternate approaches.",
+        "target": "safehouse"
+      }
+    }
+  }
+}
+
