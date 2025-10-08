@@ -861,6 +861,38 @@ class MarketplaceEntrySummary(BaseModel):
     scene_count: int = Field(
         ..., ge=0, description="Number of scene definitions contained in the entry."
     )
+    average_rating: float | None = Field(
+        None,
+        ge=1.0,
+        le=5.0,
+        description="Average rating for the entry if any reviews have been submitted.",
+    )
+    review_count: int = Field(
+        0,
+        ge=0,
+        description="Number of reviews that have been recorded for the entry.",
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class MarketplaceReview(BaseModel):
+    """Representation of a marketplace review visible through the API."""
+
+    reviewer: str | None = Field(
+        None,
+        description="Optional reviewer name supplied alongside the rating.",
+    )
+    rating: int = Field(..., ge=1, le=5, description="Rating value between 1 and 5.")
+    comment: str | None = Field(
+        None,
+        description="Optional free-form feedback accompanying the rating.",
+    )
+    created_at: datetime = Field(
+        ..., description="Timestamp describing when the review was submitted."
+    )
 
     @field_serializer("created_at")
     def _serialise_created_at(self, value: datetime) -> str:
@@ -877,6 +909,10 @@ class MarketplaceEntryResponse(MarketplaceEntrySummary):
         default_factory=dict,
         description="Scene definitions that make up the shared adventure.",
     )
+    reviews: list[MarketplaceReview] = Field(
+        default_factory=list,
+        description="Collection of reviews that have been submitted for the entry.",
+    )
 
 
 class MarketplaceEntryListResponse(BaseModel):
@@ -887,6 +923,50 @@ class MarketplaceEntryListResponse(BaseModel):
         description="Collection of marketplace entries ordered by recency.",
     )
     pagination: Pagination
+
+
+class MarketplaceReviewCreateRequest(BaseModel):
+    """Request payload for submitting a review for a marketplace entry."""
+
+    reviewer: str | None = Field(
+        None,
+        description="Optional reviewer name that will be displayed alongside the review.",
+    )
+    rating: int = Field(..., ge=1, le=5, description="Rating value between 1 and 5.")
+    comment: str | None = Field(
+        None,
+        description="Optional free-form comment providing additional feedback.",
+    )
+
+    @field_validator("reviewer", "comment", mode="before")
+    @classmethod
+    def _normalise_optional_text_field(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        raise TypeError("Value must be a string or null.")
+
+
+class MarketplaceReviewListResponse(BaseModel):
+    """Response envelope describing reviews for a marketplace entry."""
+
+    data: list[MarketplaceReview] = Field(
+        default_factory=list,
+        description="Collection of reviews ordered by submission time (newest first).",
+    )
+    average_rating: float | None = Field(
+        None,
+        ge=1.0,
+        le=5.0,
+        description="Average rating across all submitted reviews.",
+    )
+    review_count: int = Field(
+        0,
+        ge=0,
+        description="Number of reviews that have been submitted.",
+    )
 
 
 class MarketplaceEntryPublishRequest(BaseModel):
@@ -2292,6 +2372,16 @@ class UserAccountStore:
 
 
 @dataclass(frozen=True)
+class MarketplaceReviewRecord:
+    """Representation of a single marketplace review stored on disk."""
+
+    reviewer: str | None
+    rating: int
+    comment: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True)
 class MarketplaceEntryRecord:
     """Representation of a published marketplace entry stored on disk."""
 
@@ -2303,6 +2393,7 @@ class MarketplaceEntryRecord:
     created_at: datetime
     schema_version: int
     scenes: dict[str, Any]
+    reviews: tuple[MarketplaceReviewRecord, ...]
 
 
 class MarketplaceStore:
@@ -2365,6 +2456,58 @@ class MarketplaceStore:
                 f"Marketplace entry '{record.identifier}' already exists."
             )
 
+        self._write_record(record, allow_overwrite=False)
+
+    def update(self, record: MarketplaceEntryRecord) -> None:
+        """Persist ``record`` to disk, replacing any existing entry."""
+
+        path = self._path_for(record.identifier)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Marketplace entry '{record.identifier}' does not exist."
+            )
+
+        self._write_record(record, allow_overwrite=True)
+
+    def add_review(
+        self, identifier: str, review: MarketplaceReviewRecord
+    ) -> MarketplaceEntryRecord:
+        """Append ``review`` to the entry identified by ``identifier``."""
+
+        record = self.load(identifier)
+        updated = MarketplaceEntryRecord(
+            identifier=record.identifier,
+            title=record.title,
+            description=record.description,
+            author=record.author,
+            tags=record.tags,
+            created_at=record.created_at,
+            schema_version=record.schema_version,
+            scenes=record.scenes,
+            reviews=record.reviews + (review,),
+        )
+
+        self.update(updated)
+        return updated
+
+    def exists(self, identifier: str) -> bool:
+        """Return whether an entry with ``identifier`` already exists."""
+
+        normalised = _normalise_marketplace_identifier(identifier)
+        return self._path_for(normalised).exists()
+
+    def _path_for(self, identifier: str) -> Path:
+        return self._root / f"{identifier}.json"
+
+    def _write_record(
+        self, record: MarketplaceEntryRecord, *, allow_overwrite: bool
+    ) -> None:
+        path = self._path_for(record.identifier)
+        if not allow_overwrite and path.exists():
+            raise FileExistsError(
+                f"Marketplace entry '{record.identifier}' already exists."
+            )
+
         serialisable_scenes = _ensure_serialisable_scene_mapping(record.scenes)
         payload = {
             "id": record.identifier,
@@ -2375,6 +2518,15 @@ class MarketplaceStore:
             "created_at": record.created_at.isoformat(),
             "schema_version": record.schema_version,
             "scenes": serialisable_scenes,
+            "reviews": [
+                {
+                    "reviewer": review.reviewer,
+                    "rating": review.rating,
+                    "comment": review.comment,
+                    "created_at": review.created_at.isoformat(),
+                }
+                for review in record.reviews
+            ],
         }
 
         try:
@@ -2390,15 +2542,6 @@ class MarketplaceStore:
         except OSError as exc:
             raise RuntimeError("Failed to persist marketplace entry.") from exc
 
-    def exists(self, identifier: str) -> bool:
-        """Return whether an entry with ``identifier`` already exists."""
-
-        normalised = _normalise_marketplace_identifier(identifier)
-        return self._path_for(normalised).exists()
-
-    def _path_for(self, identifier: str) -> Path:
-        return self._root / f"{identifier}.json"
-
     def _record_from_payload(
         self, payload: Mapping[str, Any], path: Path
     ) -> MarketplaceEntryRecord:
@@ -2413,6 +2556,7 @@ class MarketplaceStore:
         created_at_raw = payload.get("created_at")
         schema_version = payload.get("schema_version")
         scenes = payload.get("scenes")
+        reviews_raw = payload.get("reviews")
 
         if not isinstance(identifier, str) or not identifier.strip():
             raise ValueError(f"Marketplace entry in '{path}' is missing a valid 'id'.")
@@ -2471,6 +2615,97 @@ class MarketplaceStore:
             ) from exc
 
         serialisable_scenes = _ensure_serialisable_scene_mapping(scenes)
+        reviews: tuple[MarketplaceReviewRecord, ...]
+        if reviews_raw is None:
+            reviews = ()
+        elif isinstance(reviews_raw, Iterable) and not isinstance(
+            reviews_raw, (str, bytes)
+        ):
+            parsed_reviews: list[MarketplaceReviewRecord] = []
+            for index, item in enumerate(reviews_raw):
+                if not isinstance(item, Mapping):
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has an invalid review "
+                            f"payload at index {index}."
+                        )
+                    )
+
+                reviewer_raw = item.get("reviewer")
+                comment_raw = item.get("comment")
+                rating = item.get("rating")
+                created_at_raw = item.get("created_at")
+
+                if rating is None or not isinstance(rating, int):
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has an invalid "
+                            f"review rating at index {index}."
+                        )
+                    )
+                if rating < 1 or rating > 5:
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has a review rating "
+                            f"outside the 1-5 range at index {index}."
+                        )
+                    )
+                if not isinstance(created_at_raw, str):
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has an invalid "
+                            f"review timestamp at index {index}."
+                        )
+                    )
+
+                try:
+                    created_at = _ensure_timezone(
+                        datetime.fromisoformat(created_at_raw)
+                    )
+                except ValueError as exc:
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has a review with an "
+                            f"invalid timestamp at index {index}."
+                        )
+                    ) from exc
+
+                reviewer = (
+                    _normalise_optional_text(reviewer_raw)
+                    if isinstance(reviewer_raw, str) or reviewer_raw is None
+                    else None
+                )
+                if reviewer_raw is not None and not isinstance(reviewer_raw, str):
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has an invalid "
+                            f"reviewer value at index {index}."
+                        )
+                    )
+
+                if comment_raw is not None and not isinstance(comment_raw, str):
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has an invalid "
+                            f"review comment at index {index}."
+                        )
+                    )
+                comment = _normalise_optional_text(comment_raw)
+
+                parsed_reviews.append(
+                    MarketplaceReviewRecord(
+                        reviewer=reviewer,
+                        rating=rating,
+                        comment=comment,
+                        created_at=created_at,
+                    )
+                )
+
+            reviews = tuple(parsed_reviews)
+        else:
+            raise ValueError(
+                f"Marketplace entry in '{path}' has an invalid 'reviews' collection."
+            )
 
         return MarketplaceEntryRecord(
             identifier=_normalise_marketplace_identifier(identifier),
@@ -2481,6 +2716,7 @@ class MarketplaceStore:
             created_at=created_at,
             schema_version=schema_version,
             scenes=serialisable_scenes,
+            reviews=reviews,
         )
 
 
@@ -3403,6 +3639,7 @@ class MarketplaceService:
             created_at=datetime.now(timezone.utc),
             schema_version=payload.schema_version,
             scenes=scenes,
+            reviews=(),
         )
 
         try:
@@ -3471,6 +3708,25 @@ class MarketplaceService:
         except FileNotFoundError as exc:
             normalised = _normalise_marketplace_identifier(identifier)
             raise KeyError(f"Marketplace entry '{normalised}' does not exist.") from exc
+
+    def add_review(
+        self, identifier: str, payload: MarketplaceReviewCreateRequest
+    ) -> tuple[MarketplaceEntryRecord, MarketplaceReviewRecord]:
+        try:
+            normalised_identifier = _normalise_marketplace_identifier(identifier)
+            review = MarketplaceReviewRecord(
+                reviewer=_normalise_optional_text(payload.reviewer),
+                rating=payload.rating,
+                comment=_normalise_optional_text(payload.comment),
+                created_at=datetime.now(timezone.utc),
+            )
+            updated = self._store.add_review(normalised_identifier, review)
+        except FileNotFoundError as exc:
+            raise KeyError(
+                f"Marketplace entry '{normalised_identifier}' does not exist."
+            ) from exc
+
+        return updated, review
 
     def _generate_identifier(self, title: str) -> str:
         base_slug = _slugify_marketplace_identifier(title)
@@ -3657,6 +3913,8 @@ def _build_marketplace_summary(
         tags=list(record.tags),
         created_at=record.created_at,
         scene_count=len(record.scenes),
+        average_rating=_compute_average_rating(record.reviews),
+        review_count=len(record.reviews),
     )
 
 
@@ -3669,9 +3927,41 @@ def _build_marketplace_response(
         {
             "schema_version": record.schema_version,
             "scenes": record.scenes,
+            "reviews": [
+                _build_marketplace_review(review)
+                for review in _sort_reviews_newest_first(record.reviews)
+            ],
         }
     )
     return MarketplaceEntryResponse(**payload)
+
+
+def _build_marketplace_review(
+    record: MarketplaceReviewRecord,
+) -> MarketplaceReview:
+    return MarketplaceReview(
+        reviewer=record.reviewer,
+        rating=record.rating,
+        comment=record.comment,
+        created_at=record.created_at,
+    )
+
+
+def _compute_average_rating(
+    reviews: Sequence[MarketplaceReviewRecord],
+) -> float | None:
+    if not reviews:
+        return None
+
+    total = sum(review.rating for review in reviews)
+    average = total / len(reviews)
+    return round(average, 2)
+
+
+def _sort_reviews_newest_first(
+    reviews: Sequence[MarketplaceReviewRecord],
+) -> list[MarketplaceReviewRecord]:
+    return sorted(reviews, key=lambda review: review.created_at, reverse=True)
 
 
 def _load_project_dataset(
@@ -6667,6 +6957,31 @@ def create_app(
 
         return _build_marketplace_response(record)
 
+    @app.get(
+        "/api/marketplace/entries/{entry_id}/reviews",
+        response_model=MarketplaceReviewListResponse,
+        tags=["Marketplace"],
+    )
+    def list_marketplace_entry_reviews(
+        entry_id: str,
+    ) -> MarketplaceReviewListResponse:
+        try:
+            record = marketplace.get_entry(entry_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        ordered = _sort_reviews_newest_first(record.reviews)
+        reviews = [_build_marketplace_review(review) for review in ordered]
+        return MarketplaceReviewListResponse(
+            data=reviews,
+            average_rating=_compute_average_rating(record.reviews),
+            review_count=len(record.reviews),
+        )
+
     @app.post(
         "/api/marketplace/entries",
         response_model=MarketplaceEntryResponse,
@@ -6686,6 +7001,26 @@ def create_app(
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         return _build_marketplace_response(record)
+
+    @app.post(
+        "/api/marketplace/entries/{entry_id}/reviews",
+        response_model=MarketplaceReview,
+        status_code=201,
+        tags=["Marketplace"],
+    )
+    def create_marketplace_entry_review(
+        entry_id: str, payload: MarketplaceReviewCreateRequest
+    ) -> MarketplaceReview:
+        try:
+            _, review = marketplace.add_review(entry_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_marketplace_review(review)
 
     @app.get(
         "/api/users",

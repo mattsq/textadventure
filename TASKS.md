@@ -437,5 +437,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Define a manifest format and storage location for shared templates.
         - [x] Bundle at least one starter template dataset with metadata.
         - [x] Document how contributors can use and extend the templates.
-      - [ ] Rating and review system
+      - [x] Rating and review system
+        - [x] Define review storage model and aggregate metadata for marketplace entries.
+        - [x] Expose API endpoints for creating and listing marketplace reviews.
+        - [x] Add automated tests and documentation updates for the review workflow.
       - [ ] Discussion forums
