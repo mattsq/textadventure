@@ -269,6 +269,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Change broadcasting
     - [ ] Implement playtesting features:
       - [ ] Session recording and replay
+        - [x] Add a playtest session transcript recorder that captures player inputs and resulting events for later review.
+        - [ ] Expose API/WebSocket commands to download or clear the recorded transcript from an active session.
+        - [ ] Implement a replay helper that can step through recorded playtest transcripts for automated regression testing.
       - [ ] Path tracking and analytics
       - [ ] Playtester feedback collection
       - [x] A/B testing for narrative variants *(Added analytics comparison helpers, reporting formatters, documentation, and regression coverage for variant deltas.)*
