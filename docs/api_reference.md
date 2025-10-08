@@ -96,6 +96,11 @@ services.
   `ProjectTemplateService` lists reusable project templates and provides an
   instantiation endpoint that materialises a new project directory by copying the
   template scenes and metadata.
+- **Marketplace publishing (`MarketplaceService`)** – Backs the marketplace endpoints
+  that allow tooling to publish new adventures, list community contributions, and
+  retrieve scene datasets alongside descriptive metadata such as tags, author
+  credits, and creation timestamps. Entries are persisted to a filesystem-backed
+  directory so the catalogue can be versioned or synchronised across deployments.
 - **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`, and
   supporting models normalise the API payloads consumed by prospective web tools or
   external services. Recent additions include `ProjectAssetResource` and
@@ -107,11 +112,11 @@ services.
   `TEXTADVENTURE_BRANCH_ROOT`, `TEXTADVENTURE_AUTOMATIC_BACKUP_DIR`,
   `TEXTADVENTURE_AUTOMATIC_BACKUP_RETENTION`, `TEXTADVENTURE_AUTOMATIC_BACKUP_S3_BUCKET`,
   `TEXTADVENTURE_AUTOMATIC_BACKUP_S3_PREFIX`, `TEXTADVENTURE_AUTOMATIC_BACKUP_S3_REGION`,
-  `TEXTADVENTURE_AUTOMATIC_BACKUP_S3_ENDPOINT_URL`, `TEXTADVENTURE_PROJECT_ROOT`, and
-  `TEXTADVENTURE_PROJECT_TEMPLATE_ROOT` so the API can target custom scene
-  datasets, branch storage directories, automatic backup locations, optional cloud
-  mirrors, a project registry, and an optional template catalogue without code
-  changes.
+  `TEXTADVENTURE_AUTOMATIC_BACKUP_S3_ENDPOINT_URL`, `TEXTADVENTURE_PROJECT_ROOT`,
+  `TEXTADVENTURE_PROJECT_TEMPLATE_ROOT`, and `TEXTADVENTURE_MARKETPLACE_ROOT` so the
+  API can target custom scene datasets, branch storage directories, automatic backup
+  locations, optional cloud mirrors, a project registry, a template catalogue, and a
+  filesystem-backed marketplace without code changes.
 
 Use this reference alongside the architecture overview to dive deeper into specific
 modules when extending the engine or integrating new agent capabilities.
@@ -136,6 +141,7 @@ Endpoints are grouped under the following tags to make exploration easier:
 - **Scene Branches** – Snapshot management for experimental branches.
 - **Search** – Full-text queries with field-type and validation filters.
 - **Projects** – Project discovery plus asset and collaborator management.
+- **Marketplace** – Community marketplace for publishing and browsing adventure bundles.
 - **Collaboration Sessions** – Real-time editor presence and locking utilities.
 - **Project Templates** – Template catalogue and instantiation helpers for spinning
   up new adventures.

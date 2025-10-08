@@ -428,7 +428,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Contributing guidelines *(Added `docs/contributing.md` outlining the development workflow, quality gates, and review expectations.)*
       - [x] Architecture overview *(Documented the module layout and extension points in `docs/architecture_overview.md`.)*
     - [ ] Establish community features:
-      - [ ] Scene sharing marketplace
+      - [x] Scene sharing marketplace
+        - [x] Define marketplace entry data model and storage interface.
+        - [x] Implement a filesystem-backed marketplace store supporting publish/list/listing pagination.
+        - [x] Expose FastAPI endpoints for publishing, listing, and retrieving marketplace entries with validation.
+        - [x] Cover the marketplace flow with unit and integration tests and document the workflow.
       - [ ] Community templates
       - [ ] Rating and review system
       - [ ] Discussion forums

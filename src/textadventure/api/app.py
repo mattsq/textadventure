@@ -838,6 +838,153 @@ class AdventureProjectTemplateListResponse(BaseModel):
     )
 
 
+class MarketplaceEntrySummary(BaseModel):
+    """Summary metadata describing a published marketplace entry."""
+
+    id: str = Field(..., description="Stable identifier for the marketplace entry.")
+    title: str = Field(..., description="Display title for the shared adventure.")
+    description: str | None = Field(
+        None,
+        description="Optional short description supplied by the publisher.",
+    )
+    author: str | None = Field(
+        None,
+        description="Optional credit or author name provided by the publisher.",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Normalised discovery tags associated with the entry.",
+    )
+    created_at: datetime = Field(
+        ..., description="Timestamp indicating when the entry was published."
+    )
+    scene_count: int = Field(
+        ..., ge=0, description="Number of scene definitions contained in the entry."
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class MarketplaceEntryResponse(MarketplaceEntrySummary):
+    """Full representation of a published marketplace entry."""
+
+    schema_version: int = Field(
+        ..., description="Scene schema version the bundled dataset adheres to."
+    )
+    scenes: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Scene definitions that make up the shared adventure.",
+    )
+
+
+class MarketplaceEntryListResponse(BaseModel):
+    """Response envelope describing marketplace entries."""
+
+    data: list[MarketplaceEntrySummary] = Field(
+        default_factory=list,
+        description="Collection of marketplace entries ordered by recency.",
+    )
+    pagination: Pagination
+
+
+class MarketplaceEntryPublishRequest(BaseModel):
+    """Request payload for publishing an adventure to the marketplace."""
+
+    identifier: str | None = Field(
+        None,
+        description=(
+            "Optional identifier to assign to the entry. If omitted, an identifier "
+            "is generated from the title."
+        ),
+    )
+    title: str = Field(..., description="Display title for the shared adventure.")
+    description: str | None = Field(
+        None, description="Optional short description of the adventure."
+    )
+    author: str | None = Field(
+        None, description="Optional credit or author name for the adventure."
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Optional discovery tags to associate with the entry.",
+    )
+    scenes: Mapping[str, Any] = Field(
+        ...,
+        description=(
+            "Scene definitions that should be bundled with the marketplace entry."
+        ),
+    )
+    schema_version: int = Field(
+        ..., ge=1, description="Scene schema version describing the dataset."
+    )
+
+    @field_validator("identifier")
+    @classmethod
+    def _normalise_identifier(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _normalise_marketplace_identifier(value)
+
+    @field_validator("title")
+    @classmethod
+    def _normalise_title(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Title must be provided as a string.")
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Title must be a non-empty string.")
+        return trimmed
+
+    @field_validator("description")
+    @classmethod
+    def _normalise_description(cls, value: str | None) -> str | None:
+        return _normalise_optional_text(value)
+
+    @field_validator("author")
+    @classmethod
+    def _normalise_author(cls, value: str | None) -> str | None:
+        return _normalise_optional_text(value)
+
+    @field_validator("tags")
+    @classmethod
+    def _normalise_tags(cls, value: Sequence[str]) -> list[str]:
+        if isinstance(value, str):
+            raise ValueError("Tags must be provided as an iterable of strings.")
+        if value is None:
+            return []
+        seen: set[str] = set()
+        normalised: list[str] = []
+        for tag in value:
+            if not isinstance(tag, str):
+                raise ValueError("Tags must be provided as strings.")
+            candidate = _normalise_optional_text(tag) or ""
+            if not candidate:
+                continue
+            slug = candidate.casefold()
+            if slug in seen:
+                continue
+            seen.add(slug)
+            normalised.append(slug)
+        return normalised
+
+    @field_validator("scenes")
+    @classmethod
+    def _validate_scenes(cls, value: Mapping[str, Any]) -> Mapping[str, Any]:
+        if not isinstance(value, Mapping):
+            raise ValueError("Scenes must be provided as a mapping.")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_schema_version(self) -> "MarketplaceEntryPublishRequest":
+        if self.schema_version != CURRENT_SCENE_SCHEMA_VERSION:
+            raise ValueError(
+                "schema_version must match the current scene schema version."
+            )
+        return self
+
+
 class ProjectTemplateInstantiateRequest(BaseModel):
     """Request payload for instantiating a project template."""
 
@@ -2144,6 +2291,199 @@ class UserAccountStore:
         return self._root / f"{identifier}.json"
 
 
+@dataclass(frozen=True)
+class MarketplaceEntryRecord:
+    """Representation of a published marketplace entry stored on disk."""
+
+    identifier: str
+    title: str
+    description: str | None
+    author: str | None
+    tags: tuple[str, ...]
+    created_at: datetime
+    schema_version: int
+    scenes: dict[str, Any]
+
+
+class MarketplaceStore:
+    """Filesystem-backed storage for published marketplace entries."""
+
+    def __init__(self, root: Path | None = None) -> None:
+        self._root = root or (Path.cwd() / "marketplace")
+
+    def list(self) -> list[MarketplaceEntryRecord]:
+        """Return all published entries ordered by recency."""
+
+        if not self._root.exists():
+            return []
+
+        records: list[MarketplaceEntryRecord] = []
+        for path in sorted(self._root.glob("*.json")):
+            if not path.is_file():
+                continue
+
+            try:
+                payload = _load_json(path)
+            except (OSError, ValueError) as exc:
+                raise ValueError(
+                    f"Failed to load marketplace entry from '{path}'."
+                ) from exc
+
+            try:
+                record = self._record_from_payload(payload, path)
+            except ValueError as exc:
+                raise ValueError(str(exc)) from exc
+
+            records.append(record)
+
+        records.sort(key=lambda record: record.created_at, reverse=True)
+        return records
+
+    def load(self, identifier: str) -> MarketplaceEntryRecord:
+        """Return the marketplace entry identified by ``identifier``."""
+
+        normalised = _normalise_marketplace_identifier(identifier)
+        path = self._path_for(normalised)
+        if not path.exists():
+            raise FileNotFoundError(f"Marketplace entry '{normalised}' does not exist.")
+
+        try:
+            payload = _load_json(path)
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                f"Failed to load marketplace entry from '{path}'."
+            ) from exc
+
+        return self._record_from_payload(payload, path)
+
+    def save(self, record: MarketplaceEntryRecord) -> None:
+        """Persist ``record`` to disk, ensuring identifiers remain unique."""
+
+        path = self._path_for(record.identifier)
+        if path.exists():
+            raise FileExistsError(
+                f"Marketplace entry '{record.identifier}' already exists."
+            )
+
+        serialisable_scenes = _ensure_serialisable_scene_mapping(record.scenes)
+        payload = {
+            "id": record.identifier,
+            "title": record.title,
+            "description": record.description,
+            "author": record.author,
+            "tags": list(record.tags),
+            "created_at": record.created_at.isoformat(),
+            "schema_version": record.schema_version,
+            "scenes": serialisable_scenes,
+        }
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                "Failed to prepare marketplace storage directory."
+            ) from exc
+
+        try:
+            with path.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError("Failed to persist marketplace entry.") from exc
+
+    def exists(self, identifier: str) -> bool:
+        """Return whether an entry with ``identifier`` already exists."""
+
+        normalised = _normalise_marketplace_identifier(identifier)
+        return self._path_for(normalised).exists()
+
+    def _path_for(self, identifier: str) -> Path:
+        return self._root / f"{identifier}.json"
+
+    def _record_from_payload(
+        self, payload: Mapping[str, Any], path: Path
+    ) -> MarketplaceEntryRecord:
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"Marketplace entry in '{path}' must be a mapping.")
+
+        identifier = payload.get("id")
+        title = payload.get("title")
+        description = payload.get("description")
+        author = payload.get("author")
+        tags_raw = payload.get("tags")
+        created_at_raw = payload.get("created_at")
+        schema_version = payload.get("schema_version")
+        scenes = payload.get("scenes")
+
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise ValueError(f"Marketplace entry in '{path}' is missing a valid 'id'.")
+        if not isinstance(title, str) or not title.strip():
+            raise ValueError(
+                f"Marketplace entry in '{path}' is missing a valid 'title'."
+            )
+        if not isinstance(created_at_raw, str):
+            raise ValueError(
+                f"Marketplace entry in '{path}' is missing a valid 'created_at'."
+            )
+        if not isinstance(schema_version, int):
+            raise ValueError(
+                f"Marketplace entry in '{path}' is missing a valid 'schema_version'."
+            )
+        if not isinstance(scenes, Mapping):
+            raise ValueError(
+                f"Marketplace entry in '{path}' must include a mapping of scenes."
+            )
+
+        normalised_description = _normalise_optional_text(description)
+        normalised_author = _normalise_optional_text(author)
+        tags: tuple[str, ...]
+        if tags_raw is None:
+            tags = ()
+        elif isinstance(tags_raw, Iterable) and not isinstance(tags_raw, (str, bytes)):
+            processed: list[str] = []
+            seen: set[str] = set()
+            for index, tag in enumerate(tags_raw):
+                if not isinstance(tag, str):
+                    raise ValueError(
+                        (
+                            f"Marketplace entry in '{path}' has an invalid tag at "
+                            f"index {index}."
+                        )
+                    )
+                candidate = _normalise_optional_text(tag) or ""
+                if not candidate:
+                    continue
+                slug = candidate.casefold()
+                if slug in seen:
+                    continue
+                seen.add(slug)
+                processed.append(slug)
+            tags = tuple(processed)
+        else:
+            raise ValueError(
+                f"Marketplace entry in '{path}' has an invalid 'tags' collection."
+            )
+
+        try:
+            created_at = _ensure_timezone(datetime.fromisoformat(created_at_raw))
+        except ValueError as exc:
+            raise ValueError(
+                f"Marketplace entry in '{path}' contains an invalid 'created_at'."
+            ) from exc
+
+        serialisable_scenes = _ensure_serialisable_scene_mapping(scenes)
+
+        return MarketplaceEntryRecord(
+            identifier=_normalise_marketplace_identifier(identifier),
+            title=title.strip(),
+            description=normalised_description,
+            author=normalised_author,
+            tags=tags,
+            created_at=created_at,
+            schema_version=schema_version,
+            scenes=serialisable_scenes,
+        )
+
+
 class ProjectService:
     """Business logic supporting the project management endpoints."""
 
@@ -3030,6 +3370,122 @@ class ProjectTemplateService:
         )
 
 
+class MarketplaceEntryAlreadyExistsError(RuntimeError):
+    """Raised when attempting to publish a duplicate marketplace entry."""
+
+    def __init__(self, identifier: str) -> None:
+        super().__init__(f"Marketplace entry '{identifier}' already exists.")
+        self.identifier = identifier
+
+
+class MarketplaceService:
+    """Business logic supporting the marketplace entry endpoints."""
+
+    def __init__(self, store: MarketplaceStore) -> None:
+        self._store = store
+
+    def publish_entry(
+        self, payload: MarketplaceEntryPublishRequest
+    ) -> MarketplaceEntryRecord:
+        requested_identifier = payload.identifier
+        if requested_identifier is not None:
+            identifier = _normalise_marketplace_identifier(requested_identifier)
+        else:
+            identifier = self._generate_identifier(payload.title)
+
+        scenes = _ensure_serialisable_scene_mapping(payload.scenes)
+        record = MarketplaceEntryRecord(
+            identifier=identifier,
+            title=payload.title,
+            description=payload.description,
+            author=payload.author,
+            tags=tuple(payload.tags),
+            created_at=datetime.now(timezone.utc),
+            schema_version=payload.schema_version,
+            scenes=scenes,
+        )
+
+        try:
+            self._store.save(record)
+        except FileExistsError as exc:
+            raise MarketplaceEntryAlreadyExistsError(identifier) from exc
+
+        return record
+
+    def list_entries(
+        self,
+        *,
+        search: str | None,
+        tag: str | None,
+        page: int,
+        page_size: int,
+    ) -> MarketplaceEntryListResponse:
+        if page < 1:
+            raise ValueError("page must be greater than or equal to 1.")
+        if page_size < 1:
+            raise ValueError("page_size must be greater than or equal to 1.")
+
+        records = self._store.list()
+
+        search_term = _normalise_optional_text(search)
+        search_query = search_term.casefold() if search_term else None
+        resolved_tag = _normalise_marketplace_tag(tag) if tag is not None else None
+
+        filtered: list[MarketplaceEntryRecord] = []
+        for record in records:
+            if search_query is not None:
+                haystacks = [
+                    record.identifier.casefold(),
+                    record.title.casefold(),
+                ]
+                if record.description is not None:
+                    haystacks.append(record.description.casefold())
+                if not any(search_query in haystack for haystack in haystacks):
+                    continue
+
+            if resolved_tag is not None and resolved_tag not in record.tags:
+                continue
+
+            filtered.append(record)
+
+        total_items = len(filtered)
+        total_pages = _compute_total_pages(total_items, page_size)
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        visible = filtered[start_index:end_index]
+
+        summaries = [_build_marketplace_summary(record) for record in visible]
+        return MarketplaceEntryListResponse(
+            data=summaries,
+            pagination=Pagination(
+                page=page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=total_pages,
+            ),
+        )
+
+    def get_entry(self, identifier: str) -> MarketplaceEntryRecord:
+        try:
+            return self._store.load(identifier)
+        except FileNotFoundError as exc:
+            normalised = _normalise_marketplace_identifier(identifier)
+            raise KeyError(f"Marketplace entry '{normalised}' does not exist.") from exc
+
+    def _generate_identifier(self, title: str) -> str:
+        base_slug = _slugify_marketplace_identifier(title)
+        if not base_slug:
+            base_slug = f"entry-{uuid.uuid4().hex[:8]}"
+
+        candidate = base_slug
+        suffix = 2
+        while self._store.exists(candidate):
+            candidate = f"{base_slug}-{suffix}"
+            suffix += 1
+
+        return candidate
+
+
 def _build_branch_resource(record: SceneBranchRecord) -> SceneBranchResource:
     return SceneBranchResource(
         id=record.identifier,
@@ -3190,6 +3646,34 @@ def _build_project_detail(
     return resource, scenes
 
 
+def _build_marketplace_summary(
+    record: MarketplaceEntryRecord,
+) -> MarketplaceEntrySummary:
+    return MarketplaceEntrySummary(
+        id=record.identifier,
+        title=record.title,
+        description=record.description,
+        author=record.author,
+        tags=list(record.tags),
+        created_at=record.created_at,
+        scene_count=len(record.scenes),
+    )
+
+
+def _build_marketplace_response(
+    record: MarketplaceEntryRecord,
+) -> MarketplaceEntryResponse:
+    summary = _build_marketplace_summary(record)
+    payload = summary.model_dump()
+    payload.update(
+        {
+            "schema_version": record.schema_version,
+            "scenes": record.scenes,
+        }
+    )
+    return MarketplaceEntryResponse(**payload)
+
+
 def _load_project_dataset(
     record: AdventureProjectRecord,
 ) -> tuple[dict[str, Any], str, str]:
@@ -3223,6 +3707,8 @@ def _load_project_dataset(
 
 
 _USER_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._@-]*$")
+_MARKETPLACE_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_MARKETPLACE_SLUG_SANITISE_RE = re.compile(r"[^a-z0-9]+")
 
 
 def _normalise_user_identifier(identifier: str) -> str:
@@ -3280,6 +3766,36 @@ def _normalise_optional_text(value: str | None) -> str | None:
     return trimmed or None
 
 
+def _normalise_marketplace_identifier(identifier: str) -> str:
+    if not isinstance(identifier, str):
+        raise ValueError("Marketplace identifier must be provided as a string.")
+
+    slug = identifier.strip().casefold()
+    if not slug:
+        raise ValueError("Marketplace identifier must be a non-empty string.")
+
+    if not _MARKETPLACE_IDENTIFIER_PATTERN.fullmatch(slug):
+        raise ValueError(
+            "Marketplace identifier must only contain lowercase letters, numbers, and hyphens."
+        )
+
+    return slug
+
+
+def _normalise_marketplace_tag(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    if not isinstance(value, str):
+        raise ValueError("Marketplace tag must be provided as a string.")
+
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+
+    return trimmed.casefold()
+
+
 _PROJECT_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
@@ -3328,6 +3844,19 @@ def _ensure_serialisable_scene_mapping(scenes: Mapping[str, Any]) -> dict[str, A
         raise ValueError("Project scenes must be serialisable as a JSON object.")
 
     return cast(dict[str, Any], serialisable_any)
+
+
+def _slugify_marketplace_identifier(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+
+    trimmed = value.strip().casefold()
+    if not trimmed:
+        return ""
+
+    slug = _MARKETPLACE_SLUG_SANITISE_RE.sub("-", trimmed)
+    slug = re.sub(r"-+", "-", slug)
+    return slug.strip("-")
 
 
 def _parse_collaborators(
@@ -5091,6 +5620,7 @@ def create_app(
     project_service: ProjectService | None = None,
     project_template_service: ProjectTemplateService | None = None,
     user_service: UserService | None = None,
+    marketplace_service: MarketplaceService | None = None,
     settings: SceneApiSettings | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -5149,6 +5679,11 @@ def create_app(
             project_service=project,
         )
 
+    marketplace = marketplace_service
+    if marketplace is None:
+        marketplace_store = MarketplaceStore(root=resolved_settings.marketplace_root)
+        marketplace = MarketplaceService(store=marketplace_store)
+
     playtest_manager = PlaytestManager(
         repository=repository,
         project_service=project,
@@ -5202,6 +5737,13 @@ def create_app(
             "description": (
                 "Manage adventure projects, including asset inventories and "
                 "collaborator rosters exposed to editor tooling."
+            ),
+        },
+        {
+            "name": "Marketplace",
+            "description": (
+                "Publish and discover community-contributed adventure "
+                "datasets for reuse."
             ),
         },
         {
@@ -6070,6 +6612,80 @@ def create_app(
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/marketplace/entries",
+        response_model=MarketplaceEntryListResponse,
+        tags=["Marketplace"],
+    )
+    def list_marketplace_entries(
+        search: str | None = Query(
+            None,
+            description=(
+                "Optional case-insensitive substring to filter by identifier, "
+                "title, or description."
+            ),
+        ),
+        tag: str | None = Query(
+            None,
+            description="Restrict results to entries tagged with the provided value.",
+        ),
+        page: int = Query(1, ge=1, description="Page number (1-indexed)."),
+        page_size: int = Query(
+            20,
+            ge=1,
+            le=100,
+            description="Number of entries to include per page (maximum 100).",
+        ),
+    ) -> MarketplaceEntryListResponse:
+        try:
+            return marketplace.list_entries(
+                search=search,
+                tag=tag,
+                page=page,
+                page_size=page_size,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/marketplace/entries/{entry_id}",
+        response_model=MarketplaceEntryResponse,
+        tags=["Marketplace"],
+    )
+    def get_marketplace_entry(entry_id: str) -> MarketplaceEntryResponse:
+        try:
+            record = marketplace.get_entry(entry_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_marketplace_response(record)
+
+    @app.post(
+        "/api/marketplace/entries",
+        response_model=MarketplaceEntryResponse,
+        status_code=201,
+        tags=["Marketplace"],
+    )
+    def publish_marketplace_entry(
+        payload: MarketplaceEntryPublishRequest,
+    ) -> MarketplaceEntryResponse:
+        try:
+            record = marketplace.publish_entry(payload)
+        except MarketplaceEntryAlreadyExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_marketplace_response(record)
 
     @app.get(
         "/api/users",
