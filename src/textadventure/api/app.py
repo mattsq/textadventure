@@ -12,13 +12,24 @@ import mimetypes
 import os
 import re
 import shutil
+import uuid
 import zipfile
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from importlib import resources
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Literal, Sequence, cast, get_args
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    List,
+    Mapping,
+    Literal,
+    Sequence,
+    cast,
+    get_args,
+)
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from functools import partial
@@ -61,6 +72,11 @@ from .settings import SceneApiSettings
 
 ValidationStatus = Literal["valid", "warnings", "errors"]
 DiffStatus = Literal["added", "removed", "modified"]
+
+
+_DEFAULT_COLLABORATION_TTL_SECONDS = 120
+_MIN_COLLABORATION_TTL_SECONDS = 30
+_MAX_COLLABORATION_TTL_SECONDS = 3600
 
 
 class _UnsetType:
@@ -1000,6 +1016,79 @@ class ProjectCollaboratorUpdateRequest(BaseModel):
     )
 
 
+class ProjectCollaborationSessionResource(BaseModel):
+    """Active collaboration session metadata exposed via the API."""
+
+    session_id: str = Field(
+        ..., description="Unique identifier representing the collaboration session."
+    )
+    user_id: str = Field(
+        ..., description="Identifier of the collaborator associated with the session."
+    )
+    role: CollaboratorRole = Field(
+        ..., description="Permission level granted to the collaborator."
+    )
+    display_name: str | None = Field(
+        None, description="Optional display name resolved for the collaborator."
+    )
+    scene_id: str | None = Field(
+        None,
+        description="Optional scene identifier the collaborator is currently editing.",
+    )
+    started_at: datetime = Field(
+        ..., description="Timestamp indicating when the session was created."
+    )
+    last_heartbeat: datetime = Field(
+        ..., description="Timestamp for the most recent heartbeat received."
+    )
+    expires_at: datetime = Field(
+        ..., description="Timestamp when the session will automatically expire."
+    )
+
+    @field_serializer("started_at")
+    def _serialise_started_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("last_heartbeat")
+    def _serialise_last_heartbeat(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("expires_at")
+    def _serialise_expires_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class ProjectCollaborationSessionListResponse(BaseModel):
+    """Response payload listing active collaboration sessions for a project."""
+
+    project_id: str = Field(..., description="Identifier for the requested project.")
+    sessions: list[ProjectCollaborationSessionResource] = Field(
+        default_factory=list,
+        description="Collection of active collaboration sessions.",
+    )
+
+
+class ProjectCollaborationSessionRequest(BaseModel):
+    """Request body for joining or heartbeating a collaboration session."""
+
+    session_id: str | None = Field(
+        None,
+        description="Existing session identifier to refresh. Omit to create a new session.",
+    )
+    scene_id: str | None = Field(
+        None,
+        description="Optional scene identifier describing the collaborator's focus.",
+    )
+    ttl_seconds: int | None = Field(
+        None,
+        ge=_MIN_COLLABORATION_TTL_SECONDS,
+        le=_MAX_COLLABORATION_TTL_SECONDS,
+        description=(
+            "Requested inactivity timeout in seconds before the session expires."
+        ),
+    )
+
+
 class UserProfileResource(BaseModel):
     """Representation of a user account exposed through the API."""
 
@@ -1290,6 +1379,18 @@ class ProjectCollaboratorRecord:
 
 
 @dataclass(frozen=True)
+class ProjectCollaborationSessionRecord:
+    """Ephemeral collaboration session metadata stored on disk."""
+
+    session_id: str
+    user_id: str
+    scene_id: str | None
+    started_at: datetime
+    last_heartbeat: datetime
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
 class UserAccountRecord:
     """Filesystem-backed representation of a user profile."""
 
@@ -1321,6 +1422,7 @@ class SceneProjectStore:
 
     _METADATA_FILENAME = "project.json"
     _DEFAULT_DATASET_NAME = "scenes.json"
+    _COLLABORATION_FILENAME = "collaboration.json"
 
     def __init__(self, root: Path) -> None:
         self._root = root
@@ -1597,6 +1699,26 @@ class SceneProjectStore:
             record.scene_path.parent, identifier_override=record.identifier
         )
 
+    def load_collaboration_sessions(
+        self, record: AdventureProjectRecord
+    ) -> tuple[ProjectCollaborationSessionRecord, ...]:
+        """Return persisted collaboration sessions for ``record``."""
+
+        path = record.scene_path.parent / self._COLLABORATION_FILENAME
+        sessions = self._read_collaboration_sessions(path, record.identifier)
+        return tuple(sessions)
+
+    def save_collaboration_sessions(
+        self,
+        record: AdventureProjectRecord,
+        sessions: Sequence[ProjectCollaborationSessionRecord],
+    ) -> tuple[ProjectCollaborationSessionRecord, ...]:
+        """Persist collaboration sessions for ``record`` and return the stored set."""
+
+        path = record.scene_path.parent / self._COLLABORATION_FILENAME
+        self._write_collaboration_sessions(path, sessions, record.identifier)
+        return tuple(sessions)
+
     def _load_metadata_payload(self, path: Path) -> dict[str, Any]:
         if not path.exists():
             return {}
@@ -1631,6 +1753,177 @@ class SceneProjectStore:
         except OSError as exc:
             raise RuntimeError(
                 f"Failed to write project metadata for '{project_id}'."
+            ) from exc
+
+    def _read_collaboration_sessions(
+        self, path: Path, project_id: str
+    ) -> List[ProjectCollaborationSessionRecord]:
+        if not path.exists():
+            return []
+
+        try:
+            payload = _load_json(path)
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                f"Project '{project_id}' collaboration metadata could not be loaded."
+            ) from exc
+
+        if not isinstance(payload, Mapping):
+            raise ValueError(
+                f"Project '{project_id}' collaboration metadata must be a mapping."
+            )
+
+        raw_sessions = payload.get("sessions", [])
+        if raw_sessions is None:
+            return []
+        if not isinstance(raw_sessions, Sequence):
+            raise ValueError(
+                f"Project '{project_id}' collaboration metadata has an invalid 'sessions' field."
+            )
+
+        sessions: list[ProjectCollaborationSessionRecord] = []
+        seen_ids: set[str] = set()
+
+        for index, entry in enumerate(raw_sessions):
+            if not isinstance(entry, Mapping):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session at index {index} "
+                        "must be a mapping."
+                    )
+                )
+
+            session_id_raw = entry.get("session_id")
+            user_id_raw = entry.get("user_id")
+            scene_id_raw = entry.get("scene_id")
+            started_at_raw = entry.get("started_at")
+            heartbeat_raw = entry.get("last_heartbeat")
+            expires_at_raw = entry.get("expires_at")
+
+            if not isinstance(session_id_raw, str):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session at index {index} "
+                        "is missing a valid 'session_id'."
+                    )
+                )
+            if not isinstance(user_id_raw, str):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session at index {index} "
+                        "is missing a valid 'user_id'."
+                    )
+                )
+            if (
+                not isinstance(started_at_raw, str)
+                or not isinstance(heartbeat_raw, str)
+                or not isinstance(expires_at_raw, str)
+            ):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session at index {index} "
+                        "has invalid timestamp fields."
+                    )
+                )
+
+            session_id = session_id_raw.strip()
+            user_id = user_id_raw.strip()
+
+            if not session_id:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session at index {index} "
+                        "must include a non-empty 'session_id'."
+                    )
+                )
+            if not user_id:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session at index {index} "
+                        "must include a non-empty 'user_id'."
+                    )
+                )
+            if session_id in seen_ids:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration metadata defines duplicate "
+                        f"session id '{session_id}'."
+                    )
+                )
+            seen_ids.add(session_id)
+
+            scene_id: str | None
+            if scene_id_raw is None:
+                scene_id = None
+            elif isinstance(scene_id_raw, str):
+                trimmed_scene = scene_id_raw.strip()
+                scene_id = trimmed_scene or None
+            else:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session '{session_id}' "
+                        "has an invalid 'scene_id'."
+                    )
+                )
+
+            try:
+                started_at = _ensure_timezone(datetime.fromisoformat(started_at_raw))
+                last_heartbeat = _ensure_timezone(datetime.fromisoformat(heartbeat_raw))
+                expires_at = _ensure_timezone(datetime.fromisoformat(expires_at_raw))
+            except ValueError as exc:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' collaboration session '{session_id}' "
+                        "contains invalid timestamps."
+                    )
+                ) from exc
+
+            sessions.append(
+                ProjectCollaborationSessionRecord(
+                    session_id=session_id,
+                    user_id=user_id,
+                    scene_id=scene_id,
+                    started_at=started_at,
+                    last_heartbeat=last_heartbeat,
+                    expires_at=expires_at,
+                )
+            )
+
+        return sessions
+
+    def _write_collaboration_sessions(
+        self,
+        path: Path,
+        sessions: Sequence[ProjectCollaborationSessionRecord],
+        project_id: str,
+    ) -> None:
+        payload = {
+            "sessions": [
+                {
+                    "session_id": session.session_id,
+                    "user_id": session.user_id,
+                    "scene_id": session.scene_id,
+                    "started_at": session.started_at.isoformat(),
+                    "last_heartbeat": session.last_heartbeat.isoformat(),
+                    "expires_at": session.expires_at.isoformat(),
+                }
+                for session in sessions
+            ]
+        }
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare collaboration metadata for project '{project_id}'."
+            ) from exc
+
+        try:
+            with path.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to write collaboration metadata for project '{project_id}'."
             ) from exc
 
 
@@ -1851,6 +2144,9 @@ class ProjectService:
     ) -> None:
         self._store = store
         self._user_service = user_service
+        self._collaboration_default_ttl = self._validate_collaboration_ttl(
+            _DEFAULT_COLLABORATION_TTL_SECONDS
+        )
 
     def list_projects(self) -> AdventureProjectListResponse:
         records = self._store.list()
@@ -2176,6 +2472,234 @@ class ProjectService:
             collaborators=updated_collaborators,
         )
 
+    def list_collaboration_sessions(
+        self, identifier: str
+    ) -> ProjectCollaborationSessionListResponse:
+        trimmed_identifier = identifier.strip()
+        if not trimmed_identifier:
+            raise ValueError("Project identifier must be provided.")
+
+        record = self._store.load(trimmed_identifier)
+        now = datetime.now(timezone.utc)
+
+        stored_sessions = list(self._store.load_collaboration_sessions(record))
+        active_sessions: list[ProjectCollaborationSessionRecord] = []
+        dirty = False
+
+        for session in stored_sessions:
+            role = self._find_collaborator_role(record, session.user_id)
+            if session.expires_at <= now or role is None:
+                dirty = True
+                continue
+            active_sessions.append(session)
+
+        if dirty:
+            active_sessions.sort(key=lambda entry: (entry.started_at, entry.session_id))
+            self._store.save_collaboration_sessions(record, active_sessions)
+
+        resources = self._build_collaboration_session_resources(record, active_sessions)
+        return ProjectCollaborationSessionListResponse(
+            project_id=record.identifier,
+            sessions=resources,
+        )
+
+    def touch_collaboration_session(
+        self,
+        identifier: str,
+        *,
+        acting_user_id: str | None,
+        session_id: str | None = None,
+        scene_id: str | None = None,
+        ttl_seconds: int | None = None,
+    ) -> ProjectCollaborationSessionListResponse:
+        trimmed_identifier = identifier.strip()
+        if not trimmed_identifier:
+            raise ValueError("Project identifier must be provided.")
+
+        if acting_user_id is None:
+            raise ValueError(
+                "Acting collaborator identifier must be provided for collaboration sessions."
+            )
+
+        trimmed_user_id = acting_user_id.strip()
+        if not trimmed_user_id:
+            raise ValueError(
+                "Acting collaborator identifier must be provided for collaboration sessions."
+            )
+
+        record = self._store.load(trimmed_identifier)
+        self._require_project_permission(
+            record,
+            acting_user_id=trimmed_user_id,
+            allowed_roles=(
+                CollaboratorRole.OWNER,
+                CollaboratorRole.EDITOR,
+                CollaboratorRole.VIEWER,
+            ),
+            action="join collaboration sessions",
+        )
+
+        trimmed_scene_id: str | None = None
+        if scene_id is not None:
+            if not isinstance(scene_id, str):
+                raise ValueError(
+                    "Scene identifier must be provided as a string when specified."
+                )
+            trimmed_scene = scene_id.strip()
+            trimmed_scene_id = trimmed_scene or None
+
+        trimmed_session_id: str | None = None
+        if session_id is not None:
+            if not isinstance(session_id, str):
+                raise ValueError(
+                    "Session identifier must be provided as a string when specified."
+                )
+            trimmed_session_id = session_id.strip()
+            if not trimmed_session_id:
+                raise ValueError(
+                    "Session identifier must be a non-empty string when specified."
+                )
+
+        ttl = self._normalise_collaboration_ttl(ttl_seconds)
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(seconds=ttl)
+
+        stored_sessions = list(self._store.load_collaboration_sessions(record))
+        active_sessions: list[ProjectCollaborationSessionRecord] = []
+        for session in stored_sessions:
+            role = self._find_collaborator_role(record, session.user_id)
+            if session.expires_at <= now or role is None:
+                continue
+            active_sessions.append(session)
+
+        session_map = {session.session_id: session for session in active_sessions}
+        target_session_id = trimmed_session_id or uuid.uuid4().hex
+        existing = session_map.get(target_session_id)
+
+        if existing is not None and existing.user_id != trimmed_user_id:
+            raise ProjectPermissionError(
+                record.identifier,
+                (
+                    f"Project '{record.identifier}' collaboration session "
+                    f"'{target_session_id}' cannot be updated by collaborator "
+                    f"'{trimmed_user_id}'."
+                ),
+            )
+
+        updated_session = ProjectCollaborationSessionRecord(
+            session_id=target_session_id,
+            user_id=trimmed_user_id,
+            scene_id=trimmed_scene_id,
+            started_at=existing.started_at if existing is not None else now,
+            last_heartbeat=now,
+            expires_at=expires_at,
+        )
+
+        refreshed_sessions = [
+            session
+            for session in active_sessions
+            if session.session_id != target_session_id
+        ]
+        refreshed_sessions.append(updated_session)
+        refreshed_sessions.sort(key=lambda entry: (entry.started_at, entry.session_id))
+
+        persisted = self._store.save_collaboration_sessions(record, refreshed_sessions)
+        resources = self._build_collaboration_session_resources(record, persisted)
+        return ProjectCollaborationSessionListResponse(
+            project_id=record.identifier,
+            sessions=resources,
+        )
+
+    def end_collaboration_session(
+        self,
+        identifier: str,
+        session_id: str,
+        *,
+        acting_user_id: str | None = None,
+    ) -> ProjectCollaborationSessionListResponse:
+        trimmed_identifier = identifier.strip()
+        if not trimmed_identifier:
+            raise ValueError("Project identifier must be provided.")
+
+        if not isinstance(session_id, str):
+            raise ValueError("Session identifier must be provided as a string.")
+
+        trimmed_session_id = session_id.strip()
+        if not trimmed_session_id:
+            raise ValueError("Session identifier must be provided.")
+
+        if acting_user_id is None:
+            raise ValueError(
+                "Acting collaborator identifier must be provided for collaboration sessions."
+            )
+
+        trimmed_user_id = acting_user_id.strip()
+        if not trimmed_user_id:
+            raise ValueError(
+                "Acting collaborator identifier must be provided for collaboration sessions."
+            )
+
+        record = self._store.load(trimmed_identifier)
+        self._require_project_permission(
+            record,
+            acting_user_id=trimmed_user_id,
+            allowed_roles=(
+                CollaboratorRole.OWNER,
+                CollaboratorRole.EDITOR,
+                CollaboratorRole.VIEWER,
+            ),
+            action="leave collaboration sessions",
+        )
+
+        now = datetime.now(timezone.utc)
+        stored_sessions = list(self._store.load_collaboration_sessions(record))
+        active_sessions: list[ProjectCollaborationSessionRecord] = []
+        removed_session: ProjectCollaborationSessionRecord | None = None
+
+        for session in stored_sessions:
+            role = self._find_collaborator_role(record, session.user_id)
+            if session.expires_at <= now or role is None:
+                continue
+            if session.session_id == trimmed_session_id:
+                removed_session = session
+                continue
+            active_sessions.append(session)
+
+        if removed_session is None:
+            raise ValueError(
+                (
+                    f"Project '{record.identifier}' does not have an active collaboration "
+                    f"session '{trimmed_session_id}'."
+                )
+            )
+
+        actor_role = self._find_collaborator_role(record, trimmed_user_id)
+        if actor_role is None:
+            raise ValueError(
+                f"Project '{record.identifier}' collaborator '{trimmed_user_id}' is invalid."
+            )
+
+        if removed_session.user_id != trimmed_user_id and actor_role not in (
+            CollaboratorRole.OWNER,
+            CollaboratorRole.EDITOR,
+        ):
+            raise ProjectPermissionError(
+                record.identifier,
+                (
+                    f"Project '{record.identifier}' collaboration session "
+                    f"'{trimmed_session_id}' can only be ended by the owning "
+                    "collaborator or a project owner/editor."
+                ),
+            )
+
+        active_sessions.sort(key=lambda entry: (entry.started_at, entry.session_id))
+        persisted = self._store.save_collaboration_sessions(record, active_sessions)
+        resources = self._build_collaboration_session_resources(record, persisted)
+        return ProjectCollaborationSessionListResponse(
+            project_id=record.identifier,
+            sessions=resources,
+        )
+
     def _require_project_permission(
         self,
         record: AdventureProjectRecord,
@@ -2294,6 +2818,69 @@ class ProjectService:
         if len(labels) == 2:
             return " or ".join(labels)
         return ", ".join(labels[:-1]) + f", or {labels[-1]}"
+
+    def _build_collaboration_session_resources(
+        self,
+        record: AdventureProjectRecord,
+        sessions: Sequence[ProjectCollaborationSessionRecord],
+    ) -> list[ProjectCollaborationSessionResource]:
+        resources: list[ProjectCollaborationSessionResource] = []
+        ordered = sorted(
+            sessions, key=lambda entry: (entry.started_at, entry.session_id)
+        )
+
+        for session in ordered:
+            role = self._find_collaborator_role(record, session.user_id)
+            if role is None:
+                continue
+            resources.append(
+                ProjectCollaborationSessionResource(
+                    session_id=session.session_id,
+                    user_id=session.user_id,
+                    role=role,
+                    display_name=self._resolve_collaborator_display_name(
+                        session.user_id
+                    ),
+                    scene_id=session.scene_id,
+                    started_at=session.started_at,
+                    last_heartbeat=session.last_heartbeat,
+                    expires_at=session.expires_at,
+                )
+            )
+
+        return resources
+
+    def _find_collaborator_role(
+        self, record: AdventureProjectRecord, user_id: str
+    ) -> CollaboratorRole | None:
+        trimmed = user_id.strip()
+        for entry in record.collaborators:
+            if entry.user_id == trimmed:
+                return entry.role
+        return None
+
+    def _normalise_collaboration_ttl(self, requested: int | None) -> int:
+        if requested is None:
+            return self._collaboration_default_ttl
+        if not isinstance(requested, int):
+            raise ValueError(
+                "Collaboration timeout must be provided as an integer when specified."
+            )
+        return self._validate_collaboration_ttl(requested)
+
+    @staticmethod
+    def _validate_collaboration_ttl(value: int) -> int:
+        if (
+            value < _MIN_COLLABORATION_TTL_SECONDS
+            or value > _MAX_COLLABORATION_TTL_SECONDS
+        ):
+            raise ValueError(
+                (
+                    "Collaboration timeout must be between "
+                    f"{_MIN_COLLABORATION_TTL_SECONDS} and {_MAX_COLLABORATION_TTL_SECONDS} seconds."
+                )
+            )
+        return value
 
     def _resolve_collaborator_display_name(self, user_id: str) -> str | None:
         service = self._user_service
@@ -5374,6 +5961,94 @@ def create_app(
             return project.replace_project_collaborators(
                 project_id,
                 payload.collaborators,
+                acting_user_id=acting_user_id,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/projects/{project_id}/collaboration/sessions",
+        response_model=ProjectCollaborationSessionListResponse,
+        tags=["Projects"],
+    )
+    def list_project_collaboration_sessions(
+        project_id: str,
+    ) -> ProjectCollaborationSessionListResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.list_collaboration_sessions(project_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/projects/{project_id}/collaboration/sessions",
+        response_model=ProjectCollaborationSessionListResponse,
+        tags=["Projects"],
+    )
+    def touch_project_collaboration_session(
+        project_id: str,
+        payload: ProjectCollaborationSessionRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description=(
+                "Identifier of the collaborator performing the join or heartbeat."
+            ),
+        ),
+    ) -> ProjectCollaborationSessionListResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.touch_collaboration_session(
+                project_id,
+                acting_user_id=acting_user_id,
+                session_id=payload.session_id,
+                scene_id=payload.scene_id,
+                ttl_seconds=payload.ttl_seconds,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.delete(
+        "/api/projects/{project_id}/collaboration/sessions/{session_id}",
+        response_model=ProjectCollaborationSessionListResponse,
+        tags=["Projects"],
+    )
+    def delete_project_collaboration_session(
+        project_id: str,
+        session_id: str,
+        acting_user_id: str | None = Query(
+            None,
+            description=(
+                "Identifier of the collaborator performing the session termination."
+            ),
+        ),
+    ) -> ProjectCollaborationSessionListResponse:
+        if project is None:
+            raise HTTPException(404, "Project management endpoints are not enabled.")
+
+        try:
+            return project.end_collaboration_session(
+                project_id,
+                session_id,
                 acting_user_id=acting_user_id,
             )
         except FileNotFoundError as exc:

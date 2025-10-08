@@ -136,8 +136,31 @@ Endpoints are grouped under the following tags to make exploration easier:
 - **Scene Branches** – Snapshot management for experimental branches.
 - **Search** – Full-text queries with field-type and validation filters.
 - **Projects** – Project discovery plus asset and collaborator management.
+- **Collaboration Sessions** – Real-time editor presence and locking utilities.
 - **Project Templates** – Template catalogue and instantiation helpers for spinning
   up new adventures.
 
 Use these resources to integrate tooling, generate client libraries, or confirm the
 expected payloads when extending the backend.
+
+### Collaboration Sessions
+
+Projects expose a lightweight collaboration session API so tooling can surface which
+contributors are currently editing a dataset:
+
+- `GET /api/projects/{project_id}/collaboration/sessions` – Returns the active
+  sessions for the project, including collaborator identifiers, resolved display
+  names (when user profiles are available), the optional scene focus, and heartbeat
+  timestamps.
+- `POST /api/projects/{project_id}/collaboration/sessions` – Creates a new session
+  or refreshes an existing one. Provide the acting collaborator via the
+  `acting_user_id` query parameter plus optional `session_id`, `scene_id`, and
+  `ttl_seconds` fields in the JSON payload. The timeout defaults to two minutes and
+  can be extended up to one hour.
+- `DELETE /api/projects/{project_id}/collaboration/sessions/{session_id}` – Ends an
+  active session. Owners or editors may close any session; collaborators with lower
+  privileges may only end their own entries.
+
+Responses include ISO8601 timestamps for when the session started, the latest
+heartbeat, and when it will expire automatically if no further refreshes are
+received.

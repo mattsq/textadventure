@@ -4,11 +4,13 @@ import io
 import json
 import os
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
+import pytest
 
 from textadventure.api import SceneApiSettings, create_app
 from textadventure.api.app import CURRENT_SCENE_SCHEMA_VERSION, UserAccountStore
@@ -1174,6 +1176,156 @@ def test_replace_project_collaborators_rejects_non_owner(tmp_path: Path) -> None
 
     assert response.status_code == 403
     assert "required role" in response.json()["detail"].lower()
+
+
+def test_collaboration_session_lifecycle(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "shared",
+        scenes,
+        metadata={
+            "name": "Shared",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+                {"user_id": "viewer@example.com", "role": "viewer"},
+            ],
+        },
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    list_response = client.get("/api/projects/shared/collaboration/sessions")
+    assert list_response.status_code == 200
+    assert list_response.json()["sessions"] == []
+
+    join_response = client.post(
+        "/api/projects/shared/collaboration/sessions",
+        params={"acting_user_id": "editor@example.com"},
+        json={"scene_id": "start", "ttl_seconds": 45},
+    )
+
+    assert join_response.status_code == 200
+    join_payload = join_response.json()
+    assert join_payload["project_id"] == "shared"
+    assert len(join_payload["sessions"]) == 1
+
+    created = join_payload["sessions"][0]
+    assert created["user_id"] == "editor@example.com"
+    assert created["role"] == "editor"
+    assert created["scene_id"] == "start"
+    assert created["session_id"]
+    first_heartbeat = datetime.fromisoformat(created["last_heartbeat"])
+    first_expiry = datetime.fromisoformat(created["expires_at"])
+    assert first_expiry > first_heartbeat
+
+    session_id = created["session_id"]
+
+    heartbeat_response = client.post(
+        "/api/projects/shared/collaboration/sessions",
+        params={"acting_user_id": "editor@example.com"},
+        json={"session_id": session_id, "scene_id": "hall"},
+    )
+
+    assert heartbeat_response.status_code == 200
+    heartbeat_payload = heartbeat_response.json()
+    assert len(heartbeat_payload["sessions"]) == 1
+    updated = heartbeat_payload["sessions"][0]
+    assert updated["session_id"] == session_id
+    assert updated["scene_id"] == "hall"
+    updated_heartbeat = datetime.fromisoformat(updated["last_heartbeat"])
+    updated_expiry = datetime.fromisoformat(updated["expires_at"])
+    assert updated_heartbeat >= first_heartbeat
+    assert updated_expiry >= updated_heartbeat
+    assert updated_expiry >= first_expiry
+
+    viewer_delete = client.delete(
+        f"/api/projects/shared/collaboration/sessions/{session_id}",
+        params={"acting_user_id": "viewer@example.com"},
+    )
+    assert viewer_delete.status_code == 403
+
+    owner_delete = client.delete(
+        f"/api/projects/shared/collaboration/sessions/{session_id}",
+        params={"acting_user_id": "owner@example.com"},
+    )
+    assert owner_delete.status_code == 200
+    assert owner_delete.json()["sessions"] == []
+
+    final_list = client.get("/api/projects/shared/collaboration/sessions")
+    assert final_list.status_code == 200
+    assert final_list.json()["sessions"] == []
+
+
+def test_collaboration_sessions_purge_expired(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "shared",
+        scenes,
+        metadata={
+            "name": "Shared",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+            ],
+        },
+    )
+
+    collaboration_path = tmp_path / "shared" / "collaboration.json"
+    now = datetime.now(timezone.utc)
+    stale_payload = {
+        "sessions": [
+            {
+                "session_id": "stale",
+                "user_id": "owner@example.com",
+                "scene_id": "start",
+                "started_at": (now - timedelta(minutes=5)).isoformat(),
+                "last_heartbeat": (now - timedelta(minutes=4)).isoformat(),
+                "expires_at": (now - timedelta(minutes=1)).isoformat(),
+            }
+        ]
+    }
+
+    collaboration_path.write_text(json.dumps(stale_payload))
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    purge_response = client.get("/api/projects/shared/collaboration/sessions")
+    assert purge_response.status_code == 200
+    assert purge_response.json()["sessions"] == []
+
+    persisted_payload = json.loads(collaboration_path.read_text())
+    assert persisted_payload["sessions"] == []
+
+    with pytest.raises(ValidationError):
+        client.post(
+            "/api/projects/shared/collaboration/sessions",
+            params={"acting_user_id": "owner@example.com"},
+            json={"ttl_seconds": 5},
+        )
+
+    assert json.loads(collaboration_path.read_text())["sessions"] == []
 
 
 def test_projects_endpoints_return_404_when_disabled() -> None:
