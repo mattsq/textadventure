@@ -270,7 +270,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Implement playtesting features:
       - [ ] Session recording and replay
         - [x] Add a playtest session transcript recorder that captures player inputs and resulting events for later review.
-        - [ ] Expose API/WebSocket commands to download or clear the recorded transcript from an active session.
+        - [x] Expose API/WebSocket commands to download or clear the recorded transcript from an active session. *(Added HTTP transcript endpoints, WebSocket commands, and coverage.)*
         - [ ] Implement a replay helper that can step through recorded playtest transcripts for automated regression testing.
       - [ ] Path tracking and analytics
       - [ ] Playtester feedback collection
