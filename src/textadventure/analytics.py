@@ -154,6 +154,7 @@ class AdventureQualityReport:
     transitions_missing_narration: tuple[tuple[str, str], ...]
     gated_transitions_missing_failure: tuple[tuple[str, str], ...]
     conditional_overrides_missing_narration: tuple[tuple[str, str, int], ...]
+    transitions_with_unknown_targets: tuple[tuple[str, str, str], ...]
 
     @property
     def issue_count(self) -> int:
@@ -166,6 +167,7 @@ class AdventureQualityReport:
                 len(self.transitions_missing_narration),
                 len(self.gated_transitions_missing_failure),
                 len(self.conditional_overrides_missing_narration),
+                len(self.transitions_with_unknown_targets),
             )
         )
 
@@ -683,6 +685,9 @@ def assess_adventure_quality(
     transitions_missing_narration: list[tuple[str, str]] = []
     gated_transitions_missing_failure: list[tuple[str, str]] = []
     conditional_overrides_missing_narration: list[tuple[str, str, int]] = []
+    transitions_with_unknown_targets: list[tuple[str, str, str]] = []
+
+    defined_scene_ids = set(scenes)
 
     for scene_id, scene in scenes.items():
         if not _normalise_text(scene.description):
@@ -695,6 +700,10 @@ def assess_adventure_quality(
         for command, transition in scene.transitions.items():
             if not _normalise_text(transition.narration):
                 transitions_missing_narration.append((scene_id, command))
+
+            target = transition.target
+            if target and target not in defined_scene_ids:
+                transitions_with_unknown_targets.append((scene_id, command, target))
 
             if (transition.requires or transition.consumes) and (
                 transition.failure_narration is None
@@ -717,6 +726,9 @@ def assess_adventure_quality(
         ),
         conditional_overrides_missing_narration=tuple(
             sorted(conditional_overrides_missing_narration)
+        ),
+        transitions_with_unknown_targets=tuple(
+            sorted(transitions_with_unknown_targets)
         ),
     )
 
@@ -1282,6 +1294,13 @@ def format_quality_report(report: AdventureQualityReport) -> str:
         lines.extend(
             f"- {scene} :: {command} (override #{index + 1})"
             for scene, command, index in report.conditional_overrides_missing_narration
+        )
+
+    if report.transitions_with_unknown_targets:
+        lines.append("Transitions targeting unknown scenes:")
+        lines.extend(
+            f"- {scene} :: {command} -> {target}"
+            for scene, command, target in report.transitions_with_unknown_targets
         )
 
     if len(lines) == 3:
