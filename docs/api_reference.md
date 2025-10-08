@@ -101,6 +101,9 @@ services.
   retrieve scene datasets alongside descriptive metadata such as tags, author
   credits, and creation timestamps. Entries are persisted to a filesystem-backed
   directory so the catalogue can be versioned or synchronised across deployments.
+  The service also exposes review endpoints that collect 1–5 star ratings,
+  optional reviewer names, and feedback comments, aggregating the results into
+  average scores surfaced alongside marketplace listings.
 - **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`, and
   supporting models normalise the API payloads consumed by prospective web tools or
   external services. Recent additions include `ProjectAssetResource` and
