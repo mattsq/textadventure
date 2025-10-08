@@ -51,6 +51,7 @@ class SceneApiSettings:
     project_root: Path | None = None
     project_template_root: Path | None = None
     user_root: Path | None = None
+    marketplace_root: Path | None = None
     automatic_backup_dir: Path | None = None
     automatic_backup_retention: int | None = None
     automatic_backup_s3_bucket: str | None = None
@@ -84,6 +85,7 @@ class SceneApiSettings:
             source.get("TEXTADVENTURE_PROJECT_TEMPLATE_ROOT")
         )
         user_root = _normalise_path(source.get("TEXTADVENTURE_USER_ROOT"))
+        marketplace_root = _normalise_path(source.get("TEXTADVENTURE_MARKETPLACE_ROOT"))
         automatic_backup_dir = _normalise_path(
             source.get("TEXTADVENTURE_AUTOMATIC_BACKUP_DIR")
         )
@@ -125,6 +127,7 @@ class SceneApiSettings:
             project_root=project_root,
             project_template_root=project_template_root,
             user_root=user_root,
+            marketplace_root=marketplace_root,
             automatic_backup_dir=automatic_backup_dir,
             automatic_backup_retention=automatic_backup_retention,
             automatic_backup_s3_bucket=automatic_backup_s3_bucket,

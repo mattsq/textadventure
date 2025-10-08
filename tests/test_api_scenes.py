@@ -96,6 +96,7 @@ def test_openapi_documents_tag_metadata() -> None:
         "Search",
         "Projects",
         "Project Templates",
+        "Marketplace",
     }
 
     assert expected_tags.issubset(tags.keys())
