@@ -5979,6 +5979,8 @@ def create_app(
         project_service=project,
     )
 
+    active_playtest_sessions: dict[str, PlaytestSession] = {}
+
     active_scene_path = repository.path
 
     def _enforce_scene_permission(
@@ -6048,6 +6050,13 @@ def create_app(
             "description": (
                 "Discover reusable templates and instantiate new projects "
                 "from curated datasets."
+            ),
+        },
+        {
+            "name": "Playtest",
+            "description": (
+                "Control live playtest sessions, transcripts, and the "
+                "embedded WebSocket preview."
             ),
         },
     ]
@@ -7152,160 +7161,215 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @app.get(
+        "/api/playtest/sessions/{session_id}/transcript",
+        response_model=PlaytestTranscriptResponse,
+        tags=["Playtest"],
+    )
+    def get_playtest_transcript(session_id: str) -> PlaytestTranscriptResponse:
+        session = active_playtest_sessions.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Playtest session not found.")
+
+        return PlaytestTranscriptResponse(
+            session_id=session_id,
+            entries=_build_playtest_transcript_entries(session),
+        )
+
+    @app.delete(
+        "/api/playtest/sessions/{session_id}/transcript",
+        status_code=204,
+        tags=["Playtest"],
+    )
+    def clear_playtest_transcript(session_id: str) -> None:
+        session = active_playtest_sessions.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Playtest session not found.")
+
+        session.clear_transcript()
+
     @app.websocket("/api/playtest")
     def playtest_endpoint(websocket: WebSocket) -> None:
         websocket.accept()
 
         initial_project_id = websocket.query_params.get("project_id")
 
+        session_id = uuid.uuid4().hex
+
         try:
-            session = playtest_manager.create_session(project_id=initial_project_id)
-            initial_event = session.reset()
-        except FileNotFoundError as exc:
-            websocket.send_json(
-                _build_playtest_error_message("project-not-found", str(exc)).model_dump(
-                    mode="json"
-                )
-            )
-            websocket.close(code=4404)
-            return
-        except ValueError as exc:
-            websocket.send_json(
-                _build_playtest_error_message("invalid-project", str(exc)).model_dump(
-                    mode="json"
-                )
-            )
-            websocket.close(code=4400)
-            return
-        except RuntimeError as exc:
-            websocket.send_json(
-                _build_playtest_error_message("session-error", str(exc)).model_dump(
-                    mode="json"
-                )
-            )
-            websocket.close(code=1011)
-            return
-
-        websocket.send_json(
-            _build_playtest_event_message(initial_event, session).model_dump(
-                mode="json"
-            )
-        )
-
-        while True:
             try:
-                payload = websocket.receive_json()
-            except WebSocketDisconnect:
-                break
-
-            if not isinstance(payload, Mapping):
+                session = playtest_manager.create_session(project_id=initial_project_id)
+                initial_event = session.reset()
+            except FileNotFoundError as exc:
                 websocket.send_json(
                     _build_playtest_error_message(
-                        "invalid-message", "Payload must be a JSON object."
+                        "project-not-found", str(exc)
                     ).model_dump(mode="json")
                 )
-                continue
-
-            raw_type = payload.get("type")
-            if not isinstance(raw_type, str):
+                websocket.close(code=4404)
+                return
+            except ValueError as exc:
                 websocket.send_json(
                     _build_playtest_error_message(
-                        "invalid-message", "Message type must be a string."
+                        "invalid-project", str(exc)
                     ).model_dump(mode="json")
                 )
-                continue
-
-            message_type = raw_type.strip().lower()
-
-            if message_type == "player_input":
-                command_value = payload.get("input", "")
-                if not isinstance(command_value, str):
-                    websocket.send_json(
-                        _build_playtest_error_message(
-                            "invalid-message", "Player input must be a string."
-                        ).model_dump(mode="json")
-                    )
-                    continue
-                try:
-                    event = session.apply_player_input(command_value)
-                except Exception as exc:  # pragma: no cover - surfaced to client
-                    websocket.send_json(
-                        _build_playtest_error_message(
-                            "session-error", str(exc)
-                        ).model_dump(mode="json")
-                    )
-                    continue
+                websocket.close(code=4400)
+                return
+            except RuntimeError as exc:
                 websocket.send_json(
-                    _build_playtest_event_message(event, session).model_dump(
+                    _build_playtest_error_message("session-error", str(exc)).model_dump(
                         mode="json"
                     )
                 )
-                continue
+                websocket.close(code=1011)
+                return
 
-            if message_type == "reset":
-                try:
-                    event = session.reset()
-                except Exception as exc:  # pragma: no cover - surfaced to client
-                    websocket.send_json(
-                        _build_playtest_error_message(
-                            "session-error", str(exc)
-                        ).model_dump(mode="json")
-                    )
-                    continue
-                websocket.send_json(
-                    _build_playtest_event_message(event, session).model_dump(
-                        mode="json"
-                    )
-                )
-                continue
-
-            if message_type == "configure":
-                project_value = payload.get("project_id")
-                if not isinstance(project_value, str) or not project_value.strip():
-                    websocket.send_json(
-                        _build_playtest_error_message(
-                            "invalid-project",
-                            "Project identifier must be a non-empty string.",
-                        ).model_dump(mode="json")
-                    )
-                    continue
-                try:
-                    session = playtest_manager.create_session(project_id=project_value)
-                    event = session.reset()
-                except FileNotFoundError as exc:
-                    websocket.send_json(
-                        _build_playtest_error_message(
-                            "project-not-found", str(exc)
-                        ).model_dump(mode="json")
-                    )
-                    continue
-                except ValueError as exc:
-                    websocket.send_json(
-                        _build_playtest_error_message(
-                            "invalid-project", str(exc)
-                        ).model_dump(mode="json")
-                    )
-                    continue
-                except RuntimeError as exc:
-                    websocket.send_json(
-                        _build_playtest_error_message(
-                            "session-error", str(exc)
-                        ).model_dump(mode="json")
-                    )
-                    continue
-                websocket.send_json(
-                    _build_playtest_event_message(event, session).model_dump(
-                        mode="json"
-                    )
-                )
-                continue
+            active_playtest_sessions[session_id] = session
 
             websocket.send_json(
-                _build_playtest_error_message(
-                    "unknown-message",
-                    f"Unsupported message type '{message_type}'.",
+                _build_playtest_event_message(
+                    initial_event, session, session_id=session_id
                 ).model_dump(mode="json")
             )
+
+            while True:
+                try:
+                    payload = websocket.receive_json()
+                except WebSocketDisconnect:
+                    break
+
+                if not isinstance(payload, Mapping):
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "invalid-message", "Payload must be a JSON object."
+                        ).model_dump(mode="json")
+                    )
+                    continue
+
+                raw_type = payload.get("type")
+                if not isinstance(raw_type, str):
+                    websocket.send_json(
+                        _build_playtest_error_message(
+                            "invalid-message", "Message type must be a string."
+                        ).model_dump(mode="json")
+                    )
+                    continue
+
+                message_type = raw_type.strip().lower()
+
+                if message_type == "player_input":
+                    command_value = payload.get("input", "")
+                    if not isinstance(command_value, str):
+                        websocket.send_json(
+                            _build_playtest_error_message(
+                                "invalid-message", "Player input must be a string."
+                            ).model_dump(mode="json")
+                        )
+                        continue
+                    try:
+                        event = session.apply_player_input(command_value)
+                    except Exception as exc:  # pragma: no cover - surfaced to client
+                        websocket.send_json(
+                            _build_playtest_error_message(
+                                "session-error", str(exc)
+                            ).model_dump(mode="json")
+                        )
+                        continue
+                    websocket.send_json(
+                        _build_playtest_event_message(
+                            event, session, session_id=session_id
+                        ).model_dump(mode="json")
+                    )
+                    continue
+
+                if message_type == "reset":
+                    try:
+                        event = session.reset()
+                    except Exception as exc:  # pragma: no cover - surfaced to client
+                        websocket.send_json(
+                            _build_playtest_error_message(
+                                "session-error", str(exc)
+                            ).model_dump(mode="json")
+                        )
+                        continue
+                    websocket.send_json(
+                        _build_playtest_event_message(
+                            event, session, session_id=session_id
+                        ).model_dump(mode="json")
+                    )
+                    continue
+
+                if message_type == "configure":
+                    project_value = payload.get("project_id")
+                    if not isinstance(project_value, str) or not project_value.strip():
+                        websocket.send_json(
+                            _build_playtest_error_message(
+                                "invalid-project",
+                                "Project identifier must be a non-empty string.",
+                            ).model_dump(mode="json")
+                        )
+                        continue
+                    try:
+                        new_session = playtest_manager.create_session(
+                            project_id=project_value
+                        )
+                        event = new_session.reset()
+                    except FileNotFoundError as exc:
+                        websocket.send_json(
+                            _build_playtest_error_message(
+                                "project-not-found", str(exc)
+                            ).model_dump(mode="json")
+                        )
+                        continue
+                    except ValueError as exc:
+                        websocket.send_json(
+                            _build_playtest_error_message(
+                                "invalid-project", str(exc)
+                            ).model_dump(mode="json")
+                        )
+                        continue
+                    except RuntimeError as exc:
+                        websocket.send_json(
+                            _build_playtest_error_message(
+                                "session-error", str(exc)
+                            ).model_dump(mode="json")
+                        )
+                        continue
+                    session = new_session
+                    active_playtest_sessions[session_id] = session
+                    websocket.send_json(
+                        _build_playtest_event_message(
+                            event, session, session_id=session_id
+                        ).model_dump(mode="json")
+                    )
+                    continue
+
+                if message_type == "transcript":
+                    websocket.send_json(
+                        _build_playtest_transcript_message(
+                            session_id, session
+                        ).model_dump(mode="json")
+                    )
+                    continue
+
+                if message_type == "clear_transcript":
+                    session.clear_transcript()
+                    websocket.send_json(
+                        _build_playtest_transcript_message(
+                            session_id, session
+                        ).model_dump(mode="json")
+                    )
+                    continue
+
+                websocket.send_json(
+                    _build_playtest_error_message(
+                        "unknown-message",
+                        f"Unsupported message type '{message_type}'.",
+                    ).model_dump(mode="json")
+                )
+        finally:
+            active_playtest_sessions.pop(session_id, None)
 
     return app
 
@@ -7552,6 +7616,11 @@ class PlaytestSession:
         self._world = WorldState()
         self._transcript = PlaytestTranscriptRecorder()
 
+    def clear_transcript(self) -> None:
+        """Clear the recorded transcript without mutating world state."""
+
+        self._transcript.reset()
+
     def reset(self) -> StoryEvent:
         """Reset the session and return the initial narrative event."""
 
@@ -7692,21 +7761,54 @@ def _build_queued_message_resources(engine: StoryEngine) -> list[QueuedMessageRe
     return resources
 
 
+def _build_playtest_event_resource(event: StoryEvent) -> PlaytestEventResource:
+    return PlaytestEventResource(
+        narration=event.narration,
+        choices=[
+            ChoiceResource(command=choice.command, description=choice.description)
+            for choice in event.choices
+        ],
+        metadata=dict(cast(Mapping[str, str], event.metadata)),
+        has_choices=event.has_choices,
+    )
+
+
 def _build_playtest_event_message(
-    event: StoryEvent, session: PlaytestSession
+    event: StoryEvent,
+    session: PlaytestSession,
+    *,
+    session_id: str,
 ) -> PlaytestEventMessage:
     return PlaytestEventMessage(
         type="event",
-        event=PlaytestEventResource(
-            narration=event.narration,
-            choices=[
-                ChoiceResource(command=choice.command, description=choice.description)
-                for choice in event.choices
-            ],
-            metadata=dict(cast(Mapping[str, str], event.metadata)),
-            has_choices=event.has_choices,
-        ),
+        session_id=session_id,
+        event=_build_playtest_event_resource(event),
         world=session.world_snapshot(),
+    )
+
+
+def _build_playtest_transcript_entries(
+    session: PlaytestSession,
+) -> list["PlaytestTranscriptEntryResource"]:
+    entries: list[PlaytestTranscriptEntryResource] = []
+    for entry in session.transcript():
+        entries.append(
+            PlaytestTranscriptEntryResource(
+                turn=entry.turn,
+                player_input=entry.player_input,
+                event=_build_playtest_event_resource(entry.event),
+            )
+        )
+    return entries
+
+
+def _build_playtest_transcript_message(
+    session_id: str, session: PlaytestSession
+) -> "PlaytestTranscriptMessage":
+    return PlaytestTranscriptMessage(
+        type="transcript",
+        session_id=session_id,
+        entries=_build_playtest_transcript_entries(session),
     )
 
 
@@ -7762,6 +7864,7 @@ class PlaytestEventMessage(BaseModel):
     """Envelope describing an event message pushed over the WebSocket."""
 
     type: Literal["event"]
+    session_id: str
     event: PlaytestEventResource
     world: PlaytestWorldStateResource
 
@@ -7772,6 +7875,29 @@ class PlaytestErrorMessage(BaseModel):
     type: Literal["error"]
     code: str
     message: str
+
+
+class PlaytestTranscriptEntryResource(BaseModel):
+    """Serialized transcript entry for HTTP and WebSocket responses."""
+
+    turn: int
+    player_input: str | None = None
+    event: PlaytestEventResource
+
+
+class PlaytestTranscriptMessage(BaseModel):
+    """WebSocket payload returning the current transcript entries."""
+
+    type: Literal["transcript"]
+    session_id: str
+    entries: list[PlaytestTranscriptEntryResource] = Field(default_factory=list)
+
+
+class PlaytestTranscriptResponse(BaseModel):
+    """HTTP response returning the recorded playtest transcript."""
+
+    session_id: str
+    entries: list[PlaytestTranscriptEntryResource] = Field(default_factory=list)
 
 
 class NarrationOverrideResource(BaseModel):
