@@ -433,6 +433,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Implement a filesystem-backed marketplace store supporting publish/list/listing pagination.
         - [x] Expose FastAPI endpoints for publishing, listing, and retrieving marketplace entries with validation.
         - [x] Cover the marketplace flow with unit and integration tests and document the workflow.
-      - [ ] Community templates
+      - [x] Community templates
+        - [x] Define a manifest format and storage location for shared templates.
+        - [x] Bundle at least one starter template dataset with metadata.
+        - [x] Document how contributors can use and extend the templates.
       - [ ] Rating and review system
       - [ ] Discussion forums
