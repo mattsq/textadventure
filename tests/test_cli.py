@@ -149,6 +149,25 @@ class _EndingEngine(StoryEngine):
         return StoryEvent(narration="The adventure ends before it begins.")
 
 
+class _ChoiceOnlyEngine(StoryEngine):
+    """Story engine that provides choices but does not expose scenes."""
+
+    def __init__(self) -> None:
+        self.event = StoryEvent(
+            narration="You stand at a quiet crossroads.",
+            choices=(StoryChoice("wait", "Wait for a moment."),),
+        )
+
+    def propose_event(
+        self,
+        world_state: WorldState,
+        *,
+        player_input: str | None = None,
+    ) -> StoryEvent:
+        del world_state, player_input
+        return self.event
+
+
 class _SequencedAgent(Agent):
     """Agent that replays a scripted sequence of turn results."""
 
@@ -446,6 +465,38 @@ def test_status_command_reports_world_and_queue_details(monkeypatch, capsys) -> 
     assert "Pending saves: checkpoint" in captured
 
 
+def test_search_scenes_command_reports_matches(monkeypatch, capsys) -> None:
+    """The search-scenes command should report matching snippets from scenes."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["search-scenes mist", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world)
+
+    output = capsys.readouterr().out
+    assert "Found 6 match(es) across 5 scene(s)." in output
+    assert "- old-gate (2 match(es))" in output
+    assert "[mist]" in output
+
+
+def test_search_scenes_command_handles_missing_dataset(monkeypatch, capsys) -> None:
+    """When scenes are unavailable the search command should explain why."""
+
+    engine = _ChoiceOnlyEngine()
+    world = WorldState()
+
+    inputs = iter(["search-scenes lore", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world)
+
+    output = capsys.readouterr().out
+    assert "Scene search is not available" in output
+
+
 def test_help_command_offers_contextual_guidance(monkeypatch, capsys) -> None:
     """The help command should surface both general and targeted guidance."""
 
@@ -508,8 +559,8 @@ def test_tab_completion_cycles_commands_and_choices() -> None:
     manager = _TabCompletionManager(readline)
     manager.update(
         choice_commands=("explore", "wait"),
-        system_commands=("help", "status", "quit", "exit"),
-        help_topics=("help", "status", "quit", "exit", "explore"),
+        system_commands=("help", "status", "search-scenes", "quit", "exit"),
+        help_topics=("help", "status", "search-scenes", "quit", "exit", "explore"),
         editor_actions=("start", "stop", "status"),
     )
 
@@ -522,6 +573,7 @@ def test_tab_completion_cycles_commands_and_choices() -> None:
     assert _gather_completions(readline, "") == [
         "help",
         "status",
+        "search-scenes",
         "quit",
         "exit",
         "explore",
@@ -532,6 +584,7 @@ def test_tab_completion_cycles_commands_and_choices() -> None:
     assert _gather_completions(readline, "") == [
         "help",
         "status",
+        "search-scenes",
         "quit",
         "exit",
         "explore",
