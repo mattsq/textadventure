@@ -294,6 +294,171 @@ class ItemFlowReport:
 
 
 @dataclass(frozen=True)
+class ItemDependencyCycleTransition:
+    """Transition participating in a circular dependency between items."""
+
+    scene: str
+    command: str
+    awarded_item: str
+    blocking_requires: tuple[str, ...]
+    blocking_consumes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ItemDependencyCycle:
+    """Summary describing a group of items that depend on each other."""
+
+    items: tuple[str, ...]
+    transitions: tuple[ItemDependencyCycleTransition, ...]
+
+
+@dataclass(frozen=True)
+class _ItemSourceDetail:
+    """Details describing how an item can be acquired."""
+
+    scene: str
+    command: str
+    requires: tuple[str, ...]
+    consumes: tuple[str, ...]
+
+
+def detect_item_dependency_cycles(
+    scenes: Mapping[str, _SceneLike],
+) -> tuple[ItemDependencyCycle, ...]:
+    """Return groups of items that cannot be acquired due to circular dependencies."""
+
+    sources_by_item: defaultdict[str, list[_ItemSourceDetail]] = defaultdict(list)
+
+    for scene_id, scene in scenes.items():
+        for command, transition in scene.transitions.items():
+            item = getattr(transition, "item", None)
+            if not item:
+                continue
+
+            requires = tuple(dict.fromkeys(transition.requires))
+            consumes = tuple(dict.fromkeys(transition.consumes))
+            sources_by_item[item].append(
+                _ItemSourceDetail(
+                    scene=scene_id,
+                    command=command,
+                    requires=requires,
+                    consumes=consumes,
+                )
+            )
+
+    if not sources_by_item:
+        return ()
+
+    accessible_items: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for item, sources in sources_by_item.items():
+            if item in accessible_items:
+                continue
+
+            for source in sources:
+                dependencies = set(source.requires) | set(source.consumes)
+                if dependencies.issubset(accessible_items):
+                    accessible_items.add(item)
+                    changed = True
+                    break
+
+    blocked_items = {item for item in sources_by_item if item not in accessible_items}
+    if not blocked_items:
+        return ()
+
+    adjacency: dict[str, set[str]] = {item: set() for item in blocked_items}
+    for item in blocked_items:
+        for source in sources_by_item[item]:
+            for dependency in (*source.requires, *source.consumes):
+                if dependency in blocked_items:
+                    adjacency[item].add(dependency)
+
+    index = 0
+    indices: dict[str, int] = {}
+    lowlinks: dict[str, int] = {}
+    on_stack: set[str] = set()
+    stack: list[str] = []
+    components: list[set[str]] = []
+
+    def _strongconnect(node: str) -> None:
+        nonlocal index
+
+        indices[node] = index
+        lowlinks[node] = index
+        index += 1
+        stack.append(node)
+        on_stack.add(node)
+
+        for neighbour in adjacency.get(node, ()):
+            if neighbour not in indices:
+                _strongconnect(neighbour)
+                lowlinks[node] = min(lowlinks[node], lowlinks[neighbour])
+            elif neighbour in on_stack:
+                lowlinks[node] = min(lowlinks[node], indices[neighbour])
+
+        if lowlinks[node] == indices[node]:
+            component: set[str] = set()
+            while True:
+                candidate = stack.pop()
+                on_stack.remove(candidate)
+                component.add(candidate)
+                if candidate == node:
+                    break
+            components.append(component)
+
+    for item in adjacency:
+        if item not in indices:
+            _strongconnect(item)
+
+    cycles: list[ItemDependencyCycle] = []
+    for component in components:
+        if len(component) == 1:
+            sole_item = next(iter(component))
+            if sole_item not in adjacency[sole_item]:
+                continue
+
+        ordered_items = tuple(sorted(component))
+        transition_details: list[ItemDependencyCycleTransition] = []
+
+        for item in ordered_items:
+            for source in sources_by_item[item]:
+                blocking_requires = tuple(
+                    sorted({dep for dep in source.requires if dep in component})
+                )
+                blocking_consumes = tuple(
+                    sorted({dep for dep in source.consumes if dep in component})
+                )
+                if not blocking_requires and not blocking_consumes:
+                    continue
+
+                transition_details.append(
+                    ItemDependencyCycleTransition(
+                        scene=source.scene,
+                        command=source.command,
+                        awarded_item=item,
+                        blocking_requires=blocking_requires,
+                        blocking_consumes=blocking_consumes,
+                    )
+                )
+
+        if not transition_details:
+            continue
+
+        transition_details.sort(key=lambda detail: (detail.scene, detail.command))
+        cycles.append(
+            ItemDependencyCycle(
+                items=ordered_items,
+                transitions=tuple(transition_details),
+            )
+        )
+
+    cycles.sort(key=lambda cycle: cycle.items)
+    return tuple(cycles)
+
+
+@dataclass(frozen=True)
 class AdventureABMetricDelta:
     """Difference between numeric metrics for two narrative variants."""
 

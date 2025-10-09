@@ -157,7 +157,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Scene reference integrity (no broken targets) *(Extended analytics and validation to surface transitions pointing to undefined scenes, with updated API reporting.)*
       - [x] Item flow analysis (sources vs requirements)
       - [x] Reachability analysis (unreachable scenes/items) *(Validation now flags unreachable scenes and item dependencies, surfaces warnings in API responses, and exposes summary metadata.)*
-      - [ ] Circular dependency detection
+      - [x] Circular dependency detection
       - [ ] Command uniqueness validation
     - [x] Implement WebSocket endpoint for live adventure testing.
     - [ ] Add unit tests covering all API endpoints and validation logic.

@@ -821,6 +821,132 @@ def test_collect_validation_issues_reports_unreachable_dependencies() -> None:
     assert "unreachable_item_requirement" in codes
 
 
+def test_compute_validation_statuses_flags_circular_dependencies() -> None:
+    scenes = load_scenes_from_mapping(
+        {
+            "starting-area": {
+                "description": "Trailhead",
+                "choices": [
+                    {"command": "forge", "description": "Enter the forge."},
+                ],
+                "transitions": {
+                    "forge": {
+                        "narration": "You descend into the forge.",
+                        "target": "ember-forge",
+                    }
+                },
+            },
+            "ember-forge": {
+                "description": "Heat shimmers from the anvils.",
+                "choices": [
+                    {"command": "claim", "description": "Claim the ember charm."},
+                    {"command": "ritual", "description": "Attempt the ritual."},
+                ],
+                "transitions": {
+                    "claim": {
+                        "narration": "The forge yields a blazing charm.",
+                        "item": "ember-charm",
+                        "requires": ["ritual-sigil"],
+                    },
+                    "ritual": {
+                        "narration": "You follow the glowing runes.",
+                        "target": "ritual-chamber",
+                    },
+                },
+            },
+            "ritual-chamber": {
+                "description": "Etchings cover the stone walls.",
+                "choices": [
+                    {
+                        "command": "inscribe",
+                        "description": "Inscribe the ritual sigil.",
+                    },
+                    {"command": "return", "description": "Return to the forge."},
+                ],
+                "transitions": {
+                    "inscribe": {
+                        "narration": "The sigil flares to life.",
+                        "item": "ritual-sigil",
+                        "requires": ["ember-charm"],
+                    },
+                    "return": {
+                        "narration": "You carry the faint glow back to the forge.",
+                        "target": "ember-forge",
+                    },
+                },
+            },
+        }
+    )
+
+    statuses = _compute_validation_statuses(scenes)
+
+    assert statuses["ember-forge"] == "errors"
+    assert statuses["ritual-chamber"] == "errors"
+
+
+def test_collect_validation_issues_reports_circular_dependencies() -> None:
+    scenes = load_scenes_from_mapping(
+        {
+            "starting-area": {
+                "description": "Trailhead",
+                "choices": [
+                    {"command": "forge", "description": "Enter the forge."},
+                ],
+                "transitions": {
+                    "forge": {
+                        "narration": "You descend into the forge.",
+                        "target": "ember-forge",
+                    }
+                },
+            },
+            "ember-forge": {
+                "description": "Heat shimmers from the anvils.",
+                "choices": [
+                    {"command": "claim", "description": "Claim the ember charm."},
+                    {"command": "ritual", "description": "Attempt the ritual."},
+                ],
+                "transitions": {
+                    "claim": {
+                        "narration": "The forge yields a blazing charm.",
+                        "item": "ember-charm",
+                        "requires": ["ritual-sigil"],
+                    },
+                    "ritual": {
+                        "narration": "You follow the glowing runes.",
+                        "target": "ritual-chamber",
+                    },
+                },
+            },
+            "ritual-chamber": {
+                "description": "Etchings cover the stone walls.",
+                "choices": [
+                    {
+                        "command": "inscribe",
+                        "description": "Inscribe the ritual sigil.",
+                    },
+                    {"command": "return", "description": "Return to the forge."},
+                ],
+                "transitions": {
+                    "inscribe": {
+                        "narration": "The sigil flares to life.",
+                        "item": "ritual-sigil",
+                        "requires": ["ember-charm"],
+                    },
+                    "return": {
+                        "narration": "You carry the faint glow back to the forge.",
+                        "target": "ember-forge",
+                    },
+                },
+            },
+        }
+    )
+
+    issues = _collect_validation_issues("ember-forge", scenes)
+
+    codes = {issue.code for issue in issues}
+    assert "circular_item_dependency" in codes
+
+
 def test_import_endpoint_defaults_start_scene_to_first_entry() -> None:
     client = _client()
     dataset = _import_dataset()
