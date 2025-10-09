@@ -446,3 +446,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Expose API endpoints for listing threads and creating posts.
         - [x] Document the forum workflows for contributors and users. *(Added
           `docs/forum_workflows.md` and linked it from the README.)*
+
+## Priority 11: CLI Quality-of-Life
+- [x] Add a CLI command that can search scripted scene text for a phrase and
+      print matching snippets for debugging and content authoring support. *(Added
+      a `search-scenes` command that surfaces formatted snippets plus tests.)*

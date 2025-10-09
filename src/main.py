@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
-from typing import Iterable, Mapping, Sequence, TextIO, cast
+from typing import Any, Iterable, Mapping, Sequence, TextIO, cast
 
 from importlib import import_module
 from importlib.util import find_spec
@@ -37,6 +37,7 @@ from textadventure.scripted_story_engine import (
     ScriptedStoryEngine,
     load_scenes_from_file,
 )
+from textadventure.search import search_scene_text
 
 
 _READLINE_SPEC = find_spec("readline")
@@ -536,6 +537,12 @@ def run_cli(
     else:
         launcher = cast(EditorLauncher | None, editor_launcher)
 
+    raw_scenes = getattr(engine, "scenes", None)
+    if isinstance(raw_scenes, Mapping):
+        searchable_scenes = cast(Mapping[str, Any], raw_scenes)
+    else:
+        searchable_scenes = None
+
     print("Welcome to the Text Adventure prototype!")
     print("Type 'quit' at any time to end the session.")
     print("Type 'help' for a command overview or 'tutorial' for a guided tour.")
@@ -623,6 +630,16 @@ def run_cli(
             "status",
             "Show your location, inventory, and queued agent messages.",
         )
+        if searchable_scenes is None:
+            mapping["search-scenes"] = (
+                "search-scenes <text>",
+                "Unavailable: the current story engine does not expose searchable scenes.",
+            )
+        else:
+            mapping["search-scenes"] = (
+                "search-scenes <text>",
+                "Search scripted scene text for a phrase and show matching snippets.",
+            )
         if launcher is None:
             mapping["editor"] = (
                 "editor",
@@ -638,6 +655,20 @@ def run_cli(
         return mapping
 
     tab_completion = _TabCompletionManager(_READLINE) if _READLINE is not None else None
+
+    def _format_search_snippet(text: str, span_start: int, span_end: int) -> str:
+        context = 30
+        start = max(span_start - context, 0)
+        end = min(span_end + context, len(text))
+        prefix = "..." if start > 0 else ""
+        suffix = "..." if end < len(text) else ""
+        before = text[start:span_start]
+        highlight = text[span_start:span_end]
+        after = text[span_end:end]
+        snippet = f"{prefix}{before}[{highlight}]{after}{suffix}"
+        snippet = snippet.replace("\n", " ")
+        snippet = " ".join(snippet.split())
+        return snippet
 
     def _print_help(topic: str | None) -> None:
         if event is None:
@@ -762,6 +793,49 @@ def run_cli(
 
         if command_lower == "tutorial":
             TutorialGuide(session_store).run()
+            continue
+
+        if command_lower == "search-scenes":
+            if searchable_scenes is None:
+                print(
+                    "\nScene search is not available because the current story engine "
+                    "does not expose scripted scenes."
+                )
+            else:
+                query = argument.strip()
+                if not query:
+                    print("\nUsage: search-scenes <text>")
+                else:
+                    try:
+                        results = search_scene_text(searchable_scenes, query)
+                    except ValueError as exc:
+                        print(f"\n{exc}")
+                    else:
+                        if results.total_results == 0:
+                            print(f"\nNo matches found for '{results.query}'.")
+                        else:
+                            print(
+                                "\nFound "
+                                f"{results.total_match_count} match(es) across "
+                                f"{results.total_results} scene(s)."
+                            )
+                            for scene_result in results.results:
+                                print(
+                                    f"- {scene_result.scene_id} "
+                                    f"({scene_result.match_count} match(es))"
+                                )
+                                for match in scene_result.matches[:3]:
+                                    if match.spans:
+                                        span = match.spans[0]
+                                        snippet = _format_search_snippet(
+                                            match.text,
+                                            span.start,
+                                            span.end,
+                                        )
+                                    else:
+                                        snippet = match.text.strip()
+                                    print(f"    • {match.path}: {snippet}")
+                            print()
             continue
 
         if command_lower == "save":
