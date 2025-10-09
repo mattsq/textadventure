@@ -442,3 +442,6 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Expose API endpoints for creating and listing marketplace reviews.
         - [x] Add automated tests and documentation updates for the review workflow.
       - [ ] Discussion forums
+        - [x] Define filesystem-backed forum storage and supporting services.
+        - [x] Expose API endpoints for listing threads and creating posts.
+        - [ ] Document the forum workflows for contributors and users.

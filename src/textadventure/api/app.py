@@ -969,6 +969,157 @@ class MarketplaceReviewListResponse(BaseModel):
     )
 
 
+class ForumPostResource(BaseModel):
+    """Representation of a post within a forum thread exposed via the API."""
+
+    id: str = Field(..., description="Stable identifier for the forum post.")
+    author: str | None = Field(
+        None,
+        description="Optional display name associated with the post author.",
+    )
+    body: str = Field(..., description="Rendered message content for the post.")
+    created_at: datetime = Field(
+        ..., description="Timestamp describing when the post was created."
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class ForumThreadSummary(BaseModel):
+    """Lightweight overview of a forum discussion thread."""
+
+    id: str = Field(..., description="Stable identifier for the forum thread.")
+    title: str = Field(..., description="Title describing the discussion topic.")
+    author: str | None = Field(
+        None,
+        description="Optional display name associated with the thread creator.",
+    )
+    created_at: datetime = Field(
+        ..., description="Timestamp indicating when the thread was created."
+    )
+    updated_at: datetime = Field(
+        ..., description="Timestamp of the most recent activity within the thread."
+    )
+    post_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of posts currently recorded for the thread.",
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("updated_at")
+    def _serialise_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class ForumThreadDetail(ForumThreadSummary):
+    """Detailed representation of a forum thread including individual posts."""
+
+    posts: list[ForumPostResource] = Field(
+        default_factory=list,
+        description="Collection of posts ordered chronologically within the thread.",
+    )
+
+
+class ForumThreadListResponse(BaseModel):
+    """Response envelope describing paginated forum threads."""
+
+    data: list[ForumThreadSummary] = Field(
+        default_factory=list,
+        description="Collection of forum threads ordered by recent activity.",
+    )
+    pagination: Pagination
+
+
+class ForumThreadCreateRequest(BaseModel):
+    """Request payload for creating a new forum discussion thread."""
+
+    title: str = Field(..., description="Title describing the discussion topic.")
+    body: str = Field(..., description="Initial post content for the new thread.")
+    author: str | None = Field(
+        None,
+        description="Optional display name associated with the thread creator.",
+    )
+    identifier: str | None = Field(
+        None,
+        description="Optional custom identifier for the thread. Slugified when provided.",
+    )
+
+    @field_validator("title")
+    @classmethod
+    def _validate_title(cls, value: Any) -> str:
+        if not isinstance(value, str):
+            raise TypeError("Thread title must be provided as a string.")
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Thread title must be a non-empty string.")
+        return trimmed
+
+    @field_validator("body")
+    @classmethod
+    def _validate_body(cls, value: Any) -> str:
+        if not isinstance(value, str):
+            raise TypeError("Thread body must be provided as a string.")
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Thread body must be a non-empty string.")
+        return trimmed
+
+    @field_validator("author", mode="before")
+    @classmethod
+    def _normalise_author(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        raise TypeError("Author must be a string or null.")
+
+    @field_validator("identifier")
+    @classmethod
+    def _validate_identifier(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise TypeError("Thread identifier must be provided as a string.")
+        return _normalise_forum_identifier(value)
+
+
+class ForumPostCreateRequest(BaseModel):
+    """Request payload for adding a reply to an existing forum thread."""
+
+    body: str = Field(..., description="Content of the reply post.")
+    author: str | None = Field(
+        None,
+        description="Optional display name associated with the post author.",
+    )
+
+    @field_validator("body")
+    @classmethod
+    def _validate_body(cls, value: Any) -> str:
+        if not isinstance(value, str):
+            raise TypeError("Post body must be provided as a string.")
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Post body must be a non-empty string.")
+        return trimmed
+
+    @field_validator("author", mode="before")
+    @classmethod
+    def _normalise_author(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            trimmed = value.strip()
+            return trimmed or None
+        raise TypeError("Author must be a string or null.")
+
+
 class MarketplaceEntryPublishRequest(BaseModel):
     """Request payload for publishing an adventure to the marketplace."""
 
@@ -2396,6 +2547,28 @@ class MarketplaceEntryRecord:
     reviews: tuple[MarketplaceReviewRecord, ...]
 
 
+@dataclass(frozen=True)
+class ForumPostRecord:
+    """Representation of an individual post stored within a forum thread."""
+
+    identifier: str
+    author: str | None
+    body: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class ForumThreadRecord:
+    """Representation of a forum discussion thread stored on disk."""
+
+    identifier: str
+    title: str
+    author: str | None
+    created_at: datetime
+    updated_at: datetime
+    posts: tuple[ForumPostRecord, ...]
+
+
 class MarketplaceStore:
     """Filesystem-backed storage for published marketplace entries."""
 
@@ -2718,6 +2891,368 @@ class MarketplaceStore:
             scenes=serialisable_scenes,
             reviews=reviews,
         )
+
+
+class ForumStore:
+    """Filesystem-backed storage for community discussion threads."""
+
+    def __init__(self, root: Path | None = None) -> None:
+        self._root = root or (Path.cwd() / "forums")
+
+    def list(self) -> list[ForumThreadRecord]:
+        """Return all forum threads ordered by most recent activity."""
+
+        if not self._root.exists():
+            return []
+
+        records: list[ForumThreadRecord] = []
+        for path in sorted(self._root.glob("*.json")):
+            if not path.is_file():
+                continue
+
+            try:
+                payload = _load_json(path)
+            except (OSError, ValueError) as exc:
+                raise ValueError(f"Failed to load forum thread from '{path}'.") from exc
+
+            try:
+                record = self._record_from_payload(payload, path)
+            except ValueError as exc:
+                raise ValueError(str(exc)) from exc
+
+            records.append(record)
+
+        records.sort(key=lambda record: record.updated_at, reverse=True)
+        return records
+
+    def load(self, identifier: str) -> ForumThreadRecord:
+        """Return the thread identified by ``identifier``."""
+
+        normalised = _normalise_forum_identifier(identifier)
+        path = self._path_for(normalised)
+        if not path.exists():
+            raise FileNotFoundError(f"Forum thread '{normalised}' does not exist.")
+
+        try:
+            payload = _load_json(path)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Failed to load forum thread from '{path}'.") from exc
+
+        return self._record_from_payload(payload, path)
+
+    def save(self, record: ForumThreadRecord) -> None:
+        """Persist ``record`` ensuring the identifier remains unique."""
+
+        path = self._path_for(record.identifier)
+        if path.exists():
+            raise FileExistsError(f"Forum thread '{record.identifier}' already exists.")
+
+        self._write_record(record, allow_overwrite=False)
+
+    def update(self, record: ForumThreadRecord) -> None:
+        """Replace any existing record for the thread with ``record``."""
+
+        path = self._path_for(record.identifier)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Forum thread '{record.identifier}' does not exist."
+            )
+
+        self._write_record(record, allow_overwrite=True)
+
+    def exists(self, identifier: str) -> bool:
+        """Return whether a thread with ``identifier`` is already stored."""
+
+        normalised = _normalise_forum_identifier(identifier)
+        return self._path_for(normalised).exists()
+
+    def _path_for(self, identifier: str) -> Path:
+        return self._root / f"{identifier}.json"
+
+    def _write_record(
+        self, record: ForumThreadRecord, *, allow_overwrite: bool
+    ) -> None:
+        path = self._path_for(record.identifier)
+        if not allow_overwrite and path.exists():
+            raise FileExistsError(f"Forum thread '{record.identifier}' already exists.")
+
+        payload = {
+            "id": record.identifier,
+            "title": record.title,
+            "author": record.author,
+            "created_at": record.created_at.isoformat(),
+            "updated_at": record.updated_at.isoformat(),
+            "posts": [
+                {
+                    "id": post.identifier,
+                    "author": post.author,
+                    "body": post.body,
+                    "created_at": post.created_at.isoformat(),
+                }
+                for post in record.posts
+            ],
+        }
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError("Failed to prepare forum storage directory.") from exc
+
+        try:
+            with path.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError("Failed to persist forum thread.") from exc
+
+    def _record_from_payload(
+        self, payload: Mapping[str, Any], path: Path
+    ) -> ForumThreadRecord:
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"Forum thread in '{path}' must be a mapping.")
+
+        identifier_raw = payload.get("id")
+        title_raw = payload.get("title")
+        author_raw = payload.get("author")
+        created_at_raw = payload.get("created_at")
+        updated_at_raw = payload.get("updated_at")
+        posts_raw = payload.get("posts")
+
+        if not isinstance(identifier_raw, str) or not identifier_raw.strip():
+            raise ValueError(f"Forum thread in '{path}' is missing a valid 'id'.")
+        if not isinstance(title_raw, str) or not title_raw.strip():
+            raise ValueError(f"Forum thread in '{path}' is missing a valid 'title'.")
+        if author_raw is not None and not isinstance(author_raw, str):
+            raise ValueError(f"Forum thread in '{path}' has an invalid 'author'.")
+        if not isinstance(created_at_raw, str):
+            raise ValueError(
+                f"Forum thread in '{path}' is missing a valid 'created_at'."
+            )
+        if not isinstance(updated_at_raw, str):
+            raise ValueError(
+                f"Forum thread in '{path}' is missing a valid 'updated_at'."
+            )
+        if not isinstance(posts_raw, Sequence) or isinstance(
+            posts_raw, (str, bytes, bytearray)
+        ):
+            raise ValueError(f"Forum thread in '{path}' must include a list of posts.")
+
+        author = _normalise_optional_text(author_raw)
+
+        try:
+            created_at = _ensure_timezone(datetime.fromisoformat(created_at_raw))
+        except ValueError as exc:
+            raise ValueError(
+                f"Forum thread in '{path}' contains an invalid 'created_at'."
+            ) from exc
+
+        try:
+            updated_at = _ensure_timezone(datetime.fromisoformat(updated_at_raw))
+        except ValueError as exc:
+            raise ValueError(
+                f"Forum thread in '{path}' contains an invalid 'updated_at'."
+            ) from exc
+
+        posts: list[ForumPostRecord] = []
+        for index, entry in enumerate(posts_raw):
+            if not isinstance(entry, Mapping):
+                raise ValueError(
+                    f"Forum thread in '{path}' has an invalid post at index {index}."
+                )
+
+            post_id_raw = entry.get("id")
+            post_body_raw = entry.get("body")
+            post_author_raw = entry.get("author")
+            post_created_at_raw = entry.get("created_at")
+
+            if not isinstance(post_id_raw, str) or not post_id_raw.strip():
+                raise ValueError(
+                    (
+                        f"Forum thread in '{path}' has a post with an invalid "
+                        f"'id' at index {index}."
+                    )
+                )
+            if not isinstance(post_body_raw, str) or not post_body_raw.strip():
+                raise ValueError(
+                    (
+                        f"Forum thread in '{path}' has a post with an invalid "
+                        f"'body' at index {index}."
+                    )
+                )
+            if post_author_raw is not None and not isinstance(post_author_raw, str):
+                raise ValueError(
+                    (
+                        f"Forum thread in '{path}' has a post with an invalid "
+                        f"'author' at index {index}."
+                    )
+                )
+            if not isinstance(post_created_at_raw, str):
+                raise ValueError(
+                    (
+                        f"Forum thread in '{path}' has a post with an invalid "
+                        f"'created_at' at index {index}."
+                    )
+                )
+
+            try:
+                post_created_at = _ensure_timezone(
+                    datetime.fromisoformat(post_created_at_raw)
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    (
+                        f"Forum thread in '{path}' has a post with an invalid "
+                        f"'created_at' at index {index}."
+                    )
+                ) from exc
+
+            post_author = _normalise_optional_text(post_author_raw)
+
+            posts.append(
+                ForumPostRecord(
+                    identifier=post_id_raw.strip(),
+                    author=post_author,
+                    body=post_body_raw.strip(),
+                    created_at=post_created_at,
+                )
+            )
+
+        if not posts:
+            raise ValueError(
+                f"Forum thread in '{path}' must contain at least one post."
+            )
+
+        posts.sort(key=lambda record: record.created_at)
+        normalised_identifier = _normalise_forum_identifier(identifier_raw)
+        thread_updated_at = max(updated_at, posts[-1].created_at)
+
+        return ForumThreadRecord(
+            identifier=normalised_identifier,
+            title=title_raw.strip(),
+            author=author,
+            created_at=created_at,
+            updated_at=thread_updated_at,
+            posts=tuple(posts),
+        )
+
+
+class ForumService:
+    """Business logic supporting the discussion forum endpoints."""
+
+    def __init__(self, store: ForumStore) -> None:
+        self._store = store
+
+    def list_threads(self, *, page: int, page_size: int) -> ForumThreadListResponse:
+        if page < 1:
+            raise ValueError("page must be greater than or equal to 1.")
+        if page_size < 1:
+            raise ValueError("page_size must be greater than or equal to 1.")
+
+        records = self._store.list()
+
+        total_items = len(records)
+        total_pages = _compute_total_pages(total_items, page_size)
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        visible = records[start_index:end_index]
+
+        summaries = [_build_forum_thread_summary(record) for record in visible]
+        return ForumThreadListResponse(
+            data=summaries,
+            pagination=Pagination(
+                page=page,
+                page_size=page_size,
+                total_items=total_items,
+                total_pages=total_pages,
+            ),
+        )
+
+    def create_thread(self, payload: ForumThreadCreateRequest) -> ForumThreadRecord:
+        identifier = (
+            _normalise_forum_identifier(payload.identifier)
+            if payload.identifier is not None
+            else self._generate_identifier(payload.title)
+        )
+
+        now = datetime.now(timezone.utc)
+        initial_post = ForumPostRecord(
+            identifier=uuid.uuid4().hex,
+            author=payload.author,
+            body=payload.body,
+            created_at=now,
+        )
+
+        record = ForumThreadRecord(
+            identifier=identifier,
+            title=payload.title,
+            author=payload.author,
+            created_at=now,
+            updated_at=now,
+            posts=(initial_post,),
+        )
+
+        try:
+            self._store.save(record)
+        except FileExistsError as exc:
+            raise ForumThreadAlreadyExistsError(identifier) from exc
+
+        return record
+
+    def get_thread(self, identifier: str) -> ForumThreadRecord:
+        try:
+            return self._store.load(identifier)
+        except FileNotFoundError as exc:
+            normalised = _normalise_forum_identifier(identifier)
+            raise KeyError(f"Forum thread '{normalised}' does not exist.") from exc
+
+    def add_post(
+        self, identifier: str, payload: ForumPostCreateRequest
+    ) -> ForumPostRecord:
+        normalised_identifier = _normalise_forum_identifier(identifier)
+        try:
+            record = self._store.load(normalised_identifier)
+        except FileNotFoundError as exc:
+            raise KeyError(
+                f"Forum thread '{normalised_identifier}' does not exist."
+            ) from exc
+
+        now = datetime.now(timezone.utc)
+        post = ForumPostRecord(
+            identifier=uuid.uuid4().hex,
+            author=payload.author,
+            body=payload.body,
+            created_at=now,
+        )
+
+        updated_record = ForumThreadRecord(
+            identifier=record.identifier,
+            title=record.title,
+            author=record.author,
+            created_at=record.created_at,
+            updated_at=now,
+            posts=record.posts + (post,),
+        )
+
+        try:
+            self._store.update(updated_record)
+        except FileNotFoundError as exc:
+            raise KeyError(
+                f"Forum thread '{normalised_identifier}' does not exist."
+            ) from exc
+
+        return post
+
+    def _generate_identifier(self, title: str) -> str:
+        base_slug = _slugify_forum_identifier(title)
+        if not base_slug:
+            base_slug = f"thread-{uuid.uuid4().hex[:8]}"
+
+        candidate = base_slug
+        suffix = 1
+        while True:
+            if not self._store.exists(candidate):
+                return candidate
+            suffix += 1
+            candidate = f"{base_slug}-{suffix}"
 
 
 class ProjectService:
@@ -3614,6 +4149,14 @@ class MarketplaceEntryAlreadyExistsError(RuntimeError):
         self.identifier = identifier
 
 
+class ForumThreadAlreadyExistsError(RuntimeError):
+    """Raised when attempting to create a forum thread with a duplicate id."""
+
+    def __init__(self, identifier: str) -> None:
+        super().__init__(f"Forum thread '{identifier}' already exists.")
+        self.identifier = identifier
+
+
 class MarketplaceService:
     """Business logic supporting the marketplace entry endpoints."""
 
@@ -3947,6 +4490,40 @@ def _build_marketplace_review(
     )
 
 
+def _build_forum_post(record: ForumPostRecord) -> ForumPostResource:
+    return ForumPostResource(
+        id=record.identifier,
+        author=record.author,
+        body=record.body,
+        created_at=record.created_at,
+    )
+
+
+def _build_forum_thread_summary(record: ForumThreadRecord) -> ForumThreadSummary:
+    return ForumThreadSummary(
+        id=record.identifier,
+        title=record.title,
+        author=record.author,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        post_count=len(record.posts),
+    )
+
+
+def _build_forum_thread_detail(record: ForumThreadRecord) -> ForumThreadDetail:
+    ordered_posts = sorted(record.posts, key=lambda post: post.created_at)
+    resources = [_build_forum_post(post) for post in ordered_posts]
+    return ForumThreadDetail(
+        id=record.identifier,
+        title=record.title,
+        author=record.author,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        post_count=len(resources),
+        posts=resources,
+    )
+
+
 def _compute_average_rating(
     reviews: Sequence[MarketplaceReviewRecord],
 ) -> float | None:
@@ -4054,6 +4631,39 @@ def _normalise_optional_text(value: str | None) -> str | None:
 
     trimmed = value.strip()
     return trimmed or None
+
+
+_FORUM_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_FORUM_SLUG_SANITISE_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _normalise_forum_identifier(identifier: str | None) -> str:
+    if not isinstance(identifier, str):
+        raise ValueError("Forum thread identifier must be provided as a string.")
+
+    slug = identifier.strip().casefold()
+    if not slug:
+        raise ValueError("Forum thread identifier must be a non-empty string.")
+
+    if not _FORUM_IDENTIFIER_PATTERN.fullmatch(slug):
+        raise ValueError(
+            "Forum thread identifier must contain only lowercase letters, numbers, and hyphens."
+        )
+
+    return slug
+
+
+def _slugify_forum_identifier(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+
+    trimmed = value.strip().casefold()
+    if not trimmed:
+        return ""
+
+    slug = _FORUM_SLUG_SANITISE_RE.sub("-", trimmed)
+    slug = re.sub(r"-+", "-", slug)
+    return slug.strip("-")
 
 
 def _normalise_marketplace_identifier(identifier: str) -> str:
@@ -5911,6 +6521,7 @@ def create_app(
     project_template_service: ProjectTemplateService | None = None,
     user_service: UserService | None = None,
     marketplace_service: MarketplaceService | None = None,
+    forum_service: ForumService | None = None,
     settings: SceneApiSettings | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -5974,6 +6585,11 @@ def create_app(
         marketplace_store = MarketplaceStore(root=resolved_settings.marketplace_root)
         marketplace = MarketplaceService(store=marketplace_store)
 
+    forum = forum_service
+    if forum is None:
+        forum_store = ForumStore(root=resolved_settings.forum_root)
+        forum = ForumService(store=forum_store)
+
     playtest_manager = PlaytestManager(
         repository=repository,
         project_service=project,
@@ -6036,6 +6652,13 @@ def create_app(
             "description": (
                 "Publish and discover community-contributed adventure "
                 "datasets for reuse."
+            ),
+        },
+        {
+            "name": "Forums",
+            "description": (
+                "Discuss adventure design, share feedback, and coordinate "
+                "with other authors."
             ),
         },
         {
@@ -7030,6 +7653,84 @@ def create_app(
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         return _build_marketplace_review(review)
+
+    @app.get(
+        "/api/forums/threads",
+        response_model=ForumThreadListResponse,
+        tags=["Forums"],
+    )
+    def list_forum_threads(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(
+            20,
+            ge=1,
+            le=100,
+            description="Number of threads to return per page (maximum 100).",
+        ),
+    ) -> ForumThreadListResponse:
+        try:
+            return forum.list_threads(page=page, page_size=page_size)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/forums/threads",
+        response_model=ForumThreadDetail,
+        status_code=201,
+        tags=["Forums"],
+    )
+    def create_forum_thread(
+        payload: ForumThreadCreateRequest,
+    ) -> ForumThreadDetail:
+        try:
+            record = forum.create_thread(payload)
+        except ForumThreadAlreadyExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_forum_thread_detail(record)
+
+    @app.get(
+        "/api/forums/threads/{thread_id}",
+        response_model=ForumThreadDetail,
+        tags=["Forums"],
+    )
+    def get_forum_thread(thread_id: str) -> ForumThreadDetail:
+        try:
+            record = forum.get_thread(thread_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_forum_thread_detail(record)
+
+    @app.post(
+        "/api/forums/threads/{thread_id}/posts",
+        response_model=ForumPostResource,
+        status_code=201,
+        tags=["Forums"],
+    )
+    def create_forum_post(
+        thread_id: str, payload: ForumPostCreateRequest
+    ) -> ForumPostResource:
+        try:
+            post = forum.add_post(thread_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_forum_post(post)
 
     @app.get(
         "/api/users",
