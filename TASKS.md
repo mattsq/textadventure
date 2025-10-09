@@ -451,3 +451,12 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 - [x] Add a CLI command that can search scripted scene text for a phrase and
       print matching snippets for debugging and content authoring support. *(Added
       a `search-scenes` command that surfaces formatted snippets plus tests.)*
+
+## Priority 12: CLI Discoverability
+- [x] Add a CLI command that lists registered LLM providers that can be used as
+      secondary agents during the adventure.
+  - [x] Show helpful guidance when no providers are registered, including how
+        to add custom factories.
+  - [x] Update the CLI help output to mention the new command.
+  - [x] Cover the new command with automated tests ensuring the formatted
+        output matches expectations when providers are available or absent.

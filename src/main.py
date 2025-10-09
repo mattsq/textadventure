@@ -529,6 +529,7 @@ def run_cli(
         EditorLauncher | None | _EditorLauncherSentinel
     ) = _EDITOR_LAUNCHER_DEFAULT,
     dataset_monitor: SceneDatasetMonitor | None = None,
+    llm_provider_names: Sequence[str] | None = None,
 ) -> None:
     """Drive a very small interactive loop using ``input``/``print``."""
 
@@ -542,6 +543,10 @@ def run_cli(
         searchable_scenes = cast(Mapping[str, Any], raw_scenes)
     else:
         searchable_scenes = None
+
+    registered_llm_providers: tuple[str, ...] = ()
+    if llm_provider_names:
+        registered_llm_providers = tuple(sorted(dict.fromkeys(llm_provider_names)))
 
     print("Welcome to the Text Adventure prototype!")
     print("Type 'quit' at any time to end the session.")
@@ -650,6 +655,16 @@ def run_cli(
                 "editor [start|stop|status]",
                 "Launch or control the browser-based scene editor API.",
             )
+        if registered_llm_providers:
+            mapping["llm-providers"] = (
+                "llm-providers",
+                "List registered LLM providers and usage tips.",
+            )
+        else:
+            mapping["llm-providers"] = (
+                "llm-providers",
+                "Show guidance for configuring LLM providers.",
+            )
         mapping["quit"] = ("quit", "Exit the adventure immediately.")
         mapping["exit"] = ("exit", "Alias for 'quit'.")
         return mapping
@@ -723,6 +738,33 @@ def run_cli(
         print("  t - Start the interactive tutorial.")
         print()
 
+    def _print_llm_providers() -> None:
+        print("\n=== LLM Providers ===")
+        if registered_llm_providers:
+            print(
+                "The following provider identifiers are available for"
+                " '--llm-provider':"
+            )
+            for name in registered_llm_providers:
+                print(f"  - {name}")
+            print(
+                "\nLaunch the adventure with one of these providers using "
+                "'--llm-provider <name>' or supply a configuration file with"
+                " '--llm-config <path>'."
+            )
+        else:
+            print(
+                "No LLM providers are registered for this session. "
+                "Use '--llm-provider module:factory' to reference a custom"
+                " factory or extend the application to register additional"
+                " providers."
+            )
+        print(
+            "You can combine providers with '--llm-option key=value' to supply"
+            " extra configuration parameters."
+        )
+        print()
+
     if session_store is not None and autoload_session:
         try:
             snapshot = session_store.load(autoload_session)
@@ -793,6 +835,10 @@ def run_cli(
 
         if command_lower == "tutorial":
             TutorialGuide(session_store).run()
+            continue
+
+        if command_lower == "llm-providers":
+            _print_llm_providers()
             continue
 
         if command_lower == "search-scenes":
@@ -1088,6 +1134,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         raise SystemExit(2)
     world = WorldState()
+    registry = LLMProviderRegistry()
+    register_builtin_providers(registry)
+    available_llm_providers = tuple(registry.available_providers())
     scene_path: Path | None = args.scene_path
     if scene_path is None:
         env_scene_path = os.getenv("TEXTADVENTURE_SCENE_PATH")
@@ -1147,8 +1196,6 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     secondary_agents: list[LLMStoryAgent] = []
     if args.llm_provider or args.llm_config:
-        registry = LLMProviderRegistry()
-        register_builtin_providers(registry)
         try:
             if args.llm_config:
                 llm_client = registry.create_from_config_file(args.llm_config)
@@ -1231,6 +1278,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             transcript_logger=transcript_logger,
             editor_launcher=launcher,
             dataset_monitor=dataset_monitor,
+            llm_provider_names=available_llm_providers,
         )
     finally:
         if previous_palette is not None:
