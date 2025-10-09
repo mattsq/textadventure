@@ -444,4 +444,5 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Discussion forums
         - [x] Define filesystem-backed forum storage and supporting services.
         - [x] Expose API endpoints for listing threads and creating posts.
-        - [ ] Document the forum workflows for contributors and users.
+        - [x] Document the forum workflows for contributors and users. *(Added
+          `docs/forum_workflows.md` and linked it from the README.)*
