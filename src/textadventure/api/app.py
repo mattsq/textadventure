@@ -333,6 +333,7 @@ class ItemFlowSummaryResource(BaseModel):
     items_missing_sources: list[str] = Field(default_factory=list)
     items_with_surplus_awards: list[str] = Field(default_factory=list)
     items_with_consumption_deficit: list[str] = Field(default_factory=list)
+    items_with_unreachable_sources: list[str] = Field(default_factory=list)
 
 
 class SceneValidationReport(BaseModel):
@@ -6510,7 +6511,10 @@ class SceneService:
             generated_at=generated_at,
             quality=_build_quality_resource(quality_report),
             reachability=_build_reachability_resource(reachability_report),
-            item_flow=_build_item_flow_resource(item_flow_report),
+            item_flow=_build_item_flow_resource(
+                item_flow_report,
+                unreachable_scenes=reachability_report.unreachable_scenes,
+            ),
         )
 
 
@@ -8114,34 +8118,84 @@ def _has_terminal_transition(transitions: Iterable[Any]) -> bool:
     return False
 
 
+def _resolve_start_scene(
+    scenes: Mapping[str, Any],
+    *,
+    preferred: str | None = None,
+) -> str:
+    if not scenes:
+        raise ValueError("At least one scene must be defined for validation.")
+
+    if preferred is not None:
+        if preferred not in scenes:
+            raise ValueError(f"Start scene '{preferred}' is not defined.")
+        return preferred
+
+    if "starting-area" in scenes:
+        return "starting-area"
+
+    return next(iter(scenes))
+
+
 def _compute_validation_statuses(
     scenes: Mapping[str, Any],
+    *,
+    start_scene: str | None = None,
 ) -> dict[str, ValidationStatus]:
-    report = assess_adventure_quality(cast(Mapping[str, Any], scenes))
-    item_flow = analyse_item_flow(cast(Mapping[str, _AnalyticsSceneLike], scenes))
+    if not scenes:
+        return {}
 
-    error_scenes: set[str] = set(report.scenes_missing_description)
-    error_scenes.update(scene for scene, _ in report.transitions_missing_narration)
+    resolved_start = _resolve_start_scene(scenes, preferred=start_scene)
+    analytics_mapping = cast(Mapping[str, _AnalyticsSceneLike], scenes)
+
+    quality_report = assess_adventure_quality(analytics_mapping)
+    item_flow = analyse_item_flow(analytics_mapping)
+    reachability = compute_scene_reachability(
+        analytics_mapping, start_scene=resolved_start
+    )
+
+    unreachable_scene_set = set(reachability.unreachable_scenes)
+
+    error_scenes: set[str] = set(quality_report.scenes_missing_description)
     error_scenes.update(
-        scene for scene, _, _ in report.conditional_overrides_missing_narration
+        scene for scene, _ in quality_report.transitions_missing_narration
     )
     error_scenes.update(
-        scene for scene, _, _ in report.transitions_with_unknown_targets
+        scene for scene, _, _ in quality_report.conditional_overrides_missing_narration
     )
+    error_scenes.update(
+        scene for scene, _, _ in quality_report.transitions_with_unknown_targets
+    )
+
+    warning_scenes: set[str] = set(
+        scene for scene, _ in quality_report.choices_missing_description
+    )
+    warning_scenes.update(
+        scene for scene, _ in quality_report.gated_transitions_missing_failure
+    )
+    warning_scenes.update(unreachable_scene_set)
+
+    unreachable_items: set[str] = set()
+
     for detail in item_flow.items:
         if detail.is_missing_source:
             error_scenes.update(reference.scene for reference in detail.requirements)
             error_scenes.update(reference.scene for reference in detail.consumptions)
 
-    warning_scenes: set[str] = set(
-        scene for scene, _ in report.choices_missing_description
-    )
-    warning_scenes.update(
-        scene for scene, _ in report.gated_transitions_missing_failure
-    )
-    for detail in item_flow.items:
         if detail.is_orphaned:
             warning_scenes.update(reference.scene for reference in detail.sources)
+
+        if detail.sources and all(
+            source.scene in unreachable_scene_set for source in detail.sources
+        ):
+            unreachable_items.add(detail.item)
+
+    if unreachable_items:
+        for detail in item_flow.items:
+            if detail.item not in unreachable_items:
+                continue
+            error_scenes.update(reference.scene for reference in detail.requirements)
+            error_scenes.update(reference.scene for reference in detail.consumptions)
 
     validation_map: dict[str, ValidationStatus] = {}
     for scene_id in scenes:
@@ -8243,7 +8297,11 @@ def _build_reachability_resource(
     )
 
 
-def _build_item_flow_resource(report: ItemFlowReport) -> ItemFlowSummaryResource:
+def _build_item_flow_resource(
+    report: ItemFlowReport,
+    *,
+    unreachable_scenes: Sequence[str] | None = None,
+) -> ItemFlowSummaryResource:
     def _convert_references(
         entries: Iterable[ItemSource | ItemRequirement | ItemConsumption],
     ) -> list[ItemReferenceResource]:
@@ -8252,8 +8310,18 @@ def _build_item_flow_resource(report: ItemFlowReport) -> ItemFlowSummaryResource
             for entry in entries
         ]
 
+    unreachable_scene_set = set(unreachable_scenes or ())
+
     items: list[ItemFlowDetailsResource] = []
+    unreachable_items: list[str] = []
     for detail in report.items:
+        has_only_unreachable_sources = bool(
+            detail.sources
+            and all(source.scene in unreachable_scene_set for source in detail.sources)
+        )
+        if has_only_unreachable_sources:
+            unreachable_items.append(detail.item)
+
         items.append(
             ItemFlowDetailsResource(
                 item=detail.item,
@@ -8273,6 +8341,7 @@ def _build_item_flow_resource(report: ItemFlowReport) -> ItemFlowSummaryResource
         items_missing_sources=list(report.items_missing_sources),
         items_with_surplus_awards=list(report.items_with_surplus_awards),
         items_with_consumption_deficit=list(report.items_with_consumption_deficit),
+        items_with_unreachable_sources=unreachable_items,
     )
 
 
@@ -8789,12 +8858,32 @@ def _build_backup_filename(version_id: str) -> str:
 def _collect_validation_issues(
     scene_id: str,
     scenes: Mapping[str, Any],
+    *,
+    start_scene: str | None = None,
 ) -> list[ValidationIssue]:
-    report = assess_adventure_quality(cast(Mapping[str, Any], scenes))
+    resolved_start = _resolve_start_scene(scenes, preferred=start_scene)
+    analytics_mapping = cast(Mapping[str, _AnalyticsSceneLike], scenes)
+
+    quality_report = assess_adventure_quality(cast(Mapping[str, Any], scenes))
+    reachability_report = compute_scene_reachability(
+        analytics_mapping, start_scene=resolved_start
+    )
+    item_flow_report = analyse_item_flow(analytics_mapping)
+
+    unreachable_scene_set = set(reachability_report.unreachable_scenes)
+
+    unreachable_item_sources: dict[str, tuple[str, ...]] = {}
+    for detail in item_flow_report.items:
+        if detail.sources and all(
+            source.scene in unreachable_scene_set for source in detail.sources
+        ):
+            unreachable_item_sources[detail.item] = tuple(
+                sorted(source.scene for source in detail.sources)
+            )
 
     issues: list[ValidationIssue] = []
 
-    if scene_id in report.scenes_missing_description:
+    if scene_id in quality_report.scenes_missing_description:
         issues.append(
             ValidationIssue(
                 severity="error",
@@ -8804,7 +8893,20 @@ def _collect_validation_issues(
             )
         )
 
-    for candidate_scene, command in report.choices_missing_description:
+    if scene_id in unreachable_scene_set:
+        issues.append(
+            ValidationIssue(
+                severity="warning",
+                code="unreachable_scene",
+                message=(
+                    f"Scene '{scene_id}' cannot be reached from start scene "
+                    f"'{resolved_start}'."
+                ),
+                path="scene",
+            )
+        )
+
+    for candidate_scene, command in quality_report.choices_missing_description:
         if candidate_scene == scene_id:
             issues.append(
                 ValidationIssue(
@@ -8815,7 +8917,7 @@ def _collect_validation_issues(
                 )
             )
 
-    for candidate_scene, command in report.transitions_missing_narration:
+    for candidate_scene, command in quality_report.transitions_missing_narration:
         if candidate_scene == scene_id:
             issues.append(
                 ValidationIssue(
@@ -8826,7 +8928,7 @@ def _collect_validation_issues(
                 )
             )
 
-    for candidate_scene, command in report.gated_transitions_missing_failure:
+    for candidate_scene, command in quality_report.gated_transitions_missing_failure:
         if candidate_scene == scene_id:
             issues.append(
                 ValidationIssue(
@@ -8843,7 +8945,7 @@ def _collect_validation_issues(
         candidate_scene,
         command,
         index,
-    ) in report.conditional_overrides_missing_narration:
+    ) in quality_report.conditional_overrides_missing_narration:
         if candidate_scene == scene_id:
             issues.append(
                 ValidationIssue(
@@ -8856,7 +8958,11 @@ def _collect_validation_issues(
                 )
             )
 
-    for candidate_scene, command, target in report.transitions_with_unknown_targets:
+    for (
+        candidate_scene,
+        command,
+        target,
+    ) in quality_report.transitions_with_unknown_targets:
         if candidate_scene == scene_id:
             issues.append(
                 ValidationIssue(
@@ -8868,6 +8974,46 @@ def _collect_validation_issues(
                     path=f"transitions.{command}.target",
                 )
             )
+
+    if unreachable_item_sources:
+        for detail in item_flow_report.items:
+            sources = unreachable_item_sources.get(detail.item)
+            if sources is None:
+                continue
+
+            formatted_sources = ", ".join(sources)
+
+            for requirement in detail.requirements:
+                if requirement.scene != scene_id:
+                    continue
+                issues.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="unreachable_item_requirement",
+                        message=(
+                            f"Transition '{requirement.command}' requires '{detail.item}', "
+                            "but it can only be acquired in unreachable scenes: "
+                            f"{formatted_sources}."
+                        ),
+                        path=f"transitions.{requirement.command}.requires",
+                    )
+                )
+
+            for consumption in detail.consumptions:
+                if consumption.scene != scene_id:
+                    continue
+                issues.append(
+                    ValidationIssue(
+                        severity="error",
+                        code="unreachable_item_consumption",
+                        message=(
+                            f"Transition '{consumption.command}' consumes '{detail.item}', "
+                            "but it can only be acquired in unreachable scenes: "
+                            f"{formatted_sources}."
+                        ),
+                        path=f"transitions.{consumption.command}.consumes",
+                    )
+                )
 
     issues.sort(key=lambda issue: (issue.path, issue.code))
     return issues

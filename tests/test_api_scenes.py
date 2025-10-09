@@ -22,6 +22,7 @@ from textadventure.api.app import (
     SceneBranchStore,
     SceneRepository,
     SceneService,
+    _collect_validation_issues,
     _compute_validation_statuses,
 )
 from textadventure.scripted_story_engine import load_scenes_from_mapping
@@ -485,6 +486,7 @@ def test_validate_endpoint_returns_combined_reports() -> None:
 
     item_flow = data["item_flow"]
     assert isinstance(item_flow["items"], list)
+    assert "items_with_unreachable_sources" in item_flow
     if item_flow["items"]:
         first = item_flow["items"][0]
         assert set(first) >= {
@@ -714,6 +716,109 @@ def test_compute_validation_statuses_includes_item_flow_analysis() -> None:
 
     assert statuses["beta"] == "errors"
     assert statuses["alpha"] == "warnings"
+
+
+def test_compute_validation_statuses_flags_unreachable_scenes_and_items() -> None:
+    scenes = load_scenes_from_mapping(
+        {
+            "starting-area": {
+                "description": "Start",
+                "choices": [
+                    {"command": "go", "description": "Go forward."},
+                ],
+                "transitions": {
+                    "go": {
+                        "narration": "You move onward.",
+                        "target": "accessible",
+                    }
+                },
+            },
+            "accessible": {
+                "description": "Accessible room",
+                "choices": [
+                    {"command": "open", "description": "Open the door."},
+                ],
+                "transitions": {
+                    "open": {
+                        "narration": "The door will not budge.",
+                        "target": None,
+                        "requires": ["silver-key"],
+                    }
+                },
+            },
+            "hidden": {
+                "description": "Hidden alcove",
+                "choices": [
+                    {"command": "take", "description": "Take the key."},
+                ],
+                "transitions": {
+                    "take": {
+                        "narration": "You find a silver key.",
+                        "target": None,
+                        "item": "silver-key",
+                    }
+                },
+            },
+        }
+    )
+
+    statuses = _compute_validation_statuses(scenes)
+
+    assert statuses["hidden"] == "warnings"
+    assert statuses["accessible"] == "errors"
+    assert statuses["starting-area"] == "valid"
+
+
+def test_collect_validation_issues_reports_unreachable_dependencies() -> None:
+    scenes = load_scenes_from_mapping(
+        {
+            "starting-area": {
+                "description": "Start",
+                "choices": [
+                    {"command": "go", "description": "Go forward."},
+                ],
+                "transitions": {
+                    "go": {
+                        "narration": "You move onward.",
+                        "target": "accessible",
+                    }
+                },
+            },
+            "accessible": {
+                "description": "Accessible room",
+                "choices": [
+                    {"command": "open", "description": "Open the door."},
+                ],
+                "transitions": {
+                    "open": {
+                        "narration": "The door will not budge.",
+                        "target": None,
+                        "requires": ["silver-key"],
+                    }
+                },
+            },
+            "hidden": {
+                "description": "Hidden alcove",
+                "choices": [
+                    {"command": "take", "description": "Take the key."},
+                ],
+                "transitions": {
+                    "take": {
+                        "narration": "You find a silver key.",
+                        "target": None,
+                        "item": "silver-key",
+                    }
+                },
+            },
+        }
+    )
+
+    unreachable_issues = _collect_validation_issues("hidden", scenes)
+    assert any(issue.code == "unreachable_scene" for issue in unreachable_issues)
+
+    dependency_issues = _collect_validation_issues("accessible", scenes)
+    codes = {issue.code for issue in dependency_issues}
+    assert "unreachable_item_requirement" in codes
 
 
 def test_import_endpoint_defaults_start_scene_to_first_entry() -> None:
@@ -2182,7 +2287,9 @@ def test_create_scene_persists_new_definition(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["data"]["id"] == "gamma"
     assert payload["data"]["description"] == "Gamma"
-    assert payload["validation"] is None
+    validation = payload["validation"]
+    assert validation is not None
+    assert any(issue["code"] == "unreachable_scene" for issue in validation["issues"])
 
     updated_definitions, updated_timestamp = repository.load()
     expected_metadata = _expected_metadata(updated_definitions, updated_timestamp)
