@@ -155,7 +155,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] `GET /api/scenes/export` - Export current scenes as JSON *(Adds REST-aligned alias mirroring the legacy endpoint.)*
     - [ ] Add comprehensive validation engine:
       - [x] Scene reference integrity (no broken targets) *(Extended analytics and validation to surface transitions pointing to undefined scenes, with updated API reporting.)*
-      - [ ] Item flow analysis (sources vs requirements)
+      - [x] Item flow analysis (sources vs requirements)
       - [ ] Reachability analysis (unreachable scenes/items)
       - [ ] Circular dependency detection
       - [ ] Command uniqueness validation

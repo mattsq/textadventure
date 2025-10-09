@@ -22,7 +22,9 @@ from textadventure.api.app import (
     SceneBranchStore,
     SceneRepository,
     SceneService,
+    _compute_validation_statuses,
 )
+from textadventure.scripted_story_engine import load_scenes_from_mapping
 
 
 def _client() -> TestClient:
@@ -402,6 +404,7 @@ def test_search_endpoint_can_filter_by_validation_status() -> None:
                     "transitions": {
                         "walk": {
                             "narration": "You follow the alpha ridge further north.",
+                            "item": "rope",
                         }
                     },
                 },
@@ -673,6 +676,44 @@ def test_import_endpoint_validates_uploaded_scenes() -> None:
     assert generated_at.tzinfo is not None
     assert validation["reachability"]["start_scene"] == "alpha"
     assert validation["reachability"]["reachable_count"] >= 1
+
+
+def test_compute_validation_statuses_includes_item_flow_analysis() -> None:
+    scenes = load_scenes_from_mapping(
+        {
+            "alpha": {
+                "description": "Alpha",
+                "choices": [
+                    {"command": "take", "description": "Take the tool."},
+                ],
+                "transitions": {
+                    "take": {
+                        "narration": "You pick up the tool.",
+                        "target": None,
+                        "item": "tool",
+                    }
+                },
+            },
+            "beta": {
+                "description": "Beta",
+                "choices": [
+                    {"command": "use", "description": "Use the relic."},
+                ],
+                "transitions": {
+                    "use": {
+                        "narration": "The door remains sealed.",
+                        "target": None,
+                        "requires": ["relic"],
+                    }
+                },
+            },
+        }
+    )
+
+    statuses = _compute_validation_statuses(scenes)
+
+    assert statuses["beta"] == "errors"
+    assert statuses["alpha"] == "warnings"
 
 
 def test_import_endpoint_defaults_start_scene_to_first_entry() -> None:
