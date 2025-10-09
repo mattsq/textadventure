@@ -8118,6 +8118,7 @@ def _compute_validation_statuses(
     scenes: Mapping[str, Any],
 ) -> dict[str, ValidationStatus]:
     report = assess_adventure_quality(cast(Mapping[str, Any], scenes))
+    item_flow = analyse_item_flow(cast(Mapping[str, _AnalyticsSceneLike], scenes))
 
     error_scenes: set[str] = set(report.scenes_missing_description)
     error_scenes.update(scene for scene, _ in report.transitions_missing_narration)
@@ -8127,6 +8128,10 @@ def _compute_validation_statuses(
     error_scenes.update(
         scene for scene, _, _ in report.transitions_with_unknown_targets
     )
+    for detail in item_flow.items:
+        if detail.is_missing_source:
+            error_scenes.update(reference.scene for reference in detail.requirements)
+            error_scenes.update(reference.scene for reference in detail.consumptions)
 
     warning_scenes: set[str] = set(
         scene for scene, _ in report.choices_missing_description
@@ -8134,6 +8139,9 @@ def _compute_validation_statuses(
     warning_scenes.update(
         scene for scene, _ in report.gated_transitions_missing_failure
     )
+    for detail in item_flow.items:
+        if detail.is_orphaned:
+            warning_scenes.update(reference.scene for reference in detail.sources)
 
     validation_map: dict[str, ValidationStatus] = {}
     for scene_id in scenes:
