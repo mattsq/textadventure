@@ -346,6 +346,45 @@ def test_run_cli_informs_when_saving_unavailable(monkeypatch, capsys) -> None:
     assert world.recent_actions() == ()
 
 
+def test_llm_providers_command_lists_registered_names(monkeypatch, capsys) -> None:
+    """The 'llm-providers' command should list unique registered names."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["llm-providers", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(
+        engine,
+        world,
+        llm_provider_names=("openai", "anthropic", "openai"),
+    )
+
+    captured = capsys.readouterr().out
+    assert "=== LLM Providers ===" in captured
+    assert "anthropic" in captured
+    assert "openai" in captured
+    assert "Launch the adventure" in captured
+
+
+def test_llm_providers_command_guidance_when_empty(monkeypatch, capsys) -> None:
+    """The command should provide configuration tips when no providers exist."""
+
+    engine = ScriptedStoryEngine()
+    world = WorldState()
+
+    inputs = iter(["llm-providers", "quit"])
+    monkeypatch.setattr(builtins, "input", _IteratorInput(inputs))
+
+    run_cli(engine, world, llm_provider_names=())
+
+    captured = capsys.readouterr().out
+    assert "No LLM providers are registered" in captured
+    assert "module:factory" in captured
+    assert "--llm-option" in captured
+
+
 def test_tutorial_command_walks_through_steps(monkeypatch, capsys) -> None:
     """The tutorial command should provide an interactive walkthrough."""
 
@@ -884,12 +923,14 @@ def test_main_passes_scene_path_to_editor_launcher(monkeypatch, tmp_path) -> Non
         transcript_logger: TranscriptLogger | None = None,
         editor_launcher: object,
         dataset_monitor: object | None = None,
+        llm_provider_names: Sequence[str] | None = None,
     ) -> None:
         captured_cli["editor_launcher"] = editor_launcher
         captured_cli["session_store"] = session_store
         captured_cli["autoload_session"] = autoload_session
         captured_cli["transcript_logger"] = transcript_logger
         captured_cli["dataset_monitor"] = dataset_monitor
+        captured_cli["llm_provider_names"] = llm_provider_names
         return None
 
     monkeypatch.setattr("main.EditorLauncher", _RecordingLauncher)
