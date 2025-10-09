@@ -187,6 +187,8 @@ automating analytics.
 [`docs/disaster_recovery.md`](docs/disaster_recovery.md) outlines the operational
 runbook for restoring scene datasets when accidents or infrastructure failures
 occur.
+[`docs/forum_workflows.md`](docs/forum_workflows.md) explains how to configure
+the discussion forum storage and consume the corresponding API endpoints.
 The [extension guide](docs/extension_guide.md) walks through concrete recipes
 for introducing new story engines, agents, tools, persistence backends, and CLI
 helpers on top of the existing runtime.
