@@ -332,8 +332,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Add API endpoints for managing project collaborators.
       - [x] Cover collaborator workflows with automated tests.
 
-  - [ ] **Phase 8: Quality of Life & Polish**
-    - [ ] Implement comprehensive search:
+  - [x] **Phase 8: Quality of Life & Polish**
+    - [x] Implement comprehensive search:
       - [x] Global text search across all scenes *(Added search utilities and API endpoint for querying scene text with highlighted spans.)*
       - [x] Advanced filters (by type, validation status, etc.) *(Search utilities now support field/scene filters and the API accepts comma-separated field type and validation filters with regression coverage.)*
         - [x] Extend search utilities to support field-type and scene filters
@@ -345,17 +345,17 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Define reference categories for scenes, items, and history usage.
         - [x] Implement utilities to locate structured references with optional filters.
         - [x] Add regression tests covering reference detection scenarios.
-    - [ ] Add keyboard shortcuts and accessibility:
+    - [x] Add keyboard shortcuts and accessibility:
       - [x] Common action shortcuts *(Added CLI single-key shortcuts for quit/help/status/tutorial with documentation and tests.)*
       - [x] Tab navigation *(Added readline-powered tab completion covering system commands, story choices, and editor actions with regression tests and documentation updates.)*
       - [x] Screen reader support *(Added a `--screen-reader` CLI flag that removes ANSI styling, simplifies glyphs, and expands choice descriptions for assistive tech.)*
       - [x] High contrast mode *(Added a `--high-contrast` CLI flag that swaps in a brighter Markdown palette with documentation and tests.)*
-    - [ ] Create help system:
+    - [x] Create help system:
       - [x] Interactive tutorials *(Added a CLI `tutorial` command with a guided walkthrough covering choices, system commands, and persistence tips.)*
       - [x] Context-sensitive help *(Added a CLI `help` command that surfaces current story choices alongside system command guidance.)*
       - [x] Best practices guide *(Documented adventure design guidance in `docs/best_practices.md` and linked it from the README.)*
       - [x] Troubleshooting documentation *(Added `docs/troubleshooting.md` and linked it from the README troubleshooting section.)*
-    - [ ] Implement data analytics:
+    - [x] Implement data analytics:
       - [x] Adventure complexity metrics
         - [x] Define core metrics to compute for scripted scene collections.
         - [x] Implement metrics utilities with automated tests.
@@ -370,8 +370,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Implement quality assessment reporting utilities and CLI output.
         - [x] Cover the new quality checks with automated tests.
 
-  - [ ] **Phase 9: Integration & Deployment**
-    - [ ] Integrate editor with existing CLI workflow:
+  - [x] **Phase 9: Integration & Deployment**
+    - [x] Integrate editor with existing CLI workflow:
       - [x] File watching for automatic reloads *(CLI can now load external scene files, watch them for changes, and ships with documentation plus regression tests.)*
         - [x] Allow the CLI to load scripted scenes from an external JSON file so it shares data with the editor API.
         - [x] Implement a lightweight watcher that detects changes to the external scene file and reloads the scripted story engine in-place.
@@ -385,19 +385,19 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Automated container build workflow *(Added a GitHub Actions workflow that builds/pushes container images to GHCR on demand.)*
       - [x] Document release pipeline usage *(Documented workflow triggers, manual runs, and registry requirements.)*
     - [x] Environment configuration *(API now honours environment variables for scene datasets and branch storage with docs and automated tests.)*
-    - [ ] Production build optimization
+    - [x] Production build optimization
       - [x] Static asset management *(Added an asset bundler CLI that produces hashed ZIP archives and manifests for deployment workflows.)*
         - [x] Expose API endpoint to download project asset files for editors.
         - [x] Generate hashed asset bundles and manifests for deployment via a CLI helper.
       - [x] Provide asset upload and deletion endpoints.
         - [x] Outline upload and deletion API contracts and validation rules.
         - [x] Implement asset storage/deletion logic, FastAPI endpoints, and regression tests.
-    - [ ] Add authentication and user management:
+    - [x] Add authentication and user management:
       - [x] User accounts and profiles
         - [x] Define filesystem-backed storage and services for user profiles.
         - [x] Expose `/api/users` endpoints for managing user profiles.
         - [x] Cover the user profile workflow with automated tests.
-      - [ ] Project sharing and permissions
+      - [x] Project sharing and permissions
         - [x] Validate collaborator assignments reference existing user profiles when a user registry is configured.
         - [x] Enrich collaborator listings with user profile display names when available.
         - [x] Enforce collaborator role restrictions when mutating project resources.
@@ -407,7 +407,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Cover the collaboration session workflow with automated tests.
         - [x] Document collaboration session usage for tooling integrators.
       - [x] Access control *(Scene and branch mutations now require authorised collaborators with regression coverage.)*
-    - [ ] Implement backup and recovery:
+    - [x] Implement backup and recovery:
       - [x] Automatic backups
         - [x] Add configurable automatic backup directory and retention settings.
         - [x] Persist pre-mutation automatic backups with regression tests.
@@ -416,18 +416,18 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Disaster recovery procedures *(Documented end-to-end recovery runbook covering preparation, rollback validation, and restore execution.)*
       - [x] Data export for migration *(Added project export API returning ZIP archives with scenes, metadata, and assets plus regression tests.)*
 
-  - [ ] **Phase 10: Documentation & Community**
-  - [ ] Create comprehensive user documentation:
+  - [x] **Phase 10: Documentation & Community**
+  - [x] Create comprehensive user documentation:
       - [x] Getting started guide *(Added `docs/getting_started.md` with step-by-step setup, quality gates, and troubleshooting tips, and linked it from the README.)*
       - [x] Feature reference *(Documented key capabilities in `docs/feature_reference.md` and linked the overview from the README.)*
       - [x] Advanced techniques *(Documented power-user workflows in `docs/advanced_techniques.md` and linked them from the README.)*
       - [x] Troubleshooting guide *(Expanded `docs/troubleshooting.md` with setup checks, tool diagnostics, and cross-references to related documentation.)*
-    - [ ] Build developer documentation:
+    - [x] Build developer documentation:
       - [x] API reference *(Documented key runtime modules in `docs/api_reference.md`.)*
       - [x] Extension guide *(Documented developer extension patterns in `docs/extension_guide.md` and linked it from the README.)*
       - [x] Contributing guidelines *(Added `docs/contributing.md` outlining the development workflow, quality gates, and review expectations.)*
       - [x] Architecture overview *(Documented the module layout and extension points in `docs/architecture_overview.md`.)*
-    - [ ] Establish community features:
+    - [x] Establish community features:
       - [x] Scene sharing marketplace
         - [x] Define marketplace entry data model and storage interface.
         - [x] Implement a filesystem-backed marketplace store supporting publish/list/listing pagination.
@@ -441,7 +441,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Define review storage model and aggregate metadata for marketplace entries.
         - [x] Expose API endpoints for creating and listing marketplace reviews.
         - [x] Add automated tests and documentation updates for the review workflow.
-      - [ ] Discussion forums
+      - [x] Discussion forums
         - [x] Define filesystem-backed forum storage and supporting services.
         - [x] Expose API endpoints for listing threads and creating posts.
         - [x] Document the forum workflows for contributors and users. *(Added
