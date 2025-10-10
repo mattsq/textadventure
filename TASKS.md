@@ -165,7 +165,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Document API specification with OpenAPI/Swagger. *(Documented the FastAPI OpenAPI/Swagger workflow and added tagged metadata so the auto-generated docs surface grouped endpoints.)*
 
   - [ ] **Phase 2: Core Frontend Architecture**
-    - [ ] Set up React application with TypeScript for type safety.
+    - [x] Set up React application with TypeScript for type safety. *(Added `web/scene-editor` package with React + TypeScript scaffolding and type-check script.)*
     - [ ] Configure build pipeline (Vite/Webpack) with development server.
     - [ ] Implement responsive CSS framework (Tailwind CSS or Material-UI).
     - [ ] Create base component library:
