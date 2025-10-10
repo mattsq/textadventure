@@ -8,6 +8,7 @@ import {
 } from "./components/layout";
 import { SelectField, TextAreaField, TextField } from "./components/forms";
 import { Badge, Card, DataTable, type DataTableColumn } from "./components/display";
+import { Breadcrumbs, Tabs, type BreadcrumbItem, type TabItem } from "./components/navigation";
 
 const onboardingSections: EditorSidebarSection[] = [
   {
@@ -38,6 +39,11 @@ const onboardingSections: EditorSidebarSection[] = [
 ];
 
 type ValidationState = "clean" | "warnings" | "errors";
+
+const PRIMARY_TAB_IDS = ["details", "choices", "testing"] as const;
+type PrimaryTabId = (typeof PRIMARY_TAB_IDS)[number];
+const INSPECTOR_TAB_IDS = ["overview", "validation", "activity"] as const;
+type InspectorTabId = (typeof INSPECTOR_TAB_IDS)[number];
 
 interface SceneTableRow {
   readonly id: string;
@@ -144,12 +150,196 @@ const sampleSceneRows: SceneTableRow[] = [
 ];
 
 export const App: React.FC = () => {
+  const primaryTabLogMessages: Record<PrimaryTabId, string> = {
+    details: "Primary navigation focused on scene metadata and narrative notes.",
+    choices: "Primary navigation focused on branching choice authoring workflows.",
+    testing: "Primary navigation focused on the upcoming playtesting harness.",
+  };
+
+  const inspectorTabLogMessages: Record<InspectorTabId, string> = {
+    overview: "Inspector ready to summarise the active scene at a glance.",
+    validation: "Inspector prepared to surface validation alerts that require attention.",
+    activity: "Inspector highlighting collaborator activity and version history.",
+  };
+
   const [sceneId, setSceneId] = React.useState("mysterious-grove");
   const [sceneType, setSceneType] = React.useState("branch");
-  const [sceneSummary, setSceneSummary] = React.useState("A moonlit clearing reveals a hidden ritual site.");
+  const [sceneSummary, setSceneSummary] = React.useState(
+    "A moonlit clearing reveals a hidden ritual site.",
+  );
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
+  const [navigationLog, setNavigationLog] = React.useState<string>(
+    primaryTabLogMessages.details,
+  );
+  const [activePrimaryTab, setActivePrimaryTab] = React.useState<PrimaryTabId>("details");
+  const [activeInspectorTab, setActiveInspectorTab] = React.useState<InspectorTabId>("overview");
 
-  const sceneIdError = sceneId.trim() ? undefined : "Scene ID is required to save a draft.";
+  const breadcrumbItems = React.useMemo<BreadcrumbItem[]>(
+    () => [
+      {
+        id: "workspace",
+        label: "Workspace",
+        onClick: () =>
+          setNavigationLog(
+            "Workspace navigation will list available adventures once routing is enabled.",
+          ),
+      },
+      {
+        id: "project",
+        label: "Demo Adventure",
+        onClick: () =>
+          setNavigationLog(
+            "Project dashboards will surface validation summaries and collaborator activity.",
+          ),
+      },
+      { id: "scene-editor", label: "Scene Editor", current: true },
+    ],
+    [setNavigationLog],
+  );
+
+  const sceneTabs = React.useMemo<TabItem[]>(
+    () => [
+      {
+        id: "details",
+        label: "Details",
+        description: "Scene metadata overview",
+      },
+      {
+        id: "choices",
+        label: "Choices",
+        description: "Branching options planner",
+      },
+      {
+        id: "testing",
+        label: "Playtesting",
+        description: "Live preview harness",
+        badge: (
+          <span className="rounded-full border border-amber-500/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+            Planned
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const inspectorTabs = React.useMemo<TabItem[]>(
+    () => [
+      { id: "overview", label: "Overview" },
+      {
+        id: "validation",
+        label: "Validation",
+        badge: (
+          <Badge size="sm" variant="warning">
+            Alerts
+          </Badge>
+        ),
+      },
+      { id: "activity", label: "Activity" },
+    ],
+    [],
+  );
+
+  const primaryTabContent = React.useMemo<Record<PrimaryTabId, React.ReactNode>>(
+    () => ({
+      details: (
+        <div className="space-y-2">
+          <p>
+            Scene metadata panels will combine structured fields with context about entry points, tags, and
+            author notes so collaborators can understand the purpose of each location at a glance.
+          </p>
+          <p className="text-slate-300">
+            Upcoming iterations will introduce inline validation summaries and change tracking so editors can
+            spot regressions without leaving the page.
+          </p>
+        </div>
+      ),
+      choices: (
+        <div className="space-y-2">
+          <p>
+            The choice workspace will provide drag-and-drop ordering, quick duplication tools, and consistency
+            hints that flag missing failure narration or duplicate commands.
+          </p>
+          <ul className="list-disc space-y-1 pl-6 text-xs text-slate-300 md:text-sm">
+            <li>Preview downstream transitions and their validation status.</li>
+            <li>Surface item requirements alongside rewards for balancing.</li>
+            <li>Integrate analytics callouts from the validation engine.</li>
+          </ul>
+        </div>
+      ),
+      testing: (
+        <div className="space-y-2">
+          <p>
+            Live playtesting inside the editor will stream scripted walkthroughs, allowing authors to iterate
+            without swapping back to the CLI runtime.
+          </p>
+          <p className="text-slate-300">
+            The harness will reuse the existing transcript recorder and expose quick-reset controls for
+            inventory, history, and branching paths.
+          </p>
+        </div>
+      ),
+    }),
+    [],
+  );
+
+  const inspectorTabContent = React.useMemo<
+    Record<InspectorTabId, React.ReactNode>
+  >(
+    () => ({
+      overview: (
+        <div className="space-y-1 text-xs text-slate-300 md:text-sm">
+          <p>
+            Compact summaries will highlight scene health, validation status, and collaboration notes.
+          </p>
+          <p>
+            Use this pane as a quick reference while editing without leaving the form you are working in.
+          </p>
+        </div>
+      ),
+      validation: (
+        <ul className="list-disc space-y-1 pl-5 text-xs text-amber-200 md:text-sm">
+          <li>Pending quality warnings generated by the validation service.</li>
+          <li>Reachability issues that require new transitions or endings.</li>
+          <li>Item flow mismatches detected by analytics helpers.</li>
+        </ul>
+      ),
+      activity: (
+        <div className="space-y-1 text-xs text-slate-300 md:text-sm">
+          <p>
+            Collaboration history will display recent edits, comments, and review requests.
+          </p>
+          <p>Tap into automatic backups or branch snapshots to jump back to a prior state.</p>
+        </div>
+      ),
+    }),
+    [],
+  );
+
+  const isPrimaryTabId = (value: string): value is PrimaryTabId =>
+    (PRIMARY_TAB_IDS as readonly string[]).includes(value);
+  const isInspectorTabId = (value: string): value is InspectorTabId =>
+    (INSPECTOR_TAB_IDS as readonly string[]).includes(value);
+
+  const handlePrimaryTabChange = (tabId: string) => {
+    if (!isPrimaryTabId(tabId)) {
+      return;
+    }
+    setActivePrimaryTab(tabId);
+    setNavigationLog(primaryTabLogMessages[tabId]);
+  };
+
+  const handleInspectorTabChange = (tabId: string) => {
+    if (!isInspectorTabId(tabId)) {
+      return;
+    }
+    setActiveInspectorTab(tabId);
+    setNavigationLog(inspectorTabLogMessages[tabId]);
+  };
+
+  const sceneIdError = sceneId.trim()
+    ? undefined
+    : "Scene ID is required to save a draft.";
 
   const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -171,11 +361,17 @@ export const App: React.FC = () => {
           badge="Priority 10 Roadmap"
           title="Scene Editor"
           subtitle={
-            <>
-              Welcome to the browser-based authoring environment for text adventures. The interface will
-              evolve into a full-featured editor as subsequent milestones add data views, live previews,
-              and collaborative tooling.
-            </>
+            <div className="flex flex-col gap-3">
+              <Breadcrumbs
+                items={breadcrumbItems}
+                ariaLabel="Scene editor navigation trail"
+              />
+              <span>
+                Welcome to the browser-based authoring environment for text adventures. The interface will
+                evolve into a full-featured editor as subsequent milestones add data views, live previews,
+                and collaborative tooling.
+              </span>
+            </div>
           }
           actions={<span className="text-xs text-slate-400">Prototype UI milestone</span>}
         />
@@ -255,6 +451,43 @@ export const App: React.FC = () => {
                 Update the design system docs with examples, variant guidance, and theming tokens as additional UI is added.
               </p>
             </Card>
+          </div>
+        </EditorPanel>
+
+        <EditorPanel
+          title="Navigation Components"
+          description="Breadcrumbs and tabs establish orientation and view-level navigation for the editor."
+        >
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Breadcrumbs
+                items={breadcrumbItems}
+                ariaLabel="Editor breadcrumb trail"
+                className="text-sm text-slate-300"
+              />
+              <span className="text-xs text-slate-400 md:text-sm">{navigationLog}</span>
+            </div>
+            <Tabs
+              items={sceneTabs}
+              activeTab={activePrimaryTab}
+              onTabChange={handlePrimaryTabChange}
+              ariaLabel="Primary scene editor views"
+            />
+            <div className="rounded-xl border border-slate-800/60 bg-slate-900/50 p-4 text-sm text-slate-200 md:text-base">
+              {primaryTabContent[activePrimaryTab]}
+            </div>
+            <Tabs
+              items={inspectorTabs}
+              activeTab={activeInspectorTab}
+              onTabChange={handleInspectorTabChange}
+              variant="pill"
+              size="sm"
+              fullWidth
+              ariaLabel="Inspector panels"
+            />
+            <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 text-xs text-slate-300 md:text-sm">
+              {inspectorTabContent[activeInspectorTab]}
+            </div>
           </div>
         </EditorPanel>
 
