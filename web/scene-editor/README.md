@@ -11,9 +11,16 @@ Priority 10 roadmap.
 ```bash
 cd web/scene-editor
 npm install
-npm run typecheck
+npm run dev      # start the Vite development server
 ```
 
-Running `npm run typecheck` ensures the TypeScript configuration is valid and
-all React components type-check correctly. Build tooling, development servers,
-and runtime integration will be added in follow-up tasks.
+Additional scripts:
+
+- `npm run build` – Generate an optimized production build under `dist/`.
+- `npm run preview` – Serve the production build locally for smoke testing.
+- `npm run typecheck` – Validate the TypeScript configuration and component
+  types without running the bundler.
+
+The project now uses the Vite + React toolchain, providing fast hot-module
+replacement during development and a production-ready bundling pipeline for
+future feature work.
