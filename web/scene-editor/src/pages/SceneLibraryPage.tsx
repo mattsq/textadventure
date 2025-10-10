@@ -1,7 +1,13 @@
 import React from "react";
 import { createSceneEditorApiClient } from "../api";
 import { EditorPanel } from "../components/layout";
-import { Badge, Card, DataTable, type DataTableColumn } from "../components/display";
+import {
+  Badge,
+  Card,
+  DataTable,
+  SceneMetadataCell,
+  type DataTableColumn,
+} from "../components/display";
 import { SelectField, TextAreaField, TextField } from "../components/forms";
 import { Breadcrumbs, Tabs, type BreadcrumbItem, type TabItem } from "../components/navigation";
 import {
@@ -54,24 +60,15 @@ const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
   {
     id: "scene",
     header: "Scene",
+    className: "align-top",
     render: (row) => (
-      <div className="flex flex-col">
-        <span className="font-semibold text-slate-50">{row.id}</span>
-        <span className="text-xs text-slate-400">{row.description}</span>
-      </div>
+      <SceneMetadataCell
+        id={row.id}
+        description={row.description}
+        choiceCount={row.choiceCount}
+        transitionCount={row.transitionCount}
+      />
     ),
-  },
-  {
-    id: "choices",
-    header: "Choices",
-    align: "center",
-    accessor: (row) => row.choiceCount,
-  },
-  {
-    id: "transitions",
-    header: "Transitions",
-    align: "center",
-    accessor: (row) => row.transitionCount,
   },
   {
     id: "terminal",
