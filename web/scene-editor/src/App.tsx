@@ -1,4 +1,5 @@
 import React from "react";
+import { createSceneEditorApiClient } from "./api";
 import {
   EditorHeader,
   EditorPanel,
@@ -25,6 +26,7 @@ import {
   type PrimaryTabId,
   type InspectorTabId,
   type SceneTableRow,
+  type ValidationState,
   useSceneEditorStore,
 } from "./state";
 
@@ -48,13 +50,34 @@ const onboardingSections: EditorSidebarSection[] = [
     title: "Upcoming Tasks",
     content: (
       <ul className="space-y-2 text-xs leading-relaxed text-slate-300">
-        <li>Wire shared state management for editor screens.</li>
-        <li>Implement the API client wrapper with optimistic updates.</li>
-        <li>Design navigation for scene list and detail pages.</li>
+        <li>Add routing to support dedicated list and detail screens.</li>
+        <li>Introduce live validation callouts within the inspector.</li>
+        <li>Prototype collaborative presence indicators for editors.</li>
       </ul>
     ),
   },
 ];
+
+const validationVariants: Record<ValidationState, React.ComponentProps<typeof Badge>["variant"]> = {
+  valid: "success",
+  warnings: "warning",
+  errors: "danger",
+};
+
+const validationLabels: Record<ValidationState, string> = {
+  valid: "Ready",
+  warnings: "Review",
+  errors: "Needs Fix",
+};
+
+const formatTimestamp = (value: string): string => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString();
+};
 
 const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
   {
@@ -62,32 +85,32 @@ const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
     header: "Scene",
     render: (row) => (
       <div className="flex flex-col">
-        <span className="font-semibold text-slate-50">{row.title}</span>
-        <span className="text-xs text-slate-400">{row.id}</span>
+        <span className="font-semibold text-slate-50">{row.id}</span>
+        <span className="text-xs text-slate-400">{row.description}</span>
       </div>
-    ),
-  },
-  {
-    id: "type",
-    header: "Type",
-    align: "center",
-    render: (row) => (
-      <Badge variant="info" size="sm">
-        {row.type}
-      </Badge>
     ),
   },
   {
     id: "choices",
     header: "Choices",
     align: "center",
-    accessor: (row) => row.choices,
+    accessor: (row) => row.choiceCount,
   },
   {
     id: "transitions",
     header: "Transitions",
     align: "center",
-    accessor: (row) => row.transitions,
+    accessor: (row) => row.transitionCount,
+  },
+  {
+    id: "terminal",
+    header: "Terminal",
+    align: "center",
+    render: (row) => (
+      <Badge variant={row.hasTerminalTransition ? "info" : "neutral"} size="sm">
+        {row.hasTerminalTransition ? "Yes" : "No"}
+      </Badge>
+    ),
   },
   {
     id: "validation",
@@ -95,20 +118,10 @@ const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
     align: "center",
     render: (row) => (
       <Badge
-        variant={
-          row.validation === "clean"
-            ? "success"
-            : row.validation === "warnings"
-            ? "warning"
-            : "danger"
-        }
+        variant={validationVariants[row.validationStatus]}
         size="sm"
       >
-        {row.validation === "clean"
-          ? "Ready"
-          : row.validation === "warnings"
-          ? "Review"
-          : "Needs Fix"}
+        {validationLabels[row.validationStatus]}
       </Badge>
     ),
   },
@@ -116,11 +129,27 @@ const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
     id: "lastUpdated",
     header: "Last Updated",
     align: "right",
-    accessor: (row) => row.lastUpdated,
+    render: (row) => (
+      <span className="font-mono text-xs text-slate-300">
+        {formatTimestamp(row.updatedAt)}
+      </span>
+    ),
   },
 ];
 
 export const App: React.FC = () => {
+  const apiClient = React.useMemo(
+    () =>
+      createSceneEditorApiClient({
+        baseUrl:
+          typeof import.meta.env.VITE_SCENE_API_BASE_URL === "string" &&
+          import.meta.env.VITE_SCENE_API_BASE_URL.trim() !== ""
+            ? import.meta.env.VITE_SCENE_API_BASE_URL
+            : undefined,
+      }),
+    [],
+  );
+
   const primaryTabLogMessages: Record<PrimaryTabId, string> = {
     details: "Primary navigation focused on scene metadata and narrative notes.",
     choices: "Primary navigation focused on branching choice authoring workflows.",
@@ -141,7 +170,8 @@ export const App: React.FC = () => {
     navigationLog,
     activePrimaryTab,
     activeInspectorTab,
-    sampleSceneRows,
+    sceneTableState,
+    loadSceneTable,
     setSceneId,
     setSceneType,
     setSceneSummary,
@@ -150,6 +180,20 @@ export const App: React.FC = () => {
     setActivePrimaryTab,
     setActiveInspectorTab,
   } = useSceneEditorStore();
+
+  React.useEffect(() => {
+    const abortController = new AbortController();
+    void loadSceneTable(apiClient, { signal: abortController.signal });
+
+    return () => {
+      abortController.abort();
+    };
+  }, [apiClient, loadSceneTable]);
+
+  const sceneTableRows = sceneTableState.data ?? [];
+  const sceneTableError = sceneTableState.error;
+  const isSceneTableLoading = sceneTableState.status === "loading";
+  const sceneTableLastSyncedAt = sceneTableState.lastUpdatedAt;
 
   const breadcrumbItems = React.useMemo<BreadcrumbItem[]>(
     () => [
@@ -315,6 +359,12 @@ export const App: React.FC = () => {
   const sceneIdError = sceneId.trim()
     ? undefined
     : "Scene ID is required to save a draft.";
+
+  const statusMessageClassName = statusMessage
+    ? sceneTableState.status === "error"
+      ? "text-xs font-medium text-rose-400"
+      : "text-xs font-medium text-emerald-400"
+    : "text-xs text-slate-400";
 
   const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -499,13 +549,7 @@ export const App: React.FC = () => {
               rows={5}
             />
             <div className="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-center md:justify-between">
-              <span
-                className={
-                  statusMessage
-                    ? "text-xs font-medium text-emerald-400"
-                    : "text-xs text-slate-400"
-                }
-              >
+              <span className={statusMessageClassName}>
                 {statusMessage ?? "Validation happens live as values change. Submit to simulate a draft save."}
               </span>
               <button
@@ -524,12 +568,30 @@ export const App: React.FC = () => {
           description="Scene summaries, validation states, and statistics can be presented with shared primitives."
         >
           <div className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-3">
+              {isSceneTableLoading ? (
+                <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 text-sm text-slate-300">
+                  Loading scenes from the API…
+                </div>
+              ) : null}
               <DataTable
                 columns={sceneTableColumns}
-                data={sampleSceneRows}
-                caption="Sample dataset highlighting validation coverage for recent scenes"
+                data={sceneTableRows}
+                emptyState={
+                  isSceneTableLoading
+                    ? "Loading scenes…"
+                    : "No scenes available yet. Create a scene to get started."
+                }
+                caption="Scene dataset loaded from the API with validation coverage"
               />
+              {sceneTableError ? (
+                <p className="text-sm text-rose-300">{sceneTableError}</p>
+              ) : null}
+              {sceneTableLastSyncedAt ? (
+                <p className="text-xs text-slate-500">
+                  Last synced {formatTimestamp(sceneTableLastSyncedAt)}
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-col gap-4">
               <Card
