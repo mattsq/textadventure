@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply min-h-screen bg-editor-surface font-sans text-slate-100 antialiased;
+}
+
+a {
+  @apply text-editor-accent hover:text-sky-300;
+}

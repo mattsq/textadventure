@@ -167,7 +167,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] **Phase 2: Core Frontend Architecture**
     - [x] Set up React application with TypeScript for type safety. *(Added `web/scene-editor` package with React + TypeScript scaffolding and type-check script.)*
     - [x] Configure build pipeline (Vite/Webpack) with development server. *(Added a Vite + React toolchain with dev/build/preview scripts and updated TypeScript configuration.)*
-    - [ ] Implement responsive CSS framework (Tailwind CSS or Material-UI).
+    - [x] Implement responsive CSS framework (Tailwind CSS or Material-UI). *(Integrated Tailwind CSS with custom theme tokens, global styles, and utility-driven placeholder layout.)*
     - [ ] Create base component library:
       - [ ] Layout components (headers, sidebars, panels)
       - [ ] Form components (inputs, selects, textareas)
