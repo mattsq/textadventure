@@ -1,0 +1,1396 @@
+====================================================================
+NPM CONNECTIVITY DIAGNOSTICS
+Started at: 2025-10-10T09:40:16Z UTC
+Log file: /workspace/textadventure/logs/npm_connectivity_diagnostics_20251010T094016Z.log
+====================================================================
+
+
+--------------------------------------------------------------------
+System information
+--------------------------------------------------------------------
+
+### Operating system details
+Command: uname -a
+Start: 2025-10-10T09:40:16Z UTC
+Linux 13e9341f4f39 6.12.13 #1 SMP Thu Mar 13 11:34:50 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+End: 2025-10-10T09:40:16Z UTC
+Exit status: 0
+
+### Distribution release info
+Command: lsb_release -a
+Start: 2025-10-10T09:40:16Z UTC
+Distributor ID:	Ubuntu
+Description:	Ubuntu 24.04.2 LTS
+Release:	24.04
+Codename:	noble
+End: 2025-10-10T09:40:16Z UTC
+Exit status: 0
+
+### Kernel version
+Command: cat /proc/version
+Start: 2025-10-10T09:40:16Z UTC
+Linux version 6.12.13 (@728f73da32c2) (gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0, GNU ld (GNU Binutils for Ubuntu) 2.38) #1 SMP Thu Mar 13 11:34:50 UTC 2025
+End: 2025-10-10T09:40:16Z UTC
+Exit status: 0
+
+### Current user
+Command: id
+Start: 2025-10-10T09:40:16Z UTC
+uid=0(root) gid=0(root) groups=0(root)
+End: 2025-10-10T09:40:16Z UTC
+Exit status: 0
+
+### Environment variables (npm & proxy relevant)
+Command: bash -lc env | sort | grep -E '^(NPM|NODE|HTTP_|HTTPS_|NO_)?(CONFIG_)?'
+Start: 2025-10-10T09:40:16Z UTC
+CODEX_ENV_BUN_VERSION=1.2.14
+CODEX_ENV_GO_VERSION=1.24.3
+CODEX_ENV_JAVA_VERSION=21
+CODEX_ENV_NODE_VERSION=20
+CODEX_ENV_PHP_VERSION=8.4
+CODEX_ENV_PYTHON_VERSION=3.12
+CODEX_ENV_RUBY_VERSION=3.4.4
+CODEX_ENV_RUST_VERSION=1.89.0
+CODEX_ENV_SWIFT_VERSION=6.1
+CODEX_PROXY_CERT=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+COLUMNS=128
+COMPOSER_HOME=/root/.local/share/mise/installs/php/8.4.12/.composer
+COREPACK_DEFAULT_TO_LATEST=0
+COREPACK_ENABLE_AUTO_PIN=0
+COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+COREPACK_ENABLE_STRICT=0
+DEBIAN_FRONTEND=noninteractive
+ELECTRON_GET_USE_PROXY=true
+GOBIN=/root/.local/share/mise/installs/go/1.24.3/bin
+GOROOT=/root/.local/share/mise/installs/go/1.24.3
+GRADLE_OPTS=-Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080
+HOME=/root
+HOSTNAME=13e9341f4f39
+HTTPS_PROXY=http://proxy:8080
+HTTP_PROXY=http://proxy:8080
+JAVA_HOME=/root/.local/share/mise/installs/java/21.0.2
+LANG=C.UTF-8
+LC_ALL=C.UTF-8
+LC_CTYPE=C.UTF-8
+LS_COLORS=rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.avif=01;35:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:*~=00;90:*#=00;90:*.bak=00;90:*.crdownload=00;90:*.dpkg-dist=00;90:*.dpkg-new=00;90:*.dpkg-old=00;90:*.dpkg-tmp=00;90:*.old=00;90:*.orig=00;90:*.part=00;90:*.rej=00;90:*.rpmnew=00;90:*.rpmorig=00;90:*.rpmsave=00;90:*.swp=00;90:*.tmp=00;90:*.ucf-dist=00;90:*.ucf-new=00;90:*.ucf-old=00;90:
+MISE_SHELL=bash
+NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+NO_PROXY=localhost,127.0.0.1,::1
+NVM_BIN=/root/.nvm/versions/node/v20.19.4/bin
+NVM_CD_FLAGS=
+NVM_DIR=/root/.nvm
+NVM_INC=/root/.nvm/versions/node/v20.19.4/include/node
+OLDPWD=/workspace
+PATH=/root/.pyenv/shims:/root/.pyenv/bin:/root/.local/share/mise/installs/bun/1.2.14/bin:/root/.local/share/mise/installs/erlang/27.1.2/bin:/root/.local/share/mise/installs/go/1.24.3/bin:/root/.local/share/mise/installs/golangci-lint/2.1.6/golangci-lint-2.1.6-linux-amd64:/root/.local/share/mise/installs/gradle/8.14.3/gradle-8.14.3/bin:/root/.local/share/mise/installs/java/21.0.2/bin:/root/.local/share/mise/installs/maven/3.9.10/apache-maven-3.9.10/bin:/root/.local/share/mise/installs/php/8.4.12/bin:/root/.local/share/mise/installs/php/8.4.12/sbin:/root/.local/share/mise/installs/php/8.4.12/.composer/vendor/bin:/root/.local/share/mise/installs/ruby/3.4.4/bin:/root/.local/share/mise/installs/swift/6.1/bin:/root/.local/share/mise/installs/elixir/1.18.3-otp-27/bin:/root/.local/share/mise/installs/elixir/1.18.3-otp-27/.mix/escripts:/root/.cargo/bin:/root/.nvm/versions/node/v20.19.4/bin:/root/.pyenv/bin:/usr/local/go/bin:/root/go/bin:/root/.local/bin:/root/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PIPX_BIN_DIR=/root/.local/bin
+PIP_CERT=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+PWD=/workspace/textadventure
+PYENV_ROOT=/root/.pyenv
+PYENV_SHELL=bash
+REQUESTS_CA_BUNDLE=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+ROWS=24
+SHLVL=3
+SSL_CERT_FILE=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+TERM=xterm
+UV_NO_PROGRESS=1
+YARN_HTTPS_PROXY=http://proxy:8080
+YARN_HTTP_PROXY=http://proxy:8080
+_=/usr/bin/env
+__MISE_DIFF=eAFqXpyfk9KwOC+1vGWts79vgH+wa1C8h7+v601T/aL8/BJ9vZz85MQc/eKMxKJU/dzM4lT9zLziksScnGL9gowCfQs9Ez1DI3295Pzcgvzi1KKl7v5Onn439QhqTs/XN9QzMtEz1k/KzFvm7h/k7x9yU4t4bSu9HMMcIS7VIagrK7EsUd/IUM9Az2hJQWJJxryb+gT1JJXmgVyoZ2gCcuFNI4IaUotyEvPS9Y3M9Qz1jMB6SAyFmyEE7UjPB9mRnKmbk5lXom+kZ6hnpo8ipgsWA0mXVugm5qaYmdx0IGxqUWJKTqq+hZ4hKD7SwTxdKC8pM++mAUETkAIY7HNXgjpyE8tS8/SN9Sz1DA30EwsSkzNSdcFiulAxkMWEYwkpDYI0EHYpkoZikA7CoQMYkg54MtcvS81LyS8C+5WwI4tKkyr1jfVM9CBJiXCyKC7PTCvRN9MzBFtgSTAwU3MyKzKL9A31DC30jHXzSwp0jczBWp3J06qXm1mhn1qcXJRZUFIMAAYveDs
+__MISE_ORIG_PATH=/root/.cargo/bin:/root/.nvm/versions/node/v20.19.4/bin:/root/.pyenv/shims:/root/.pyenv/bin:/root/.local/share/mise/installs/bun/1.2.14/bin:/root/.local/share/mise/installs/erlang/27.1.2/bin:/root/.local/share/mise/installs/go/1.24.3/bin:/root/.local/share/mise/installs/golangci-lint/2.1.6/golangci-lint-2.1.6-linux-amd64:/root/.local/share/mise/installs/gradle/8.14.3/gradle-8.14.3/bin:/root/.local/share/mise/installs/java/21.0.2/bin:/root/.local/share/mise/installs/maven/3.9.10/apache-maven-3.9.10/bin:/root/.local/share/mise/installs/php/8.4.12/bin:/root/.local/share/mise/installs/php/8.4.12/sbin:/root/.local/share/mise/installs/php/8.4.12/.composer/vendor/bin:/root/.local/share/mise/installs/ruby/3.4.4/bin:/root/.local/share/mise/installs/swift/6.1/bin:/root/.local/share/mise/installs/elixir/1.18.3-otp-27/bin:/root/.local/share/mise/installs/elixir/1.18.3-otp-27/.mix/escripts:/usr/local/go/bin:/root/go/bin:/root/.local/bin:/root/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+__MISE_SESSION=eAFqX5OTn5iSmhJfkp+fUzxhHZSXnJ+XlplePHGfflF+fom+HoSvn5tZnKoPYeuV5OfmrIGw4wsSSzKKJyxOzStrWevs7xvgH+waFO/h7+t60xRqQE5+cmKOfnFGYlEqxJTMvOKSxJycYv2CjAJ9Cz0TPUMjkDWA5RbkF6cWLXX3d/L0u6lHUHN6vr6hnpGJnrF+UmbeMnf/IH//kJtaxGtb6eUY5ghxqQ5BXVmJZYn6RoZ6BnpGi1Myi3bol+cXZRcXJCan6pekVpQkppSl5pWUFqWuSc0riy9LLIrPSCzO2JBkbGmYmmZqkGRumGxoamG2NiexJLW4JL60ICWxJPWIAAMcMM48Wyf2AAB425Oj
+http_proxy=http://proxy:8080
+https_proxy=http://proxy:8080
+no_proxy=localhost,127.0.0.1,::1
+npm_config_http_proxy=http://proxy:8080
+npm_config_https_proxy=http://proxy:8080
+End: 2025-10-10T09:40:18Z UTC
+Exit status: 0
+
+### Working directory
+Command: pwd
+Start: 2025-10-10T09:40:18Z UTC
+/workspace/textadventure
+End: 2025-10-10T09:40:18Z UTC
+Exit status: 0
+
+### Filesystem disk usage
+Command: df -h
+Start: 2025-10-10T09:40:18Z UTC
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda         63G   19G   41G  32% /
+tmpfs            64M     0   64M   0% /dev
+shm             989M     0  989M   0% /dev/shm
+kataShared      1.0M   12K 1012K   2% /etc/hosts
+End: 2025-10-10T09:40:18Z UTC
+Exit status: 0
+
+--------------------------------------------------------------------
+Node.js and npm versions
+--------------------------------------------------------------------
+
+### Node.js version
+Command: node --version
+Start: 2025-10-10T09:40:18Z UTC
+v20.19.4
+End: 2025-10-10T09:40:18Z UTC
+Exit status: 0
+
+### npm version
+Command: npm --version
+Start: 2025-10-10T09:40:18Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+11.4.2
+End: 2025-10-10T09:40:18Z UTC
+Exit status: 0
+
+### npx version
+Command: npx --version
+Start: 2025-10-10T09:40:18Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+11.4.2
+End: 2025-10-10T09:40:18Z UTC
+Exit status: 0
+
+--------------------------------------------------------------------
+npm configuration
+--------------------------------------------------------------------
+
+### npm config get registry
+Command: npm config get registry
+Start: 2025-10-10T09:40:18Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+https://registry.npmjs.org/
+End: 2025-10-10T09:40:19Z UTC
+Exit status: 0
+
+### npm config list
+Command: npm config list -l
+Start: 2025-10-10T09:40:19Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+; "default" config from default values
+
+_auth = (protected)
+access = null
+all = false
+allow-same-version = false
+also = null
+audit = true
+audit-level = null
+auth-type = "web"
+before = null
+bin-links = true
+browser = null
+ca = null
+cache = "/root/.npm"
+cache-max = null
+cache-min = 0
+cafile = null
+call = ""
+cert = null
+cidr = null
+color = true
+commit-hooks = true
+cpu = null
+depth = null
+description = true
+dev = false
+diff = []
+diff-dst-prefix = "b/"
+diff-ignore-all-space = false
+diff-name-only = false
+diff-no-prefix = false
+diff-src-prefix = "a/"
+diff-text = false
+diff-unified = 3
+dry-run = false
+editor = "vi"
+engine-strict = false
+expect-result-count = null
+expect-results = null
+fetch-retries = 2
+fetch-retry-factor = 10
+fetch-retry-maxtimeout = 60000
+fetch-retry-mintimeout = 10000
+fetch-timeout = 300000
+force = false
+foreground-scripts = false
+format-package-lock = true
+fund = true
+git = "git"
+git-tag-version = true
+global = false
+global-style = false
+globalconfig = "/root/.nvm/versions/node/v20.19.4/etc/npmrc"
+heading = "npm"
+; https-proxy = null ; overridden by env
+if-present = false
+ignore-scripts = false
+include = []
+include-staged = false
+include-workspace-root = false
+init-author-email = ""
+init-author-name = ""
+init-author-url = ""
+init-license = "ISC"
+init-module = "/root/.npm-init.js"
+init-private = false
+init-type = "commonjs"
+init-version = "1.0.0"
+init.author.email = ""
+init.author.name = ""
+init.author.url = ""
+init.license = "ISC"
+init.module = "/root/.npm-init.js"
+init.version = "1.0.0"
+install-links = false
+install-strategy = "hoisted"
+json = false
+key = null
+legacy-bundling = false
+legacy-peer-deps = false
+libc = null
+link = false
+local-address = null
+location = "user"
+lockfile-version = null
+loglevel = "notice"
+logs-dir = null
+logs-max = 10
+; long = false ; overridden by cli
+maxsockets = 15
+message = "%s"
+node-gyp = "/root/.nvm/versions/node/v20.19.4/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js"
+node-options = null
+noproxy = [""]
+npm-version = "11.4.2"
+offline = false
+omit = []
+omit-lockfile-registry-resolved = false
+only = null
+optional = null
+os = null
+otp = null
+pack-destination = "."
+package = []
+package-lock = true
+package-lock-only = false
+parseable = false
+prefer-dedupe = false
+prefer-offline = false
+prefer-online = false
+prefix = "/root/.nvm/versions/node/v20.19.4"
+preid = ""
+production = null
+progress = true
+provenance = false
+provenance-file = null
+proxy = null
+read-only = false
+rebuild-bundle = true
+registry = "https://registry.npmjs.org/"
+replace-registry-host = "npmjs"
+save = true
+save-bundle = false
+save-dev = false
+save-exact = false
+save-optional = false
+save-peer = false
+save-prefix = "^"
+save-prod = false
+sbom-format = null
+sbom-type = "library"
+scope = ""
+script-shell = null
+searchexclude = ""
+searchlimit = 20
+searchopts = ""
+searchstaleness = 900
+shell = "sh"
+shrinkwrap = true
+sign-git-commit = false
+sign-git-tag = false
+strict-peer-deps = false
+strict-ssl = true
+tag = "latest"
+tag-version-prefix = "v"
+timing = false
+umask = 0
+unicode = true
+update-notifier = true
+usage = false
+user-agent = "npm/{npm-version} node/{node-version} {platform} {arch} workspaces/{workspaces} {ci}"
+userconfig = "/root/.npmrc"
+version = false
+versions = false
+viewer = "man"
+which = null
+workspace = []
+workspaces = null
+workspaces-update = true
+yes = null
+
+; "env" config from environment
+
+http-proxy = "http://proxy:8080"
+https-proxy = "http://proxy:8080"
+
+; "cli" config from command line options
+
+long = true
+End: 2025-10-10T09:40:20Z UTC
+Exit status: 0
+
+### npm proxy
+Command: npm config get proxy
+Start: 2025-10-10T09:40:20Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+null
+End: 2025-10-10T09:40:20Z UTC
+Exit status: 0
+
+### npm https-proxy
+Command: npm config get https-proxy
+Start: 2025-10-10T09:40:20Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+http://proxy:8080
+End: 2025-10-10T09:40:20Z UTC
+Exit status: 0
+
+### npm cafile
+Command: npm config get cafile
+Start: 2025-10-10T09:40:20Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+null
+End: 2025-10-10T09:40:20Z UTC
+Exit status: 0
+
+### npm prefix
+Command: npm config get prefix
+Start: 2025-10-10T09:40:20Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+/root/.nvm/versions/node/v20.19.4
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 0
+
+### Global npmrc
+Command: cat /etc/npmrc
+Start: 2025-10-10T09:40:21Z UTC
+cat: /etc/npmrc: No such file or directory
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 1
+
+### User npmrc
+Command: cat /root/.npmrc
+Start: 2025-10-10T09:40:21Z UTC
+cat: /root/.npmrc: No such file or directory
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 1
+
+### Project npmrc
+Command: cat /workspace/textadventure/.npmrc
+Start: 2025-10-10T09:40:21Z UTC
+cat: /workspace/textadventure/.npmrc: No such file or directory
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 1
+
+--------------------------------------------------------------------
+Network configuration
+--------------------------------------------------------------------
+
+### IP configuration
+Command: ip addr
+Status: SKIPPED (command not found)
+
+### Routing table
+Command: ip route
+Status: SKIPPED (command not found)
+
+### DNS configuration
+Command: cat /etc/resolv.conf
+Start: 2025-10-10T09:40:21Z UTC
+nameserver 172.30.1.115
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 0
+
+### Hosts file
+Command: cat /etc/hosts
+Start: 2025-10-10T09:40:21Z UTC
+127.0.0.1 localhost
+::1 localhost ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+
+172.30.1.114 13e9341f4f39
+172.30.1.114	13e9341f4f39
+172.30.1.114	main
+172.30.1.115	3b1a814b2c0b
+172.30.1.115	proxy
+172.30.1.116	c0baca7a3ec4
+172.30.1.116	browser
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 0
+
+### Network interfaces
+Command: ls -l /sys/class/net
+Start: 2025-10-10T09:40:21Z UTC
+total 0
+lrwxrwxrwx 1 root root 0 Oct 10 09:40 eth0 -> ../../devices/pci0000:00/0000:00:04.0/virtio4/net/eth0
+lrwxrwxrwx 1 root root 0 Oct 10 09:40 lo -> ../../devices/virtual/net/lo
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 0
+
+### Firewall status (ufw)
+Command: ufw status
+Status: SKIPPED (command not found)
+
+### Firewall status (iptables)
+Command: iptables -L -n -v
+Status: SKIPPED (command not found)
+
+--------------------------------------------------------------------
+Connectivity tests
+--------------------------------------------------------------------
+
+### Ping 1.1.1.1
+Command: ping -c 4 -W 2 1.1.1.1
+Start: 2025-10-10T09:40:21Z UTC
+ping: connect: Network is unreachable
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 2
+
+### Ping 8.8.8.8
+Command: ping -c 4 -W 2 8.8.8.8
+Start: 2025-10-10T09:40:21Z UTC
+ping: connect: Network is unreachable
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 2
+
+### Ping registry.npmjs.org
+Command: ping -c 4 -W 2 registry.npmjs.org
+Start: 2025-10-10T09:40:21Z UTC
+ping: connect: Network is unreachable
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 2
+
+### Traceroute registry.npmjs.org
+Command: traceroute -n registry.npmjs.org
+Status: SKIPPED (command not found)
+
+### DNS lookup (dig) registry.npmjs.org
+Command: dig registry.npmjs.org
+Start: 2025-10-10T09:40:21Z UTC
+
+; <<>> DiG 9.18.30-0ubuntu0.24.04.2-Ubuntu <<>> registry.npmjs.org
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 64306
+;; flags: qr rd ra; QUERY: 1, ANSWER: 8, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;registry.npmjs.org.		IN	A
+
+;; ANSWER SECTION:
+registry.npmjs.org.	300	IN	A	104.16.2.35
+registry.npmjs.org.	300	IN	A	104.16.27.34
+registry.npmjs.org.	300	IN	A	104.16.1.35
+registry.npmjs.org.	300	IN	A	104.16.26.34
+registry.npmjs.org.	300	IN	A	104.16.30.34
+registry.npmjs.org.	300	IN	A	104.16.31.34
+registry.npmjs.org.	300	IN	A	104.16.29.34
+registry.npmjs.org.	300	IN	A	104.16.24.34
+
+;; Query time: 3 msec
+;; SERVER: 172.30.1.115#53(172.30.1.115) (UDP)
+;; WHEN: Fri Oct 10 09:40:21 UTC 2025
+;; MSG SIZE  rcvd: 308
+
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 0
+
+### DNS lookup (nslookup) registry.npmjs.org
+Command: nslookup registry.npmjs.org
+Start: 2025-10-10T09:40:21Z UTC
+Server:		172.30.1.115
+Address:	172.30.1.115#53
+
+Non-authoritative answer:
+Name:	registry.npmjs.org
+Address: 104.16.2.35
+Name:	registry.npmjs.org
+Address: 104.16.1.35
+Name:	registry.npmjs.org
+Address: 104.16.0.35
+Name:	registry.npmjs.org
+Address: 104.16.24.34
+Name:	registry.npmjs.org
+Address: 104.16.26.34
+Name:	registry.npmjs.org
+Address: 104.16.28.34
+Name:	registry.npmjs.org
+Address: 104.16.3.35
+Name:	registry.npmjs.org
+Address: 104.16.31.34
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:1f22
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:123
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:1e22
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:1c22
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:1b22
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:23
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:1922
+Name:	registry.npmjs.org
+Address: 2606:4700::6810:323
+
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 0
+
+### Resolve via getent
+Command: getent hosts registry.npmjs.org
+Start: 2025-10-10T09:40:21Z UTC
+2606:4700::6810:123 registry.npmjs.org
+2606:4700::6810:23 registry.npmjs.org
+2606:4700::6810:1a22 registry.npmjs.org
+2606:4700::6810:1f22 registry.npmjs.org
+2606:4700::6810:223 registry.npmjs.org
+2606:4700::6810:1d22 registry.npmjs.org
+2606:4700::6810:1822 registry.npmjs.org
+2606:4700::6810:1922 registry.npmjs.org
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 0
+
+### TCP connectivity (nc) to registry 443
+Command: nc -vz registry.npmjs.org 443
+Start: 2025-10-10T09:40:21Z UTC
+nc: connect to registry.npmjs.org (2606:4700::6810:1b22) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1c22) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1f22) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:123) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1822) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:223) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1e22) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1922) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.29.34) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.27.34) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.30.34) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.28.34) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.1.35) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.24.34) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.3.35) port 443 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.31.34) port 443 (tcp) failed: Network is unreachable
+End: 2025-10-10T09:40:21Z UTC
+Exit status: 1
+
+### TCP connectivity (nc) to registry 80
+Command: nc -vz registry.npmjs.org 80
+Start: 2025-10-10T09:40:22Z UTC
+nc: connect to registry.npmjs.org (2606:4700::6810:23) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1f22) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1c22) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1d22) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:123) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1a22) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:223) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (2606:4700::6810:1e22) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.27.34) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.3.35) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.1.35) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.31.34) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.29.34) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.2.35) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.25.34) port 80 (tcp) failed: Network is unreachable
+nc: connect to registry.npmjs.org (104.16.30.34) port 80 (tcp) failed: Network is unreachable
+End: 2025-10-10T09:40:22Z UTC
+Exit status: 1
+
+### Curl HEAD registry
+Command: curl -I --max-time 30 https://registry.npmjs.org/
+Start: 2025-10-10T09:40:22Z UTC
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (56) CONNECT tunnel failed, response 403
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Fri, 10 Oct 2025 09:40:21 GMT
+server: envoy
+connection: close
+
+End: 2025-10-10T09:40:22Z UTC
+Exit status: 56
+
+### Curl verbose registry
+Command: curl -v --max-time 30 https://registry.npmjs.org/ -o /dev/null
+Start: 2025-10-10T09:40:22Z UTC
+* Uses proxy env variable no_proxy == 'localhost,127.0.0.1,::1'
+* Uses proxy env variable https_proxy == 'http://proxy:8080'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Host proxy:8080 was resolved.
+* IPv6: (none)
+* IPv4: 172.30.1.115
+*   Trying 172.30.1.115:8080...
+* Connected to proxy (172.30.1.115) port 8080
+* CONNECT tunnel: HTTP/1.1 negotiated
+* allocate connect buffer
+* Establish HTTP proxy tunnel to registry.npmjs.org:443
+> CONNECT registry.npmjs.org:443 HTTP/1.1
+> Host: registry.npmjs.org:443
+> User-Agent: curl/8.5.0
+> Proxy-Connection: Keep-Alive
+> 
+< HTTP/1.1 403 Forbidden
+< content-length: 9
+< content-type: text/plain
+< date: Fri, 10 Oct 2025 09:40:21 GMT
+< server: envoy
+< connection: close
+< 
+* CONNECT tunnel failed, response 403
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+* Closing connection
+curl: (56) CONNECT tunnel failed, response 403
+End: 2025-10-10T09:40:22Z UTC
+Exit status: 56
+
+### Curl to npmjs.com
+Command: curl -I --max-time 30 https://www.npmjs.com/
+Start: 2025-10-10T09:40:22Z UTC
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (56) CONNECT tunnel failed, response 403
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Fri, 10 Oct 2025 09:40:21 GMT
+server: envoy
+connection: close
+
+End: 2025-10-10T09:40:22Z UTC
+Exit status: 56
+
+### OpenSSL TLS check
+Command: openssl s_client -connect registry.npmjs.org:443 -servername registry.npmjs.org
+Start: 2025-10-10T09:40:22Z UTC
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4047A3ABC57F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4047A3ABC57F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4047A3ABC57F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4047A3ABC57F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4047A3ABC57F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4047A3ABC57F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4047A3ABC57F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4047A3ABC57F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+connect:errno=101
+End: 2025-10-10T09:40:22Z UTC
+Exit status: 1
+
+--------------------------------------------------------------------
+npm registry interactions
+--------------------------------------------------------------------
+
+### npm ping
+Command: npm ping --registry https://registry.npmjs.org/
+Start: 2025-10-10T09:40:22Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+npm notice PING https://registry.npmjs.org/
+npm error code E403
+npm error 403 403 Forbidden - GET https://registry.npmjs.org/-/ping
+npm error 403 In most cases, you or one of your dependencies are requesting
+npm error 403 a package version that is forbidden by your security policy, or
+npm error 403 on a server you do not have access to.
+npm error A complete log of this run can be found in: /root/.npm/_logs/2025-10-10T09_40_22_448Z-debug-0.log
+End: 2025-10-10T09:40:22Z UTC
+Exit status: 1
+
+### npm view example package
+Command: npm view npm version --registry https://registry.npmjs.org/
+Start: 2025-10-10T09:40:22Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+npm error code E403
+npm error 403 403 Forbidden - GET https://registry.npmjs.org/npm
+npm error 403 In most cases, you or one of your dependencies are requesting
+npm error 403 a package version that is forbidden by your security policy, or
+npm error 403 on a server you do not have access to.
+npm error A complete log of this run can be found in: /root/.npm/_logs/2025-10-10T09_40_22_960Z-debug-0.log
+End: 2025-10-10T09:40:23Z UTC
+Exit status: 1
+
+### npm install dry-run example
+Command: npm install --ignore-scripts --prefer-offline --dry-run npm
+Start: 2025-10-10T09:40:23Z UTC
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+npm error code E403
+npm error 403 403 Forbidden - GET https://registry.npmjs.org/npm
+npm error 403 In most cases, you or one of your dependencies are requesting
+npm error 403 a package version that is forbidden by your security policy, or
+npm error 403 on a server you do not have access to.
+npm error A complete log of this run can be found in: /root/.npm/_logs/2025-10-10T09_40_23_619Z-debug-0.log
+End: 2025-10-10T09:40:24Z UTC
+Exit status: 1
+
+--------------------------------------------------------------------
+System certificate stores
+--------------------------------------------------------------------
+
+### List CA certificates
+Command: ls -l /etc/ssl/certs
+Start: 2025-10-10T09:40:24Z UTC
+total 628
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 002c0b4f.0 -> GlobalSign_Root_R46.pem
+lrwxrwxrwx 1 root root     24 Aug 28 20:02 0179095f.0 -> BJCA_Global_Root_CA1.pem
+lrwxrwxrwx 1 root root     45 Aug 28 20:02 02265526.0 -> Entrust_Root_Certification_Authority_-_G2.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 062cdee6.0 -> GlobalSign_Root_CA_-_R3.pem
+lrwxrwxrwx 1 root root     25 Aug 28 20:02 064e0aa9.0 -> QuoVadis_Root_CA_2_G3.pem
+lrwxrwxrwx 1 root root     50 Aug 28 20:02 06dc52d5.0 -> SSL.com_EV_Root_Certification_Authority_RSA_R2.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 08063a00.0 -> Security_Communication_RootCA3.pem
+lrwxrwxrwx 1 root root     54 Aug 28 20:02 09789157.0 -> Starfield_Services_Root_Certificate_Authority_-_G2.pem
+lrwxrwxrwx 1 root root     15 Aug 28 20:02 0a775a30.0 -> GTS_Root_R3.pem
+lrwxrwxrwx 1 root root     16 Aug 28 20:02 0b1b94ef.0 -> CFCA_EV_ROOT.pem
+lrwxrwxrwx 1 root root     16 Aug 28 20:02 0b9bc432.0 -> ISRG_Root_X2.pem
+lrwxrwxrwx 1 root root     44 Aug 28 20:02 0bf05006.0 -> SSL.com_Root_Certification_Authority_ECC.pem
+lrwxrwxrwx 1 root root     32 Aug 28 20:02 0f5dc4f3.0 -> UCA_Extended_Validation_Root.pem
+lrwxrwxrwx 1 root root     26 Aug 28 20:02 0f6fa695.0 -> GDCA_TrustAUTH_R5_ROOT.pem
+lrwxrwxrwx 1 root root     15 Aug 28 20:02 1001acf7.0 -> GTS_Root_R1.pem
+lrwxrwxrwx 1 root root     46 Aug 28 20:02 106f3e4d.0 -> Entrust_Root_Certification_Authority_-_EC1.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 14bc7599.0 -> emSign_ECC_Root_CA_-_G3.pem
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 18856ac4.0 -> SecureSign_RootCA11.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 1cef98f5.0 -> TrustAsia_Global_Root_CA_G4.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 1d3472b9.0 -> GlobalSign_ECC_Root_CA_-_R5.pem
+lrwxrwxrwx 1 root root     37 Aug 28 20:02 1e08bfd1.0 -> IdenTrust_Public_Sector_Root_CA_1.pem
+lrwxrwxrwx 1 root root     32 Aug 28 20:02 1e09d511.0 -> T-TeleSec_GlobalRoot_Class_2.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 228f89db.0 -> CommScope_Public_Trust_ECC_Root-01.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 244b5494.0 -> DigiCert_High_Assurance_EV_Root_CA.pem
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 2923b3f9.0 -> emSign_Root_CA_-_G1.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 2ae6433e.0 -> CA_Disig_Root_R2.pem
+lrwxrwxrwx 1 root root     26 Aug 28 20:02 2b349938.0 -> AffirmTrust_Commercial.pem
+lrwxrwxrwx 1 root root     59 Aug 28 20:02 32888f65.0 -> Hellenic_Academic_and_Research_Institutions_RootCA_2015.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 3513523f.0 -> DigiCert_Global_Root_CA.pem
+lrwxrwxrwx 1 root root     61 Aug 28 20:02 3bde41ac.0 -> Autoridad_de_Certificacion_Firmaprofesional_CIF_A62634068.pem
+lrwxrwxrwx 1 root root     24 Aug 28 20:02 3e359ba6.0 -> BJCA_Global_Root_CA2.pem
+lrwxrwxrwx 1 root root     45 Aug 28 20:02 3fb36b73.0 -> NAVER_Global_Root_Certification_Authority.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 40193066.0 -> Certum_Trusted_Network_CA_2.pem
+lrwxrwxrwx 1 root root     16 Aug 28 20:02 4042bcee.0 -> ISRG_Root_X1.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 40547a79.0 -> COMODO_Certification_Authority.pem
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 406c9bb1.0 -> emSign_Root_CA_-_C1.pem
+lrwxrwxrwx 1 root root     29 Aug 28 20:02 48bec511.0 -> Certum_Trusted_Network_CA.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 4b718d9b.0 -> emSign_ECC_Root_CA_-_C3.pem
+lrwxrwxrwx 1 root root     45 Aug 28 20:02 4bfab552.0 -> Starfield_Root_Certificate_Authority_-_G2.pem
+lrwxrwxrwx 1 root root     26 Aug 28 20:02 4f316efb.0 -> SwissSign_Gold_CA_-_G2.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 4fd49c6c.0 -> CommScope_Public_Trust_RSA_Root-02.pem
+lrwxrwxrwx 1 root root     32 Aug 28 20:02 5443e9e3.0 -> T-TeleSec_GlobalRoot_Class_3.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 54657681.0 -> Buypass_Class_2_Root_CA.pem
+lrwxrwxrwx 1 root root     28 Aug 28 20:02 57bcb2da.0 -> SwissSign_Silver_CA_-_G2.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 5860aaa6.0 -> Security_Communication_ECC_RootCA1.pem
+lrwxrwxrwx 1 root root     29 Aug 28 20:02 5931b5bc.0 -> D-TRUST_EV_Root_CA_1_2020.pem
+lrwxrwxrwx 1 root root     22 Aug 28 20:02 5ad8a5d6.0 -> GlobalSign_Root_CA.pem
+lrwxrwxrwx 1 root root     26 Aug 28 20:02 5cd81ad7.0 -> TeliaSonera_Root_CA_v1.pem
+lrwxrwxrwx 1 root root     45 Aug 28 20:02 5e98733a.0 -> Entrust_Root_Certification_Authority_-_G4.pem
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 5f15c80c.0 -> TWCA_Global_Root_CA.pem
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 5f618aec.0 -> certSIGN_Root_CA_G2.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 607986c7.0 -> DigiCert_Global_Root_G2.pem
+lrwxrwxrwx 1 root root     15 Aug 28 20:02 626dceaf.0 -> GTS_Root_R2.pem
+lrwxrwxrwx 1 root root     29 Aug 28 20:02 653b494a.0 -> Baltimore_CyberTrust_Root.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 68dd7389.0 -> Hongkong_Post_Root_CA_3.pem
+lrwxrwxrwx 1 root root     40 Aug 28 20:02 6b99d060.0 -> Entrust_Root_Certification_Authority.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 6d41d539.0 -> Amazon_Root_CA_2.pem
+lrwxrwxrwx 1 root root     44 Aug 28 20:02 6fa5da56.0 -> SSL.com_Root_Certification_Authority_RSA.pem
+lrwxrwxrwx 1 root root     24 Aug 28 20:02 706f604c.0 -> XRamp_Global_CA_Root.pem
+lrwxrwxrwx 1 root root     25 Aug 28 20:02 749e9e03.0 -> QuoVadis_Root_CA_1_G3.pem
+lrwxrwxrwx 1 root root     28 Aug 28 20:02 75d1b2ed.0 -> DigiCert_Trusted_Root_G4.pem
+lrwxrwxrwx 1 root root     22 Aug 28 20:02 76faf6c0.0 -> QuoVadis_Root_CA_3.pem
+lrwxrwxrwx 1 root root     63 Aug 28 20:02 7719f463.0 -> Hellenic_Academic_and_Research_Institutions_ECC_RootCA_2015.pem
+lrwxrwxrwx 1 root root     35 Aug 28 20:02 773e07ad.0 -> OISTE_WISeKey_Global_Root_GC_CA.pem
+lrwxrwxrwx 1 root root     17 Aug 28 20:02 7a3adc42.0 -> vTrus_Root_CA.pem
+lrwxrwxrwx 1 root root     21 Aug 28 20:02 7a780d93.0 -> Certainly_Root_R1.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 7f3d5d1d.0 -> DigiCert_Assured_ID_Root_G3.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 8160b96c.0 -> Microsec_e-Szigno_Root_CA_2009.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 81f2d2b1.0 -> CommScope_Public_Trust_ECC_Root-02.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 8312c4c1.0 -> CommScope_Public_Trust_RSA_Root-01.pem
+lrwxrwxrwx 1 root root     21 Aug 28 20:02 8508e720.0 -> Certainly_Root_E1.pem
+lrwxrwxrwx 1 root root     32 Aug 28 20:02 865fbdf9.0 -> SSL.com_TLS_ECC_Root_CA_2022.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 8cb5ee0f.0 -> Amazon_Root_CA_3.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 8d86cdd1.0 -> certSIGN_ROOT_CA.pem
+lrwxrwxrwx 1 root root     49 Aug 28 20:02 8d89cda1.0 -> Microsoft_ECC_Root_Certificate_Authority_2017.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 8f103249.0 -> Telia_Root_CA_v2.pem
+lrwxrwxrwx 1 root root     49 Aug 28 20:02 9046744a.0 -> Sectigo_Public_Server_Authentication_Root_R46.pem
+lrwxrwxrwx 1 root root     22 Aug 28 20:02 90c5a3c8.0 -> HiPKI_Root_CA_-_G1.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 930ac5d2.0 -> Actalis_Authentication_Root_CA.pem
+lrwxrwxrwx 1 root root     26 Aug 28 20:02 93bc0acc.0 -> AffirmTrust_Networking.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 9482e63a.0 -> Certum_EC-384_CA.pem
+lrwxrwxrwx 1 root root     33 Aug 28 20:02 9846683b.0 -> DigiCert_TLS_ECC_P384_Root_G5.pem
+lrwxrwxrwx 1 root root     48 Aug 28 20:02 988a38cb.0 -> NetLock_Arany_=Class_Gold=_Főtanúsítvány.pem
+lrwxrwxrwx 1 root root     41 Aug 28 20:02 9b46e03d.0 -> Atos_TrustedRoot_Root_CA_RSA_TLS_2021.pem
+lrwxrwxrwx 1 root root     53 Aug 28 20:02 9b5697b0.0 -> Trustwave_Global_ECC_P256_Certification_Authority.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 9bf03295.0 -> TrustAsia_Global_Root_CA_G3.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 9c8dfbd4.0 -> AffirmTrust_Premium_ECC.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 9d04f354.0 -> DigiCert_Assured_ID_Root_G2.pem
+lrwxrwxrwx 1 root root     29 Aug 28 20:02 9ef4a08a.0 -> D-TRUST_BR_Root_CA_1_2020.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 9f727ac7.0 -> HARICA_TLS_RSA_Root_CA_2021.pem
+lrwxrwxrwx 1 root root     48 Aug 28 20:02 ACCVRAIZ1.pem -> /usr/share/ca-certificates/mozilla/ACCVRAIZ1.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 AC_RAIZ_FNMT-RCM.pem -> /usr/share/ca-certificates/mozilla/AC_RAIZ_FNMT-RCM.crt
+lrwxrwxrwx 1 root root     74 Aug 28 20:02 AC_RAIZ_FNMT-RCM_SERVIDORES_SEGUROS.pem -> /usr/share/ca-certificates/mozilla/AC_RAIZ_FNMT-RCM_SERVIDORES_SEGUROS.crt
+lrwxrwxrwx 1 root root     64 Aug 28 20:02 ANF_Secure_Server_Root_CA.pem -> /usr/share/ca-certificates/mozilla/ANF_Secure_Server_Root_CA.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 Actalis_Authentication_Root_CA.pem -> /usr/share/ca-certificates/mozilla/Actalis_Authentication_Root_CA.crt
+lrwxrwxrwx 1 root root     61 Aug 28 20:02 AffirmTrust_Commercial.pem -> /usr/share/ca-certificates/mozilla/AffirmTrust_Commercial.crt
+lrwxrwxrwx 1 root root     61 Aug 28 20:02 AffirmTrust_Networking.pem -> /usr/share/ca-certificates/mozilla/AffirmTrust_Networking.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 AffirmTrust_Premium.pem -> /usr/share/ca-certificates/mozilla/AffirmTrust_Premium.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 AffirmTrust_Premium_ECC.pem -> /usr/share/ca-certificates/mozilla/AffirmTrust_Premium_ECC.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Amazon_Root_CA_1.pem -> /usr/share/ca-certificates/mozilla/Amazon_Root_CA_1.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Amazon_Root_CA_2.pem -> /usr/share/ca-certificates/mozilla/Amazon_Root_CA_2.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Amazon_Root_CA_3.pem -> /usr/share/ca-certificates/mozilla/Amazon_Root_CA_3.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Amazon_Root_CA_4.pem -> /usr/share/ca-certificates/mozilla/Amazon_Root_CA_4.crt
+lrwxrwxrwx 1 root root     60 Aug 28 20:02 Atos_TrustedRoot_2011.pem -> /usr/share/ca-certificates/mozilla/Atos_TrustedRoot_2011.crt
+lrwxrwxrwx 1 root root     76 Aug 28 20:02 Atos_TrustedRoot_Root_CA_ECC_TLS_2021.pem -> /usr/share/ca-certificates/mozilla/Atos_TrustedRoot_Root_CA_ECC_TLS_2021.crt
+lrwxrwxrwx 1 root root     76 Aug 28 20:02 Atos_TrustedRoot_Root_CA_RSA_TLS_2021.pem -> /usr/share/ca-certificates/mozilla/Atos_TrustedRoot_Root_CA_RSA_TLS_2021.crt
+lrwxrwxrwx 1 root root     96 Aug 28 20:02 Autoridad_de_Certificacion_Firmaprofesional_CIF_A62634068.pem -> /usr/share/ca-certificates/mozilla/Autoridad_de_Certificacion_Firmaprofesional_CIF_A62634068.crt
+lrwxrwxrwx 1 root root     59 Aug 28 20:02 BJCA_Global_Root_CA1.pem -> /usr/share/ca-certificates/mozilla/BJCA_Global_Root_CA1.crt
+lrwxrwxrwx 1 root root     59 Aug 28 20:02 BJCA_Global_Root_CA2.pem -> /usr/share/ca-certificates/mozilla/BJCA_Global_Root_CA2.crt
+lrwxrwxrwx 1 root root     64 Aug 28 20:02 Baltimore_CyberTrust_Root.pem -> /usr/share/ca-certificates/mozilla/Baltimore_CyberTrust_Root.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 Buypass_Class_2_Root_CA.pem -> /usr/share/ca-certificates/mozilla/Buypass_Class_2_Root_CA.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 Buypass_Class_3_Root_CA.pem -> /usr/share/ca-certificates/mozilla/Buypass_Class_3_Root_CA.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 CA_Disig_Root_R2.pem -> /usr/share/ca-certificates/mozilla/CA_Disig_Root_R2.crt
+lrwxrwxrwx 1 root root     51 Aug 28 20:02 CFCA_EV_ROOT.pem -> /usr/share/ca-certificates/mozilla/CFCA_EV_ROOT.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 COMODO_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/COMODO_Certification_Authority.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 COMODO_ECC_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/COMODO_ECC_Certification_Authority.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 COMODO_RSA_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/COMODO_RSA_Certification_Authority.crt
+lrwxrwxrwx 1 root root     56 Aug 28 20:02 Certainly_Root_E1.pem -> /usr/share/ca-certificates/mozilla/Certainly_Root_E1.crt
+lrwxrwxrwx 1 root root     56 Aug 28 20:02 Certainly_Root_R1.pem -> /usr/share/ca-certificates/mozilla/Certainly_Root_R1.crt
+lrwxrwxrwx 1 root root     47 Aug 28 20:02 Certigna.pem -> /usr/share/ca-certificates/mozilla/Certigna.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Certigna_Root_CA.pem -> /usr/share/ca-certificates/mozilla/Certigna_Root_CA.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Certum_EC-384_CA.pem -> /usr/share/ca-certificates/mozilla/Certum_EC-384_CA.crt
+lrwxrwxrwx 1 root root     64 Aug 28 20:02 Certum_Trusted_Network_CA.pem -> /usr/share/ca-certificates/mozilla/Certum_Trusted_Network_CA.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 Certum_Trusted_Network_CA_2.pem -> /usr/share/ca-certificates/mozilla/Certum_Trusted_Network_CA_2.crt
+lrwxrwxrwx 1 root root     61 Aug 28 20:02 Certum_Trusted_Root_CA.pem -> /usr/share/ca-certificates/mozilla/Certum_Trusted_Root_CA.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 CommScope_Public_Trust_ECC_Root-01.pem -> /usr/share/ca-certificates/mozilla/CommScope_Public_Trust_ECC_Root-01.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 CommScope_Public_Trust_ECC_Root-02.pem -> /usr/share/ca-certificates/mozilla/CommScope_Public_Trust_ECC_Root-02.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 CommScope_Public_Trust_RSA_Root-01.pem -> /usr/share/ca-certificates/mozilla/CommScope_Public_Trust_RSA_Root-01.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 CommScope_Public_Trust_RSA_Root-02.pem -> /usr/share/ca-certificates/mozilla/CommScope_Public_Trust_RSA_Root-02.crt
+lrwxrwxrwx 1 root root     63 Aug 28 20:02 Comodo_AAA_Services_root.pem -> /usr/share/ca-certificates/mozilla/Comodo_AAA_Services_root.crt
+lrwxrwxrwx 1 root root     64 Aug 28 20:02 D-TRUST_BR_Root_CA_1_2020.pem -> /usr/share/ca-certificates/mozilla/D-TRUST_BR_Root_CA_1_2020.crt
+lrwxrwxrwx 1 root root     64 Aug 28 20:02 D-TRUST_EV_Root_CA_1_2020.pem -> /usr/share/ca-certificates/mozilla/D-TRUST_EV_Root_CA_1_2020.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 D-TRUST_Root_Class_3_CA_2_2009.pem -> /usr/share/ca-certificates/mozilla/D-TRUST_Root_Class_3_CA_2_2009.crt
+lrwxrwxrwx 1 root root     72 Aug 28 20:02 D-TRUST_Root_Class_3_CA_2_EV_2009.pem -> /usr/share/ca-certificates/mozilla/D-TRUST_Root_Class_3_CA_2_EV_2009.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 DigiCert_Assured_ID_Root_CA.pem -> /usr/share/ca-certificates/mozilla/DigiCert_Assured_ID_Root_CA.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 DigiCert_Assured_ID_Root_G2.pem -> /usr/share/ca-certificates/mozilla/DigiCert_Assured_ID_Root_G2.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 DigiCert_Assured_ID_Root_G3.pem -> /usr/share/ca-certificates/mozilla/DigiCert_Assured_ID_Root_G3.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 DigiCert_Global_Root_CA.pem -> /usr/share/ca-certificates/mozilla/DigiCert_Global_Root_CA.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 DigiCert_Global_Root_G2.pem -> /usr/share/ca-certificates/mozilla/DigiCert_Global_Root_G2.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 DigiCert_Global_Root_G3.pem -> /usr/share/ca-certificates/mozilla/DigiCert_Global_Root_G3.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 DigiCert_High_Assurance_EV_Root_CA.pem -> /usr/share/ca-certificates/mozilla/DigiCert_High_Assurance_EV_Root_CA.crt
+lrwxrwxrwx 1 root root     68 Aug 28 20:02 DigiCert_TLS_ECC_P384_Root_G5.pem -> /usr/share/ca-certificates/mozilla/DigiCert_TLS_ECC_P384_Root_G5.crt
+lrwxrwxrwx 1 root root     67 Aug 28 20:02 DigiCert_TLS_RSA4096_Root_G5.pem -> /usr/share/ca-certificates/mozilla/DigiCert_TLS_RSA4096_Root_G5.crt
+lrwxrwxrwx 1 root root     63 Aug 28 20:02 DigiCert_Trusted_Root_G4.pem -> /usr/share/ca-certificates/mozilla/DigiCert_Trusted_Root_G4.crt
+lrwxrwxrwx 1 root root     80 Aug 28 20:02 Entrust.net_Premium_2048_Secure_Server_CA.pem -> /usr/share/ca-certificates/mozilla/Entrust.net_Premium_2048_Secure_Server_CA.crt
+lrwxrwxrwx 1 root root     75 Aug 28 20:02 Entrust_Root_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/Entrust_Root_Certification_Authority.crt
+lrwxrwxrwx 1 root root     81 Aug 28 20:02 Entrust_Root_Certification_Authority_-_EC1.pem -> /usr/share/ca-certificates/mozilla/Entrust_Root_Certification_Authority_-_EC1.crt
+lrwxrwxrwx 1 root root     80 Aug 28 20:02 Entrust_Root_Certification_Authority_-_G2.pem -> /usr/share/ca-certificates/mozilla/Entrust_Root_Certification_Authority_-_G2.crt
+lrwxrwxrwx 1 root root     80 Aug 28 20:02 Entrust_Root_Certification_Authority_-_G4.pem -> /usr/share/ca-certificates/mozilla/Entrust_Root_Certification_Authority_-_G4.crt
+lrwxrwxrwx 1 root root     61 Aug 28 20:02 GDCA_TrustAUTH_R5_ROOT.pem -> /usr/share/ca-certificates/mozilla/GDCA_TrustAUTH_R5_ROOT.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 GLOBALTRUST_2020.pem -> /usr/share/ca-certificates/mozilla/GLOBALTRUST_2020.crt
+lrwxrwxrwx 1 root root     50 Aug 28 20:02 GTS_Root_R1.pem -> /usr/share/ca-certificates/mozilla/GTS_Root_R1.crt
+lrwxrwxrwx 1 root root     50 Aug 28 20:02 GTS_Root_R2.pem -> /usr/share/ca-certificates/mozilla/GTS_Root_R2.crt
+lrwxrwxrwx 1 root root     50 Aug 28 20:02 GTS_Root_R3.pem -> /usr/share/ca-certificates/mozilla/GTS_Root_R3.crt
+lrwxrwxrwx 1 root root     50 Aug 28 20:02 GTS_Root_R4.pem -> /usr/share/ca-certificates/mozilla/GTS_Root_R4.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 GlobalSign_ECC_Root_CA_-_R4.pem -> /usr/share/ca-certificates/mozilla/GlobalSign_ECC_Root_CA_-_R4.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 GlobalSign_ECC_Root_CA_-_R5.pem -> /usr/share/ca-certificates/mozilla/GlobalSign_ECC_Root_CA_-_R5.crt
+lrwxrwxrwx 1 root root     57 Aug 28 20:02 GlobalSign_Root_CA.pem -> /usr/share/ca-certificates/mozilla/GlobalSign_Root_CA.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 GlobalSign_Root_CA_-_R3.pem -> /usr/share/ca-certificates/mozilla/GlobalSign_Root_CA_-_R3.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 GlobalSign_Root_CA_-_R6.pem -> /usr/share/ca-certificates/mozilla/GlobalSign_Root_CA_-_R6.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 GlobalSign_Root_E46.pem -> /usr/share/ca-certificates/mozilla/GlobalSign_Root_E46.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 GlobalSign_Root_R46.pem -> /usr/share/ca-certificates/mozilla/GlobalSign_Root_R46.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 Go_Daddy_Class_2_CA.pem -> /usr/share/ca-certificates/mozilla/Go_Daddy_Class_2_CA.crt
+lrwxrwxrwx 1 root root     79 Aug 28 20:02 Go_Daddy_Root_Certificate_Authority_-_G2.pem -> /usr/share/ca-certificates/mozilla/Go_Daddy_Root_Certificate_Authority_-_G2.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 HARICA_TLS_ECC_Root_CA_2021.pem -> /usr/share/ca-certificates/mozilla/HARICA_TLS_ECC_Root_CA_2021.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 HARICA_TLS_RSA_Root_CA_2021.pem -> /usr/share/ca-certificates/mozilla/HARICA_TLS_RSA_Root_CA_2021.crt
+lrwxrwxrwx 1 root root     98 Aug 28 20:02 Hellenic_Academic_and_Research_Institutions_ECC_RootCA_2015.pem -> /usr/share/ca-certificates/mozilla/Hellenic_Academic_and_Research_Institutions_ECC_RootCA_2015.crt
+lrwxrwxrwx 1 root root     94 Aug 28 20:02 Hellenic_Academic_and_Research_Institutions_RootCA_2015.pem -> /usr/share/ca-certificates/mozilla/Hellenic_Academic_and_Research_Institutions_RootCA_2015.crt
+lrwxrwxrwx 1 root root     57 Aug 28 20:02 HiPKI_Root_CA_-_G1.pem -> /usr/share/ca-certificates/mozilla/HiPKI_Root_CA_-_G1.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 Hongkong_Post_Root_CA_3.pem -> /usr/share/ca-certificates/mozilla/Hongkong_Post_Root_CA_3.crt
+lrwxrwxrwx 1 root root     51 Aug 28 20:02 ISRG_Root_X1.pem -> /usr/share/ca-certificates/mozilla/ISRG_Root_X1.crt
+lrwxrwxrwx 1 root root     51 Aug 28 20:02 ISRG_Root_X2.pem -> /usr/share/ca-certificates/mozilla/ISRG_Root_X2.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 IdenTrust_Commercial_Root_CA_1.pem -> /usr/share/ca-certificates/mozilla/IdenTrust_Commercial_Root_CA_1.crt
+lrwxrwxrwx 1 root root     72 Aug 28 20:02 IdenTrust_Public_Sector_Root_CA_1.pem -> /usr/share/ca-certificates/mozilla/IdenTrust_Public_Sector_Root_CA_1.crt
+lrwxrwxrwx 1 root root     49 Aug 28 20:02 Izenpe.com.pem -> /usr/share/ca-certificates/mozilla/Izenpe.com.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 Microsec_e-Szigno_Root_CA_2009.pem -> /usr/share/ca-certificates/mozilla/Microsec_e-Szigno_Root_CA_2009.crt
+lrwxrwxrwx 1 root root     84 Aug 28 20:02 Microsoft_ECC_Root_Certificate_Authority_2017.pem -> /usr/share/ca-certificates/mozilla/Microsoft_ECC_Root_Certificate_Authority_2017.crt
+lrwxrwxrwx 1 root root     84 Aug 28 20:02 Microsoft_RSA_Root_Certificate_Authority_2017.pem -> /usr/share/ca-certificates/mozilla/Microsoft_RSA_Root_Certificate_Authority_2017.crt
+lrwxrwxrwx 1 root root     80 Aug 28 20:02 NAVER_Global_Root_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/NAVER_Global_Root_Certification_Authority.crt
+lrwxrwxrwx 1 root root     83 Aug 28 20:02 NetLock_Arany_=Class_Gold=_Főtanúsítvány.pem -> /usr/share/ca-certificates/mozilla/NetLock_Arany_=Class_Gold=_Főtanúsítvány.crt
+lrwxrwxrwx 1 root root     70 Aug 28 20:02 OISTE_WISeKey_Global_Root_GB_CA.pem -> /usr/share/ca-certificates/mozilla/OISTE_WISeKey_Global_Root_GB_CA.crt
+lrwxrwxrwx 1 root root     70 Aug 28 20:02 OISTE_WISeKey_Global_Root_GC_CA.pem -> /usr/share/ca-certificates/mozilla/OISTE_WISeKey_Global_Root_GC_CA.crt
+lrwxrwxrwx 1 root root     60 Aug 28 20:02 QuoVadis_Root_CA_1_G3.pem -> /usr/share/ca-certificates/mozilla/QuoVadis_Root_CA_1_G3.crt
+lrwxrwxrwx 1 root root     57 Aug 28 20:02 QuoVadis_Root_CA_2.pem -> /usr/share/ca-certificates/mozilla/QuoVadis_Root_CA_2.crt
+lrwxrwxrwx 1 root root     60 Aug 28 20:02 QuoVadis_Root_CA_2_G3.pem -> /usr/share/ca-certificates/mozilla/QuoVadis_Root_CA_2_G3.crt
+lrwxrwxrwx 1 root root     57 Aug 28 20:02 QuoVadis_Root_CA_3.pem -> /usr/share/ca-certificates/mozilla/QuoVadis_Root_CA_3.crt
+lrwxrwxrwx 1 root root     60 Aug 28 20:02 QuoVadis_Root_CA_3_G3.pem -> /usr/share/ca-certificates/mozilla/QuoVadis_Root_CA_3_G3.crt
+lrwxrwxrwx 1 root root     82 Aug 28 20:02 SSL.com_EV_Root_Certification_Authority_ECC.pem -> /usr/share/ca-certificates/mozilla/SSL.com_EV_Root_Certification_Authority_ECC.crt
+lrwxrwxrwx 1 root root     85 Aug 28 20:02 SSL.com_EV_Root_Certification_Authority_RSA_R2.pem -> /usr/share/ca-certificates/mozilla/SSL.com_EV_Root_Certification_Authority_RSA_R2.crt
+lrwxrwxrwx 1 root root     79 Aug 28 20:02 SSL.com_Root_Certification_Authority_ECC.pem -> /usr/share/ca-certificates/mozilla/SSL.com_Root_Certification_Authority_ECC.crt
+lrwxrwxrwx 1 root root     79 Aug 28 20:02 SSL.com_Root_Certification_Authority_RSA.pem -> /usr/share/ca-certificates/mozilla/SSL.com_Root_Certification_Authority_RSA.crt
+lrwxrwxrwx 1 root root     67 Aug 28 20:02 SSL.com_TLS_ECC_Root_CA_2022.pem -> /usr/share/ca-certificates/mozilla/SSL.com_TLS_ECC_Root_CA_2022.crt
+lrwxrwxrwx 1 root root     67 Aug 28 20:02 SSL.com_TLS_RSA_Root_CA_2022.pem -> /usr/share/ca-certificates/mozilla/SSL.com_TLS_RSA_Root_CA_2022.crt
+lrwxrwxrwx 1 root root     54 Aug 28 20:02 SZAFIR_ROOT_CA2.pem -> /usr/share/ca-certificates/mozilla/SZAFIR_ROOT_CA2.crt
+lrwxrwxrwx 1 root root     84 Aug 28 20:02 Sectigo_Public_Server_Authentication_Root_E46.pem -> /usr/share/ca-certificates/mozilla/Sectigo_Public_Server_Authentication_Root_E46.crt
+lrwxrwxrwx 1 root root     84 Aug 28 20:02 Sectigo_Public_Server_Authentication_Root_R46.pem -> /usr/share/ca-certificates/mozilla/Sectigo_Public_Server_Authentication_Root_R46.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 SecureSign_RootCA11.pem -> /usr/share/ca-certificates/mozilla/SecureSign_RootCA11.crt
+lrwxrwxrwx 1 root root     53 Aug 28 20:02 SecureTrust_CA.pem -> /usr/share/ca-certificates/mozilla/SecureTrust_CA.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Secure_Global_CA.pem -> /usr/share/ca-certificates/mozilla/Secure_Global_CA.crt
+lrwxrwxrwx 1 root root     73 Aug 28 20:02 Security_Communication_ECC_RootCA1.pem -> /usr/share/ca-certificates/mozilla/Security_Communication_ECC_RootCA1.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 Security_Communication_RootCA2.pem -> /usr/share/ca-certificates/mozilla/Security_Communication_RootCA2.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 Security_Communication_RootCA3.pem -> /usr/share/ca-certificates/mozilla/Security_Communication_RootCA3.crt
+lrwxrwxrwx 1 root root     69 Aug 28 20:02 Security_Communication_Root_CA.pem -> /usr/share/ca-certificates/mozilla/Security_Communication_Root_CA.crt
+lrwxrwxrwx 1 root root     59 Aug 28 20:02 Starfield_Class_2_CA.pem -> /usr/share/ca-certificates/mozilla/Starfield_Class_2_CA.crt
+lrwxrwxrwx 1 root root     80 Aug 28 20:02 Starfield_Root_Certificate_Authority_-_G2.pem -> /usr/share/ca-certificates/mozilla/Starfield_Root_Certificate_Authority_-_G2.crt
+lrwxrwxrwx 1 root root     89 Aug 28 20:02 Starfield_Services_Root_Certificate_Authority_-_G2.pem -> /usr/share/ca-certificates/mozilla/Starfield_Services_Root_Certificate_Authority_-_G2.crt
+lrwxrwxrwx 1 root root     61 Aug 28 20:02 SwissSign_Gold_CA_-_G2.pem -> /usr/share/ca-certificates/mozilla/SwissSign_Gold_CA_-_G2.crt
+lrwxrwxrwx 1 root root     63 Aug 28 20:02 SwissSign_Silver_CA_-_G2.pem -> /usr/share/ca-certificates/mozilla/SwissSign_Silver_CA_-_G2.crt
+lrwxrwxrwx 1 root root     67 Aug 28 20:02 T-TeleSec_GlobalRoot_Class_2.pem -> /usr/share/ca-certificates/mozilla/T-TeleSec_GlobalRoot_Class_2.crt
+lrwxrwxrwx 1 root root     67 Aug 28 20:02 T-TeleSec_GlobalRoot_Class_3.pem -> /usr/share/ca-certificates/mozilla/T-TeleSec_GlobalRoot_Class_3.crt
+lrwxrwxrwx 1 root root     84 Aug 28 20:02 TUBITAK_Kamu_SM_SSL_Kok_Sertifikasi_-_Surum_1.pem -> /usr/share/ca-certificates/mozilla/TUBITAK_Kamu_SM_SSL_Kok_Sertifikasi_-_Surum_1.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 TWCA_Global_Root_CA.pem -> /usr/share/ca-certificates/mozilla/TWCA_Global_Root_CA.crt
+lrwxrwxrwx 1 root root     72 Aug 28 20:02 TWCA_Root_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/TWCA_Root_Certification_Authority.crt
+lrwxrwxrwx 1 root root     61 Aug 28 20:02 TeliaSonera_Root_CA_v1.pem -> /usr/share/ca-certificates/mozilla/TeliaSonera_Root_CA_v1.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 Telia_Root_CA_v2.pem -> /usr/share/ca-certificates/mozilla/Telia_Root_CA_v2.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 TrustAsia_Global_Root_CA_G3.pem -> /usr/share/ca-certificates/mozilla/TrustAsia_Global_Root_CA_G3.crt
+lrwxrwxrwx 1 root root     66 Aug 28 20:02 TrustAsia_Global_Root_CA_G4.pem -> /usr/share/ca-certificates/mozilla/TrustAsia_Global_Root_CA_G4.crt
+lrwxrwxrwx 1 root root     79 Aug 28 20:02 Trustwave_Global_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/Trustwave_Global_Certification_Authority.crt
+lrwxrwxrwx 1 root root     88 Aug 28 20:02 Trustwave_Global_ECC_P256_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/Trustwave_Global_ECC_P256_Certification_Authority.crt
+lrwxrwxrwx 1 root root     88 Aug 28 20:02 Trustwave_Global_ECC_P384_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/Trustwave_Global_ECC_P384_Certification_Authority.crt
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 TunTrust_Root_CA.pem -> /usr/share/ca-certificates/mozilla/TunTrust_Root_CA.crt
+lrwxrwxrwx 1 root root     67 Aug 28 20:02 UCA_Extended_Validation_Root.pem -> /usr/share/ca-certificates/mozilla/UCA_Extended_Validation_Root.crt
+lrwxrwxrwx 1 root root     57 Aug 28 20:02 UCA_Global_G2_Root.pem -> /usr/share/ca-certificates/mozilla/UCA_Global_G2_Root.crt
+lrwxrwxrwx 1 root root     76 Aug 28 20:02 USERTrust_ECC_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/USERTrust_ECC_Certification_Authority.crt
+lrwxrwxrwx 1 root root     76 Aug 28 20:02 USERTrust_RSA_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/USERTrust_RSA_Certification_Authority.crt
+lrwxrwxrwx 1 root root     59 Aug 28 20:02 XRamp_Global_CA_Root.pem -> /usr/share/ca-certificates/mozilla/XRamp_Global_CA_Root.crt
+lrwxrwxrwx 1 root root     15 Aug 28 20:02 a3418fda.0 -> GTS_Root_R4.pem
+lrwxrwxrwx 1 root root     27 Oct  9 21:46 a37c04cf.0 -> envoy-mitmproxy-ca-cert.pem
+lrwxrwxrwx 1 root root     32 Aug 28 20:02 a89d74c2.0 -> SSL.com_TLS_RSA_Root_CA_2022.pem
+lrwxrwxrwx 1 root root     13 Aug 28 20:02 a94d09e5.0 -> ACCVRAIZ1.pem
+lrwxrwxrwx 1 root root     45 Aug 28 20:02 aee5f10d.0 -> Entrust.net_Premium_2048_Secure_Server_CA.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 b0e59380.0 -> GlobalSign_ECC_Root_CA_-_R4.pem
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 b1159c4c.0 -> DigiCert_Assured_ID_Root_CA.pem
+lrwxrwxrwx 1 root root     29 Aug 28 20:02 b433981b.0 -> ANF_Secure_Server_Root_CA.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 b66938e9.0 -> Secure_Global_CA.pem
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 b727005e.0 -> AffirmTrust_Premium.pem
+lrwxrwxrwx 1 root root     37 Aug 28 20:02 b7a5b843.0 -> TWCA_Root_Certification_Authority.pem
+lrwxrwxrwx 1 root root     39 Aug 28 20:02 b81b93f0.0 -> AC_RAIZ_FNMT-RCM_SERVIDORES_SEGUROS.pem
+lrwxrwxrwx 1 root root     49 Aug 28 20:02 bf53fb88.0 -> Microsoft_RSA_Root_Certificate_Authority_2017.pem
+lrwxrwxrwx 1 root root     22 Aug 28 20:02 c01eb047.0 -> UCA_Global_G2_Root.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 c28a8a30.0 -> D-TRUST_Root_Class_3_CA_2_2009.pem
+-rw-r--r-- 1 root root 220664 Oct  9 21:46 ca-certificates.crt
+lrwxrwxrwx 1 root root     37 Aug 28 20:02 ca6e4ad9.0 -> ePKI_Root_Certification_Authority.pem
+lrwxrwxrwx 1 root root     44 Aug 28 20:02 cbf06781.0 -> Go_Daddy_Root_Certificate_Authority_-_G2.pem
+lrwxrwxrwx 1 root root     14 Aug 28 20:02 cc450945.0 -> Izenpe.com.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 cd58d51e.0 -> Security_Communication_RootCA2.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 cd8c0d63.0 -> AC_RAIZ_FNMT-RCM.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 ce5e74ef.0 -> Amazon_Root_CA_1.pem
+lrwxrwxrwx 1 root root     55 Aug 28 20:02 certSIGN_ROOT_CA.pem -> /usr/share/ca-certificates/mozilla/certSIGN_ROOT_CA.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 certSIGN_Root_CA_G2.pem -> /usr/share/ca-certificates/mozilla/certSIGN_Root_CA_G2.crt
+lrwxrwxrwx 1 root root     37 Aug 28 20:02 d4dae3dd.0 -> D-TRUST_Root_Class_3_CA_2_EV_2009.pem
+lrwxrwxrwx 1 root root     32 Aug 28 20:02 d52c538d.0 -> DigiCert_TLS_RSA4096_Root_G5.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 d6325660.0 -> COMODO_RSA_Certification_Authority.pem
+lrwxrwxrwx 1 root root     22 Aug 28 20:02 d7e8dc79.0 -> QuoVadis_Root_CA_2.pem
+lrwxrwxrwx 1 root root     53 Aug 28 20:02 d887a5bb.0 -> Trustwave_Global_ECC_P384_Certification_Authority.pem
+lrwxrwxrwx 1 root root     49 Aug 28 20:02 da0cfd1d.0 -> Sectigo_Public_Server_Authentication_Root_E46.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 dc4d6a89.0 -> GlobalSign_Root_CA_-_R6.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 dd8e9d41.0 -> DigiCert_Global_Root_G3.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 de6d66f3.0 -> Amazon_Root_CA_4.pem
+lrwxrwxrwx 1 root root     60 Aug 28 20:02 e-Szigno_Root_CA_2017.pem -> /usr/share/ca-certificates/mozilla/e-Szigno_Root_CA_2017.crt
+lrwxrwxrwx 1 root root     12 Aug 28 20:02 e113c810.0 -> Certigna.pem
+lrwxrwxrwx 1 root root     25 Aug 28 20:02 e18bfb83.0 -> QuoVadis_Root_CA_3_G3.pem
+lrwxrwxrwx 1 root root     26 Aug 28 20:02 e35234b1.0 -> Certum_Trusted_Root_CA.pem
+lrwxrwxrwx 1 root root     25 Aug 28 20:02 e36a6752.0 -> Atos_TrustedRoot_2011.pem
+lrwxrwxrwx 1 root root     35 Aug 28 20:02 e73d606e.0 -> OISTE_WISeKey_Global_Root_GB_CA.pem
+lrwxrwxrwx 1 root root     25 Aug 28 20:02 e868b802.0 -> e-Szigno_Root_CA_2017.pem
+lrwxrwxrwx 1 root root     27 Aug 28 20:02 e8de2f56.0 -> Buypass_Class_3_Root_CA.pem
+lrwxrwxrwx 1 root root     72 Aug 28 20:02 ePKI_Root_Certification_Authority.pem -> /usr/share/ca-certificates/mozilla/ePKI_Root_Certification_Authority.crt
+lrwxrwxrwx 1 root root     31 Aug 28 20:02 ecccd8db.0 -> HARICA_TLS_ECC_Root_CA_2021.pem
+lrwxrwxrwx 1 root root     21 Aug 28 20:02 ed858448.0 -> vTrus_ECC_Root_CA.pem
+lrwxrwxrwx 1 root root     28 Aug 28 20:02 ee64a828.0 -> Comodo_AAA_Services_root.pem
+lrwxrwxrwx 1 root root     38 Aug 28 20:02 eed8c118.0 -> COMODO_ECC_Certification_Authority.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 ef954a4e.0 -> IdenTrust_Commercial_Root_CA_1.pem
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 emSign_ECC_Root_CA_-_C3.pem -> /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_C3.crt
+lrwxrwxrwx 1 root root     62 Aug 28 20:02 emSign_ECC_Root_CA_-_G3.pem -> /usr/share/ca-certificates/mozilla/emSign_ECC_Root_CA_-_G3.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 emSign_Root_CA_-_C1.pem -> /usr/share/ca-certificates/mozilla/emSign_Root_CA_-_C1.crt
+lrwxrwxrwx 1 root root     58 Aug 28 20:02 emSign_Root_CA_-_G1.pem -> /usr/share/ca-certificates/mozilla/emSign_Root_CA_-_G1.crt
+lrwxrwxrwx 1 root root     60 Oct  9 21:46 envoy-mitmproxy-ca-cert.pem -> /usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 f081611a.0 -> Go_Daddy_Class_2_CA.pem
+lrwxrwxrwx 1 root root     47 Aug 28 20:02 f0c70a8d.0 -> SSL.com_EV_Root_Certification_Authority_ECC.pem
+lrwxrwxrwx 1 root root     44 Aug 28 20:02 f249de83.0 -> Trustwave_Global_Certification_Authority.pem
+lrwxrwxrwx 1 root root     41 Aug 28 20:02 f30dd6ad.0 -> USERTrust_ECC_Certification_Authority.pem
+lrwxrwxrwx 1 root root     34 Aug 28 20:02 f3377b1b.0 -> Security_Communication_Root_CA.pem
+lrwxrwxrwx 1 root root     24 Aug 28 20:02 f387163d.0 -> Starfield_Class_2_CA.pem
+lrwxrwxrwx 1 root root     18 Aug 28 20:02 f39fc864.0 -> SecureTrust_CA.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 f51bb24c.0 -> Certigna_Root_CA.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 fa5da96b.0 -> GLOBALTRUST_2020.pem
+lrwxrwxrwx 1 root root     41 Aug 28 20:02 fb717492.0 -> Atos_TrustedRoot_Root_CA_ECC_TLS_2021.pem
+lrwxrwxrwx 1 root root     41 Aug 28 20:02 fc5a8f99.0 -> USERTrust_RSA_Certification_Authority.pem
+lrwxrwxrwx 1 root root     20 Aug 28 20:02 fd64f3fc.0 -> TunTrust_Root_CA.pem
+lrwxrwxrwx 1 root root     19 Aug 28 20:02 fe8a2cd8.0 -> SZAFIR_ROOT_CA2.pem
+lrwxrwxrwx 1 root root     23 Aug 28 20:02 feffd413.0 -> GlobalSign_Root_E46.pem
+lrwxrwxrwx 1 root root     49 Aug 28 20:02 ff34af3f.0 -> TUBITAK_Kamu_SM_SSL_Kok_Sertifikasi_-_Surum_1.pem
+drwxr-xr-x 2 root root   4096 Oct  9 21:46 java
+lrwxrwxrwx 1 root root     56 Aug 28 20:02 vTrus_ECC_Root_CA.pem -> /usr/share/ca-certificates/mozilla/vTrus_ECC_Root_CA.crt
+lrwxrwxrwx 1 root root     52 Aug 28 20:02 vTrus_Root_CA.pem -> /usr/share/ca-certificates/mozilla/vTrus_Root_CA.crt
+End: 2025-10-10T09:40:24Z UTC
+Exit status: 0
+
+### OpenSSL version
+Command: openssl version -a
+Start: 2025-10-10T09:40:24Z UTC
+OpenSSL 3.0.13 30 Jan 2024 (Library: OpenSSL 3.0.13 30 Jan 2024)
+built on: Wed Feb  5 13:17:43 2025 UTC
+platform: debian-amd64
+options:  bn(64,64)
+compiler: gcc -fPIC -pthread -m64 -Wa,--noexecstack -Wall -fzero-call-used-regs=used-gpr -DOPENSSL_TLS_SECURITY_LEVEL=2 -Wa,--noexecstack -g -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -ffile-prefix-map=/build/openssl-7xongr/openssl-3.0.13=. -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -fcf-protection -fdebug-prefix-map=/build/openssl-7xongr/openssl-3.0.13=/usr/src/openssl-3.0.13-0ubuntu3.5 -DOPENSSL_USE_NODELETE -DL_ENDIAN -DOPENSSL_PIC -DOPENSSL_BUILDING_OPENSSL -DNDEBUG -Wdate-time -D_FORTIFY_SOURCE=3
+OPENSSLDIR: "/usr/lib/ssl"
+ENGINESDIR: "/usr/lib/x86_64-linux-gnu/engines-3"
+MODULESDIR: "/usr/lib/x86_64-linux-gnu/ossl-modules"
+Seeding source: os-specific
+CPUINFO: OPENSSL_ia32cap=0xfffa32235f8bffff:0x4d09f2fbb
+End: 2025-10-10T09:40:24Z UTC
+Exit status: 0
+
+### NSS shared certdb
+Command: ls -l /etc/pki/nssdb
+Start: 2025-10-10T09:40:24Z UTC
+ls: cannot access '/etc/pki/nssdb': No such file or directory
+End: 2025-10-10T09:40:24Z UTC
+Exit status: 2
+
+### Certificate fingerprint for registry
+Command: bash -lc openssl s_client -connect registry.npmjs.org:443 -servername registry.npmjs.org </dev/null | openssl x509 -noout -issuer -subject -dates -fingerprint
+Start: 2025-10-10T09:40:24Z UTC
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4027C6DACF7F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4027C6DACF7F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4027C6DACF7F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4027C6DACF7F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4027C6DACF7F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4027C6DACF7F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+4027C6DACF7F0000:error:80000065:system library:BIO_connect:Network is unreachable:../crypto/bio/bio_sock2.c:114:calling connect()
+4027C6DACF7F0000:error:10000067:BIO routines:BIO_connect:connect error:../crypto/bio/bio_sock2.c:116:
+connect:errno=101
+Could not read certificate from <stdin>
+Unable to load certificate
+End: 2025-10-10T09:40:25Z UTC
+Exit status: 1
+
+--------------------------------------------------------------------
+Proxy and network environment
+--------------------------------------------------------------------
+
+### Print proxy env vars
+Command: bash -lc env | grep -i proxy
+Start: 2025-10-10T09:40:25Z UTC
+no_proxy=localhost,127.0.0.1,::1
+NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+YARN_HTTP_PROXY=http://proxy:8080
+https_proxy=http://proxy:8080
+ELECTRON_GET_USE_PROXY=true
+CODEX_PROXY_CERT=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+npm_config_http_proxy=http://proxy:8080
+NO_PROXY=localhost,127.0.0.1,::1
+HTTPS_PROXY=http://proxy:8080
+HTTP_PROXY=http://proxy:8080
+http_proxy=http://proxy:8080
+SSL_CERT_FILE=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+PIP_CERT=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+REQUESTS_CA_BUNDLE=/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt
+GRADLE_OPTS=-Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080
+YARN_HTTPS_PROXY=http://proxy:8080
+npm_config_https_proxy=http://proxy:8080
+End: 2025-10-10T09:40:27Z UTC
+Exit status: 0
+
+### curl via http_proxy
+Command: curl -I --max-time 30 http://registry.npmjs.org/
+Start: 2025-10-10T09:40:27Z UTC
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     9    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+HTTP/1.1 403 Forbidden
+content-length: 9
+content-type: text/plain
+date: Fri, 10 Oct 2025 09:40:27 GMT
+server: envoy
+
+End: 2025-10-10T09:40:27Z UTC
+Exit status: 0
+
+### Check npmrc files
+Command: find /root -maxdepth 2 -name *.npmrc -print
+Start: 2025-10-10T09:40:27Z UTC
+/root/.nvm/.npmrc
+End: 2025-10-10T09:40:27Z UTC
+Exit status: 0
+
+### Check git config proxy
+Command: git config --global --get http.proxy
+Start: 2025-10-10T09:40:27Z UTC
+End: 2025-10-10T09:40:27Z UTC
+Exit status: 1
+
+### Check git config https proxy
+Command: git config --global --get https.proxy
+Start: 2025-10-10T09:40:28Z UTC
+End: 2025-10-10T09:40:28Z UTC
+Exit status: 1
+
+--------------------------------------------------------------------
+Container / virtualization
+--------------------------------------------------------------------
+
+### Docker info
+Command: docker info
+Status: SKIPPED (command not found)
+
+### Cgroup info
+Command: cat /proc/1/cgroup
+Start: 2025-10-10T09:40:28Z UTC
+0::/
+End: 2025-10-10T09:40:28Z UTC
+Exit status: 0
+
+### dmesg recent network errors
+Command: bash -lc dmesg | tail -n 200
+Start: 2025-10-10T09:40:28Z UTC
+[    0.229681] system 00:00: [mem 0xe8100000-0xe81fffff] has been reserved
+[    0.231613] pnp: PnP ACPI: found 1 devices
+[    0.237463] clocksource: acpi_pm: mask: 0xffffff max_cycles: 0xffffff, max_idle_ns: 2085701024 ns
+[    0.237525] NET: Registered PF_INET protocol family
+[    0.238095] IP idents hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.239043] tcp_listen_portaddr_hash hash table entries: 1024 (order: 2, 16384 bytes, linear)
+[    0.239080] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.239085] TCP established hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.239383] TCP bind hash table entries: 16384 (order: 7, 524288 bytes, linear)
+[    0.240493] TCP: Hash tables configured (established 16384 bind 16384)
+[    0.241098] UDP hash table entries: 1024 (order: 3, 32768 bytes, linear)
+[    0.241169] UDP-Lite hash table entries: 1024 (order: 3, 32768 bytes, linear)
+[    0.241583] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.241605] pci_bus 0000:00: resource 4 [mem 0xe8000000-0xe80fffff]
+[    0.241608] pci_bus 0000:00: resource 5 [mem 0xc0000000-0xd3ffffff window]
+[    0.241610] pci_bus 0000:00: resource 6 [mem 0x6b3bd00000-0x20353bcfffff window]
+[    0.241611] pci_bus 0000:00: resource 7 [io  0x0000-0x0cf7 window]
+[    0.241613] pci_bus 0000:00: resource 8 [io  0x0d00-0xffff window]
+[    0.241628] pci_bus 0001:00: resource 4 [mem 0xe8100000-0xe81fffff]
+[    0.241629] pci_bus 0001:00: resource 5 [mem 0xd4000000-0xe7ffffff window]
+[    0.241630] pci_bus 0001:00: resource 6 [mem 0x20353bd00000-0x3fff3bcfffff window]
+[    0.241815] PCI: CLS 0 bytes, default 64
+[    0.241876] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x284407e0e7a, max_idle_ns: 440795310592 ns
+[    0.241908] platform rtc_cmos: registered platform RTC device (no PNP device found)
+[    0.242985] workingset: timestamp_bits=40 max_order=19 bucket_order=0
+[    0.243163] fuse: init (API version 7.41)
+[    0.243313] SGI XFS with security attributes, no debug enabled
+[    0.243795] 9p: Installing v9fs 9p2000 file system support
+[    0.244253] NET: Registered PF_ALG protocol family
+[    0.244329] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 249)
+[    0.245602] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+[    0.246319] input: Power Button as /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0C:00/input/input0
+[    0.246325] ACPI: button: Power Button [PWRB]
+[    0.246592] virtio-pci 0000:00:01.0: enabling device (0000 -> 0002)
+[    0.248333] virtio-pci 0000:00:02.0: enabling device (0000 -> 0002)
+[    0.249953] virtio-pci 0000:00:03.0: enabling device (0000 -> 0002)
+[    0.252028] virtio-pci 0001:00:01.0: enabling device (0000 -> 0002)
+[    0.256916] virtiofs virtio3: virtio_fs_setup_dax: No cache capability
+[    0.258351] Serial: 8250/16550 driver, 4 ports, IRQ sharing disabled
+[    0.265663] brd: module loaded
+[    0.269029] loop: module loaded
+[    0.271787] nd_pmem pfn0.1: unable to guarantee persistence of writes
+[    0.276432] VFIO - User Level meta-driver version: 0.3
+[    0.276533] intel_pstate: CPU model not supported
+[    0.279362] xt_time: kernel timezone is -0000
+[    0.279375] IPVS: Registered protocols (TCP, UDP, SCTP, AH, ESP)
+[    0.279379] IPVS: Connection hash table configured (size=4096, memory=32Kbytes)
+[    0.279583] IPVS: ipvs loaded.
+[    0.279584] IPVS: [rr] scheduler registered.
+[    0.279586] IPVS: [wrr] scheduler registered.
+[    0.279587] IPVS: [lc] scheduler registered.
+[    0.279588] IPVS: [wlc] scheduler registered.
+[    0.279589] IPVS: [fo] scheduler registered.
+[    0.279590] IPVS: [ovf] scheduler registered.
+[    0.279593] IPVS: [lblc] scheduler registered.
+[    0.279594] IPVS: [lblcr] scheduler registered.
+[    0.279595] IPVS: [dh] scheduler registered.
+[    0.279596] IPVS: [sh] scheduler registered.
+[    0.279597] IPVS: [sed] scheduler registered.
+[    0.279598] IPVS: [nq] scheduler registered.
+[    0.279600] IPVS: [sip] pe registered.
+[    0.279679] Initializing XFRM netlink socket
+[    0.279738] NET: Registered PF_INET6 protocol family
+[    0.285188] Segment Routing with IPv6
+[    0.285195] In-situ OAM (IOAM) with IPv6
+[    0.285223] NET: Registered PF_PACKET protocol family
+[    0.285249] 9pnet: Installing 9P2000 support
+[    0.285385] NET: Registered PF_VSOCK protocol family
+[    0.293828] IPI shorthand broadcast: enabled
+[    0.295709]  pmem0: p1
+[    0.296080] AES CTR mode by8 optimization enabled
+[    0.297591] sched_clock: Marking stable (292016351, 4288784)->(309905292, -13600157)
+[    0.304644] Demotion targets for Node 0: null
+[    0.309470] alg: No test for fips(ansi_cprng) (fips_ansi_cprng)
+[    0.314862] EXT4-fs (pmem0p1): mounted filesystem d0fc0e22-563b-432b-80f0-67709c1fe798 ro with ordered data mode. Quota mode: disabled.
+[    0.314884] VFS: Mounted root (ext4 filesystem) readonly on device 259:1.
+[    0.315388] devtmpfs: mounted
+[    0.316680] Freeing unused kernel image (initmem) memory: 1144K
+[    0.316684] Write protecting the kernel read-only data: 16384k
+[    0.323030] Freeing unused kernel image (rodata/data gap) memory: 1804K
+[    0.323213] Run /sbin/init as init process
+[    0.323221]   with arguments:
+[    0.323222]     /sbin/init
+[    0.323223]   with environment:
+[    0.323223]     HOME=/
+[    0.323224]     TERM=linux
+[    0.354477] systemd[1]: systemd 249.11-0ubuntu3 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT +GNUTLS -OPENSSL +ACL +BLKID +CURL +ELFUTILS -FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP -LIBFDISK +PCRE2 -PWQUALITY -P11KIT -QRENCODE +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    0.354608] systemd[1]: Detected virtualization kvm.
+[    0.354628] systemd[1]: Detected architecture x86-64.
+[    0.354741] systemd[1]: No hostname configured, using default hostname.
+[    0.354916] systemd[1]: Hostname set to <localhost>.
+[    0.378018] pci 0000:00:04.0: [1af4:1041] type 00 class 0x020000 conventional PCI endpoint
+[    0.378358] pci 0000:00:04.0: BAR 0 [mem 0x20352bb00000-0x20352bb7ffff 64bit]
+[    0.380806] pci 0000:00:04.0: BAR 0 [mem 0x6b3bd00000-0x6b3bd7ffff 64bit]: assigned
+[    0.381162] virtio-pci 0000:00:04.0: enabling device (0000 -> 0002)
+[    0.627091] systemd[1]: Queued start job for default target Kata Containers Agent Target.
+[    0.633611] systemd[1]: Created slice Slice /system/modprobe.
+[    0.633756] systemd[1]: Started Dispatch Password Requests to Console Directory Watch.
+[    0.633998] systemd[1]: Set up automount Arbitrary Executable File Formats File System Automount Point.
+[    0.634015] systemd[1]: Reached target Local Encrypted Volumes.
+[    0.634027] systemd[1]: Reached target Path Units.
+[    0.634038] systemd[1]: Reached target Slice Units.
+[    0.634050] systemd[1]: Reached target Swaps.
+[    0.634060] systemd[1]: Reached target System Time Set.
+[    0.634074] systemd[1]: Reached target Local Verity Protected Volumes.
+[    0.634225] systemd[1]: Listening on initctl Compatibility Named Pipe.
+[    0.634349] systemd[1]: systemd-journald-audit.socket: Socket service systemd-journald.service not loaded, refusing.
+[    0.634358] systemd[1]: Failed to listen on Journal Audit Socket.
+[    0.634469] systemd[1]: Reached target Socket Units.
+[    0.640275] systemd[92]: dev-hugepages.mount: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.641940] systemd[1]: Mounting Huge Pages File System...
+[    0.660806] systemd[1]: Mounting POSIX Message Queue File System...
+[    0.661245] systemd[1]: Condition check resulted in Kernel Debug File System being skipped.
+[    0.661465] systemd[1]: Condition check resulted in Kernel Trace File System being skipped.
+[    0.663777] systemd[93]: dev-mqueue.mount: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.668263] systemd[94]: tmp.mount: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.673001] systemd[1]: Mounting Temporary Directory /tmp...
+[    0.673334] systemd[1]: Condition check resulted in Create List of Static Device Nodes being skipped.
+[    0.685350] systemd[1]: Starting Load Kernel Module configfs...
+[    0.695462] systemd[95]: modprobe@configfs.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.696175] systemd[95]: modprobe@configfs.service: Executable /sbin/modprobe missing, skipping: No such file or directory
+[    0.700959] systemd[1]: Starting Load Kernel Module fuse...
+[    0.711764] systemd[1]: Starting Load Kernel Modules...
+[    0.712027] systemd[1]: Condition check resulted in Platform Persistent Storage Archival being skipped.
+[    0.717885] systemd[96]: modprobe@fuse.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.718485] systemd[96]: modprobe@fuse.service: Executable /sbin/modprobe missing, skipping: No such file or directory
+[    0.719611] systemd[1]: Condition check resulted in Create System Users being skipped.
+[    0.729138] systemd[97]: systemd-modules-load.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.732907] systemd[1]: Starting Create Static Device Nodes in /dev...
+[    0.736689] systemd[98]: systemd-tmpfiles-setup-dev.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.737283] systemd[1]: Mounted Huge Pages File System.
+[    0.738320] systemd[1]: Mounted POSIX Message Queue File System.
+[    0.738895] systemd[1]: Mounted Temporary Directory /tmp.
+[    0.742144] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[    0.743648] systemd[1]: Finished Load Kernel Module configfs.
+[    0.747503] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[    0.749432] systemd[1]: Finished Load Kernel Module fuse.
+[    0.749881] systemd[1]: Reached target Local File Systems.
+[    0.776896] systemd[100]: sys-fs-fuse-connections.mount: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.780901] systemd[1]: Mounting FUSE Control File System...
+[    0.781229] systemd[1]: Condition check resulted in Kernel Configuration File System being skipped.
+[    0.781556] systemd[1]: Condition check resulted in Set Up Additional Binary Formats being skipped.
+[    0.781618] systemd[1]: Condition check resulted in Store a System Token in an EFI Variable being skipped.
+[    0.781736] systemd[1]: Condition check resulted in Commit a transient machine-id on disk being skipped.
+[    0.798425] systemd[1]: Finished Load Kernel Modules.
+[    0.812905] systemd[1]: Starting Apply Kernel Variables...
+[    0.814807] systemd[1]: Mounted FUSE Control File System.
+[    0.815520] systemd[103]: systemd-sysctl.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    0.822181] systemd[1]: Finished Create Static Device Nodes in /dev.
+[    0.847412] systemd[1]: Finished Apply Kernel Variables.
+[    0.847643] systemd[1]: Reached target System Initialization.
+[    0.847936] systemd[1]: Started Daily Cleanup of Temporary Directories.
+[    0.847994] systemd[1]: Reached target Basic System.
+[    0.848340] systemd[1]: Listening on D-Bus System Message Bus Socket.
+[    0.865194] systemd[1]: Starting chrony, an NTP client/server...
+[    0.877563] systemd[1]: Started Kata Containers Agent.
+[    1.069091] pci 0000:00:05.0: [1af4:1042] type 00 class 0x018000 conventional PCI endpoint
+[    1.069323] pci 0000:00:05.0: BAR 0 [mem 0xd3f80000-0xd3ffffff]
+[    1.071740] pci 0000:00:05.0: BAR 0 [mem 0xc0000000-0xc007ffff]: assigned
+[    1.071940] virtio-pci 0000:00:05.0: enabling device (0000 -> 0002)
+[    1.073817] virtio_blk virtio5: 1/0/0 default/read/poll queues
+[    1.076410] virtio_blk virtio5: [vda] 134217728 512-byte logical blocks (68.7 GB/64.0 GiB)
+[    1.200183] systemd[1]: Started chrony, an NTP client/server.
+[    1.200521] systemd[1]: Reached target Kata Containers Agent Target.
+[    1.200577] systemd[1]: Reached target System Time Synchronized.
+[    1.200847] systemd[1]: Started Daily dpkg database backup timer.
+[    1.201031] systemd[1]: Started Periodic ext4 Online Metadata Check for All Filesystems.
+[    1.201124] systemd[1]: Started Discard unused blocks once a week.
+[    1.201178] systemd[1]: Started Message of the Day.
+[    1.201188] systemd[1]: Reached target Timer Units.
+[    1.201360] systemd[1]: Startup finished in 342ms (kernel) + 854ms (userspace) = 1.197s.
+[    1.208560] EXT4-fs (vda): recovery complete
+[    1.208595] EXT4-fs (vda): mounted filesystem ffc7dfb4-a70a-4c31-96f6-c2109e8e7ef8 r/w with ordered data mode. Quota mode: disabled.
+[    1.289027] systemd[127]: dbus.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[    1.292949] systemd[1]: Started D-Bus System Message Bus.
+[    1.325324] systemd[1]: Created slice Slice /docker.
+[    1.325488] systemd[1]: Created slice Slice /docker/containers.
+[    1.325621] systemd[1]: cgroup compatibility translation between legacy and unified hierarchy settings activated. See cgroup-compat debug messages for details.
+[    1.336425] systemd[1]: Started kata-agent container.
+[    1.408426] ACPI: CPU1 has been hot-added
+[    1.408611] ACPI: CPU2 has been hot-added
+[    1.473072] smpboot: Booting Node 0 Processor 1 APIC 0x1
+[    1.474355] [Firmware Bug]: CPUID leaf 0xb subleaf 1 APIC ID mismatch 1 != 0
+[    1.513375] smpboot: Booting Node 0 Processor 2 APIC 0x2
+[    1.555421] Fallback order for Node 0: 0 
+[    1.555427] Built 1 zonelists, mobility grouping on.  Total pages: 536527
+[    1.555431] Policy zone: Normal
+[  920.961558] systemd[1]: Starting Cleanup of Temporary Directories...
+[  920.961789] systemd[4141]: systemd-tmpfiles-clean.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[  920.987713] systemd[1]: systemd-tmpfiles-clean.service: Deactivated successfully.
+[  920.988062] systemd[1]: Finished Cleanup of Temporary Directories.
+[ 8031.029726] systemd[1]: Starting Daily dpkg database backup service...
+[ 8031.029938] systemd[4476]: dpkg-db-backup.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[ 8031.073659] systemd[1]: dpkg-db-backup.service: Main process exited, code=exited, status=4/NOPERMISSION
+[ 8031.073812] systemd[1]: dpkg-db-backup.service: Failed with result 'exit-code'.
+[ 8031.074208] systemd[1]: Failed to start Daily dpkg database backup service.
+[15921.026154] systemd[1]: Starting Message of the Day...
+[15921.026301] systemd[4788]: motd-news.service: Failed to connect stdout to the journal socket, ignoring: No such file or directory
+[15921.033813] systemd[1]: motd-news.service: Deactivated successfully.
+[15921.034244] systemd[1]: Finished Message of the Day.
+End: 2025-10-10T09:40:30Z UTC
+Exit status: 0
+
+--------------------------------------------------------------------
+Summary
+--------------------------------------------------------------------
+Diagnostics complete at: 2025-10-10T09:40:30Z UTC
+Exit statuses above indicate success (0) or failure (>0) for each command.
+Please review the sections above for clues about npm install connectivity issues.
+
+
+--------------------------------------------------------------------
+Log file path
+--------------------------------------------------------------------
+Results stored in: /workspace/textadventure/logs/npm_connectivity_diagnostics_20251010T094016Z.log
+====================================================================
