@@ -174,7 +174,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Data display components (tables, cards, badges) *(Added Card, Badge, and DataTable primitives with demo usage inside the editor shell to showcase validation summaries.)*
       - [x] Navigation components (breadcrumbs, tabs) *(Implemented shared Breadcrumbs and Tabs primitives with demo usage and interaction logging in the editor prototype.)*
     - [x] Set up state management (Redux Toolkit or Zustand).
-    - [ ] Implement API client with proper error handling and loading states.
+    - [x] Implement API client with proper error handling and loading states. *(Added a typed API client wrapper with loading/error tracking in the Zustand store and wired the scene table UI to surface fetch state feedback.)*
     - [ ] Add routing system for different editor views.
 
   - [ ] **Phase 3: Scene List & Basic Editing**
