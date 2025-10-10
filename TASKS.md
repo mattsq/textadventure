@@ -173,7 +173,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Form components (inputs, selects, textareas) *(Added shared TextField, SelectField, and TextAreaField components with accessibility helpers and demo usage in the shell.)*
       - [x] Data display components (tables, cards, badges) *(Added Card, Badge, and DataTable primitives with demo usage inside the editor shell to showcase validation summaries.)*
       - [x] Navigation components (breadcrumbs, tabs) *(Implemented shared Breadcrumbs and Tabs primitives with demo usage and interaction logging in the editor prototype.)*
-    - [ ] Set up state management (Redux Toolkit or Zustand).
+    - [x] Set up state management (Redux Toolkit or Zustand).
     - [ ] Implement API client with proper error handling and loading states.
     - [ ] Add routing system for different editor views.
 
