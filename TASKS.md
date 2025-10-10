@@ -170,7 +170,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Implement responsive CSS framework (Tailwind CSS or Material-UI). *(Integrated Tailwind CSS with custom theme tokens, global styles, and utility-driven placeholder layout.)*
     - [ ] Create base component library:
       - [x] Layout components (headers, sidebars, panels) *(Introduced reusable EditorShell, Header, Sidebar, and Panel React components to establish shared layout primitives.)*
-      - [ ] Form components (inputs, selects, textareas)
+      - [x] Form components (inputs, selects, textareas) *(Added shared TextField, SelectField, and TextAreaField components with accessibility helpers and demo usage in the shell.)*
       - [ ] Data display components (tables, cards, badges)
       - [ ] Navigation components (breadcrumbs, tabs)
     - [ ] Set up state management (Redux Toolkit or Zustand).
