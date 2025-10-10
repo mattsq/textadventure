@@ -6,6 +6,11 @@ import {
   EditorSidebar,
   type EditorSidebarSection,
 } from "./components/layout";
+import {
+  SelectField,
+  TextAreaField,
+  TextField,
+} from "./components/forms";
 
 const onboardingSections: EditorSidebarSection[] = [
   {
@@ -36,6 +41,26 @@ const onboardingSections: EditorSidebarSection[] = [
 ];
 
 export const App: React.FC = () => {
+  const [sceneId, setSceneId] = React.useState("mysterious-grove");
+  const [sceneType, setSceneType] = React.useState("branch");
+  const [sceneSummary, setSceneSummary] = React.useState("A moonlit clearing reveals a hidden ritual site.");
+  const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
+
+  const sceneIdError = sceneId.trim() ? undefined : "Scene ID is required to save a draft.";
+
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (sceneIdError) {
+      setStatusMessage(null);
+      return;
+    }
+    setStatusMessage(`Draft saved for ${sceneId.trim()}.`);
+  };
+
+  React.useEffect(() => {
+    setStatusMessage(null);
+  }, [sceneId, sceneType, sceneSummary]);
+
   return (
     <EditorShell
       header={
@@ -85,9 +110,10 @@ export const App: React.FC = () => {
         >
           <ul className="grid gap-3 md:grid-cols-2">
             <li className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-4 text-sm">
-              <h3 className="text-sm font-semibold text-white">Add Form Elements</h3>
+              <h3 className="text-sm font-semibold text-white">Use Form Primitives</h3>
               <p className="mt-2 text-slate-300">
-                Mirror the styling tokens used here when building inputs, selects, and validation messages.
+                Reuse the shared <code>TextField</code>, <code>SelectField</code>, and <code>TextAreaField</code> components to
+                ensure consistent styling and accessibility across editor screens.
               </p>
             </li>
             <li className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-4 text-sm">
@@ -109,6 +135,63 @@ export const App: React.FC = () => {
               </p>
             </li>
           </ul>
+        </EditorPanel>
+
+        <EditorPanel
+          title="Form Component Demo"
+          description="Base input components provide consistent styling, validation states, and helper text markup."
+        >
+          <form className="grid gap-6 md:grid-cols-2" onSubmit={handleFormSubmit}>
+            <TextField
+              className="md:col-span-1"
+              label="Scene ID"
+              value={sceneId}
+              onChange={(event) => setSceneId(event.target.value)}
+              description="Unique identifier used when referencing this scene in transitions and analytics."
+              placeholder="enter-scene-id"
+              error={sceneIdError}
+              required
+            />
+            <SelectField
+              className="md:col-span-1"
+              label="Scene Type"
+              value={sceneType}
+              onChange={(event) => setSceneType(event.target.value)}
+              description="Categorise scenes to drive editor filtering and analytics."
+            >
+              <option value="branch">Branching encounter</option>
+              <option value="linear">Linear narration</option>
+              <option value="terminal">Ending</option>
+              <option value="puzzle">Puzzle / gated progress</option>
+            </SelectField>
+            <TextAreaField
+              className="md:col-span-2"
+              label="Scene Summary"
+              value={sceneSummary}
+              onChange={(event) => setSceneSummary(event.target.value)}
+              description="Provide a short synopsis to help collaborators identify the scene at a glance."
+              placeholder="Describe the key beats players should expect when they reach this scene."
+              rows={5}
+            />
+            <div className="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-center md:justify-between">
+              <span
+                className={
+                  statusMessage
+                    ? "text-xs font-medium text-emerald-400"
+                    : "text-xs text-slate-400"
+                }
+              >
+                {statusMessage ?? "Validation happens live as values change. Submit to simulate a draft save."}
+              </span>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-lg border border-indigo-400/60 bg-indigo-500/30 px-4 py-2 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500/40 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800/60 disabled:text-slate-500"
+                disabled={Boolean(sceneIdError)}
+              >
+                Save Draft
+              </button>
+            </div>
+          </form>
         </EditorPanel>
       </div>
     </EditorShell>
