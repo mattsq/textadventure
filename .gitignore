@@ -12,6 +12,8 @@ venv/
 *.log
 dist/
 build/
+node_modules/
+*.tsbuildinfo
 
 # IDE/editor directories
 .vscode/
