@@ -8,6 +8,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping
 
 import pytest
@@ -26,6 +27,7 @@ from textadventure.api.app import (
     _compute_validation_statuses,
 )
 from textadventure.scripted_story_engine import load_scenes_from_mapping
+from textadventure.story_engine import StoryChoice
 
 
 def _client() -> TestClient:
@@ -767,6 +769,38 @@ def test_compute_validation_statuses_flags_unreachable_scenes_and_items() -> Non
     assert statuses["hidden"] == "warnings"
     assert statuses["accessible"] == "errors"
     assert statuses["starting-area"] == "valid"
+
+
+def test_collect_validation_issues_reports_duplicate_choice_commands() -> None:
+    scenes = {
+        "duplicate": SimpleNamespace(
+            description="Duplicate commands",
+            choices=(
+                StoryChoice("look", "Look around."),
+                StoryChoice("look", "Look again."),
+            ),
+            transitions={
+                "look": SimpleNamespace(
+                    narration="You peer into the shadows.",
+                    failure_narration=None,
+                    target=None,
+                    item=None,
+                    requires=(),
+                    consumes=(),
+                    records=(),
+                    narration_overrides=(),
+                )
+            },
+        )
+    }
+
+    issues = _collect_validation_issues("duplicate", scenes)
+    duplicate_issue = next(
+        issue for issue in issues if issue.code == "duplicate_choice_command"
+    )
+
+    assert duplicate_issue.severity == "error"
+    assert duplicate_issue.path == "choices.look.command"
 
 
 def test_collect_validation_issues_reports_unreachable_dependencies() -> None:

@@ -280,6 +280,9 @@ class QualityIssuesResource(BaseModel):
 
     issue_count: int
     scenes_missing_description: list[str] = Field(default_factory=list)
+    duplicate_choice_commands: list[SceneCommandIssueResource] = Field(
+        default_factory=list
+    )
     choices_missing_description: list[SceneCommandIssueResource] = Field(
         default_factory=list
     )
@@ -8162,6 +8165,7 @@ def _compute_validation_statuses(
     unreachable_scene_set = set(reachability.unreachable_scenes)
 
     error_scenes: set[str] = set(quality_report.scenes_missing_description)
+    error_scenes.update(scene for scene, _ in quality_report.duplicate_choice_commands)
     error_scenes.update(
         scene for scene, _ in quality_report.transitions_missing_narration
     )
@@ -8264,6 +8268,10 @@ def _build_quality_resource(report: AdventureQualityReport) -> QualityIssuesReso
         SceneCommandIssueResource(scene_id=scene, command=command)
         for scene, command in report.choices_missing_description
     ]
+    duplicate_choice_commands = [
+        SceneCommandIssueResource(scene_id=scene, command=command)
+        for scene, command in report.duplicate_choice_commands
+    ]
     transitions = [
         SceneCommandIssueResource(scene_id=scene, command=command)
         for scene, command in report.transitions_missing_narration
@@ -8284,6 +8292,7 @@ def _build_quality_resource(report: AdventureQualityReport) -> QualityIssuesReso
     return QualityIssuesResource(
         issue_count=report.issue_count,
         scenes_missing_description=list(report.scenes_missing_description),
+        duplicate_choice_commands=duplicate_choice_commands,
         choices_missing_description=choices,
         transitions_missing_narration=transitions,
         gated_transitions_missing_failure=gated,
@@ -8922,6 +8931,17 @@ def _collect_validation_issues(
                 path="scene",
             )
         )
+
+    for candidate_scene, command in quality_report.duplicate_choice_commands:
+        if candidate_scene == scene_id:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="duplicate_choice_command",
+                    message=f"Choice command '{command}' is defined multiple times.",
+                    path=f"choices.{command}.command",
+                )
+            )
 
     for candidate_scene, command in quality_report.choices_missing_description:
         if candidate_scene == scene_id:

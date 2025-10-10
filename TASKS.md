@@ -158,7 +158,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Item flow analysis (sources vs requirements)
       - [x] Reachability analysis (unreachable scenes/items) *(Validation now flags unreachable scenes and item dependencies, surfaces warnings in API responses, and exposes summary metadata.)*
       - [x] Circular dependency detection
-      - [ ] Command uniqueness validation
+      - [x] Command uniqueness validation
     - [x] Implement WebSocket endpoint for live adventure testing.
     - [ ] Add unit tests covering all API endpoints and validation logic.
       - [x] Added regression coverage for the create/delete endpoints and import/export aliases.

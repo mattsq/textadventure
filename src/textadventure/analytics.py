@@ -150,6 +150,7 @@ class AdventureQualityReport:
     """Summary describing potential content quality issues."""
 
     scenes_missing_description: tuple[str, ...]
+    duplicate_choice_commands: tuple[tuple[str, str], ...]
     choices_missing_description: tuple[tuple[str, str], ...]
     transitions_missing_narration: tuple[tuple[str, str], ...]
     gated_transitions_missing_failure: tuple[tuple[str, str], ...]
@@ -163,6 +164,7 @@ class AdventureQualityReport:
         return sum(
             (
                 len(self.scenes_missing_description),
+                len(self.duplicate_choice_commands),
                 len(self.choices_missing_description),
                 len(self.transitions_missing_narration),
                 len(self.gated_transitions_missing_failure),
@@ -846,6 +848,7 @@ def assess_adventure_quality(
     """Perform heuristic checks to highlight possible content issues."""
 
     scenes_missing_description: list[str] = []
+    duplicate_choice_commands: list[tuple[str, str]] = []
     choices_missing_description: list[tuple[str, str]] = []
     transitions_missing_narration: list[tuple[str, str]] = []
     gated_transitions_missing_failure: list[tuple[str, str]] = []
@@ -858,9 +861,21 @@ def assess_adventure_quality(
         if not _normalise_text(scene.description):
             scenes_missing_description.append(scene_id)
 
+        seen_commands: set[str] = set()
+        duplicate_commands_for_scene: set[str] = set()
         for choice in scene.choices:
             if not _normalise_text(choice.description):
                 choices_missing_description.append((scene_id, choice.command))
+
+            if choice.command in seen_commands:
+                duplicate_commands_for_scene.add(choice.command)
+            else:
+                seen_commands.add(choice.command)
+
+        if duplicate_commands_for_scene:
+            duplicate_choice_commands.extend(
+                (scene_id, command) for command in duplicate_commands_for_scene
+            )
 
         for command, transition in scene.transitions.items():
             if not _normalise_text(transition.narration):
@@ -884,6 +899,7 @@ def assess_adventure_quality(
 
     return AdventureQualityReport(
         scenes_missing_description=tuple(sorted(scenes_missing_description)),
+        duplicate_choice_commands=tuple(sorted(duplicate_choice_commands)),
         choices_missing_description=tuple(sorted(choices_missing_description)),
         transitions_missing_narration=tuple(sorted(transitions_missing_narration)),
         gated_transitions_missing_failure=tuple(
@@ -1432,6 +1448,13 @@ def format_quality_report(report: AdventureQualityReport) -> str:
     if report.scenes_missing_description:
         lines.append("Scenes missing descriptions:")
         lines.extend(f"- {scene}" for scene in report.scenes_missing_description)
+
+    if report.duplicate_choice_commands:
+        lines.append("Duplicate choice commands detected:")
+        lines.extend(
+            f"- {scene} :: {command}"
+            for scene, command in report.duplicate_choice_commands
+        )
 
     if report.choices_missing_description:
         lines.append("Choices missing descriptions:")

@@ -576,6 +576,25 @@ def test_assess_adventure_quality_from_definitions_matches_direct() -> None:
     assert report.conditional_overrides_missing_narration == (("entry", "push", 0),)
 
 
+def test_assess_adventure_quality_detects_duplicate_choice_commands() -> None:
+    scenes = {
+        "duplicate": _StubScene(
+            description="Duplicate commands",
+            choices=(
+                _StubChoice(command="look", description="Look around."),
+                _StubChoice(command="look", description="Look again."),
+            ),
+            transitions={
+                "look": _StubTransition(narration="You scan the room."),
+            },
+        )
+    }
+
+    report = assess_adventure_quality(scenes)
+
+    assert report.duplicate_choice_commands == (("duplicate", "look"),)
+
+
 def test_format_quality_report_lists_detected_issues() -> None:
     report = assess_adventure_quality_from_definitions(_QUALITY_SCENE_DEFINITIONS)
     formatted = format_quality_report(report)
@@ -589,6 +608,7 @@ def test_format_quality_report_lists_detected_issues() -> None:
 def test_format_quality_report_includes_unknown_targets() -> None:
     report = AdventureQualityReport(
         scenes_missing_description=(),
+        duplicate_choice_commands=(),
         choices_missing_description=(),
         transitions_missing_narration=(),
         gated_transitions_missing_failure=(),
