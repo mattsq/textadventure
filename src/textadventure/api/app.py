@@ -14,6 +14,7 @@ import re
 import shutil
 import uuid
 import zipfile
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from importlib import resources
@@ -48,6 +49,8 @@ from pydantic import (
 from ..analytics import (
     AdventureQualityReport,
     AdventureReachabilityReport,
+    ItemDependencyCycle,
+    ItemDependencyCycleTransition,
     ItemFlowReport,
     ItemRequirement,
     ItemSource,
@@ -56,6 +59,7 @@ from ..analytics import (
     assess_adventure_quality,
     analyse_item_flow,
     compute_scene_reachability,
+    detect_item_dependency_cycles,
 )
 from ..search import FieldType, SearchResults, _SceneLike, search_scene_text
 from ..scripted_story_engine import ScriptedStoryEngine, load_scenes_from_mapping
@@ -8150,6 +8154,7 @@ def _compute_validation_statuses(
 
     quality_report = assess_adventure_quality(analytics_mapping)
     item_flow = analyse_item_flow(analytics_mapping)
+    dependency_cycles = detect_item_dependency_cycles(analytics_mapping)
     reachability = compute_scene_reachability(
         analytics_mapping, start_scene=resolved_start
     )
@@ -8196,6 +8201,10 @@ def _compute_validation_statuses(
                 continue
             error_scenes.update(reference.scene for reference in detail.requirements)
             error_scenes.update(reference.scene for reference in detail.consumptions)
+
+    for cycle in dependency_cycles:
+        for transition in cycle.transitions:
+            error_scenes.add(transition.scene)
 
     validation_map: dict[str, ValidationStatus] = {}
     for scene_id in scenes:
@@ -8869,6 +8878,7 @@ def _collect_validation_issues(
         analytics_mapping, start_scene=resolved_start
     )
     item_flow_report = analyse_item_flow(analytics_mapping)
+    dependency_cycles = detect_item_dependency_cycles(analytics_mapping)
 
     unreachable_scene_set = set(reachability_report.unreachable_scenes)
 
@@ -8880,6 +8890,13 @@ def _collect_validation_issues(
             unreachable_item_sources[detail.item] = tuple(
                 sorted(source.scene for source in detail.sources)
             )
+
+    cycles_by_scene: defaultdict[
+        str, list[tuple[ItemDependencyCycle, ItemDependencyCycleTransition]]
+    ] = defaultdict(list)
+    for cycle in dependency_cycles:
+        for transition in cycle.transitions:
+            cycles_by_scene[transition.scene].append((cycle, transition))
 
     issues: list[ValidationIssue] = []
 
@@ -9014,6 +9031,51 @@ def _collect_validation_issues(
                         path=f"transitions.{consumption.command}.consumes",
                     )
                 )
+
+    cycle_entries = cycles_by_scene.get(scene_id, [])
+    if cycle_entries:
+        cycle_entries.sort(key=lambda entry: (entry[1].command, entry[0].items))
+
+        def _format_cycle_path(items: tuple[str, ...], focus: str) -> str:
+            sequence = list(items)
+            if focus in sequence:
+                start_index = sequence.index(focus)
+                ordered = sequence[start_index:] + sequence[:start_index]
+            else:
+                ordered = sequence
+            ordered.append(ordered[0])
+            return " -> ".join(f"'{item}'" for item in ordered)
+
+        def _format_dependency_text(
+            requires: tuple[str, ...], consumes: tuple[str, ...]
+        ) -> str:
+            parts: list[str] = []
+            if requires:
+                parts.append("requires " + ", ".join(f"'{item}'" for item in requires))
+            if consumes:
+                parts.append("consumes " + ", ".join(f"'{item}'" for item in consumes))
+            return " and ".join(parts)
+
+        for cycle, transition in cycle_entries:
+            cycle_path = _format_cycle_path(cycle.items, transition.awarded_item)
+            dependency_text = _format_dependency_text(
+                transition.blocking_requires, transition.blocking_consumes
+            )
+            message = (
+                f"Transition '{transition.command}' awards '{transition.awarded_item}' but "
+                f"depends on items locked in a circular dependency: {cycle_path}."
+            )
+            if dependency_text:
+                message += f" Blocked dependencies: {dependency_text}."
+
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    code="circular_item_dependency",
+                    message=message,
+                    path=f"transitions.{transition.command}",
+                )
+            )
 
     issues.sort(key=lambda issue: (issue.path, issue.code))
     return issues
