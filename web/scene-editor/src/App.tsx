@@ -7,8 +7,26 @@ import {
   type EditorSidebarSection,
 } from "./components/layout";
 import { SelectField, TextAreaField, TextField } from "./components/forms";
-import { Badge, Card, DataTable, type DataTableColumn } from "./components/display";
-import { Breadcrumbs, Tabs, type BreadcrumbItem, type TabItem } from "./components/navigation";
+import {
+  Badge,
+  Card,
+  DataTable,
+  type DataTableColumn,
+} from "./components/display";
+import {
+  Breadcrumbs,
+  Tabs,
+  type BreadcrumbItem,
+  type TabItem,
+} from "./components/navigation";
+import {
+  INSPECTOR_TAB_IDS,
+  PRIMARY_TAB_IDS,
+  type PrimaryTabId,
+  type InspectorTabId,
+  type SceneTableRow,
+  useSceneEditorStore,
+} from "./state";
 
 const onboardingSections: EditorSidebarSection[] = [
   {
@@ -37,23 +55,6 @@ const onboardingSections: EditorSidebarSection[] = [
     ),
   },
 ];
-
-type ValidationState = "clean" | "warnings" | "errors";
-
-const PRIMARY_TAB_IDS = ["details", "choices", "testing"] as const;
-type PrimaryTabId = (typeof PRIMARY_TAB_IDS)[number];
-const INSPECTOR_TAB_IDS = ["overview", "validation", "activity"] as const;
-type InspectorTabId = (typeof INSPECTOR_TAB_IDS)[number];
-
-interface SceneTableRow {
-  readonly id: string;
-  readonly title: string;
-  readonly type: "Branch" | "Linear" | "Ending" | "Puzzle";
-  readonly choices: number;
-  readonly transitions: number;
-  readonly validation: ValidationState;
-  readonly lastUpdated: string;
-}
 
 const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
   {
@@ -119,36 +120,6 @@ const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
   },
 ];
 
-const sampleSceneRows: SceneTableRow[] = [
-  {
-    id: "mysterious-grove",
-    title: "Mysterious Grove",
-    type: "Branch",
-    choices: 3,
-    transitions: 4,
-    validation: "clean",
-    lastUpdated: "2 minutes ago",
-  },
-  {
-    id: "shrouded-altar",
-    title: "Shrouded Altar",
-    type: "Puzzle",
-    choices: 2,
-    transitions: 3,
-    validation: "warnings",
-    lastUpdated: "12 minutes ago",
-  },
-  {
-    id: "lunar-eclipse",
-    title: "Lunar Eclipse",
-    type: "Ending",
-    choices: 1,
-    transitions: 1,
-    validation: "errors",
-    lastUpdated: "27 minutes ago",
-  },
-];
-
 export const App: React.FC = () => {
   const primaryTabLogMessages: Record<PrimaryTabId, string> = {
     details: "Primary navigation focused on scene metadata and narrative notes.",
@@ -162,17 +133,23 @@ export const App: React.FC = () => {
     activity: "Inspector highlighting collaborator activity and version history.",
   };
 
-  const [sceneId, setSceneId] = React.useState("mysterious-grove");
-  const [sceneType, setSceneType] = React.useState("branch");
-  const [sceneSummary, setSceneSummary] = React.useState(
-    "A moonlit clearing reveals a hidden ritual site.",
-  );
-  const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
-  const [navigationLog, setNavigationLog] = React.useState<string>(
-    primaryTabLogMessages.details,
-  );
-  const [activePrimaryTab, setActivePrimaryTab] = React.useState<PrimaryTabId>("details");
-  const [activeInspectorTab, setActiveInspectorTab] = React.useState<InspectorTabId>("overview");
+  const {
+    sceneId,
+    sceneType,
+    sceneSummary,
+    statusMessage,
+    navigationLog,
+    activePrimaryTab,
+    activeInspectorTab,
+    sampleSceneRows,
+    setSceneId,
+    setSceneType,
+    setSceneSummary,
+    setStatusMessage,
+    setNavigationLog,
+    setActivePrimaryTab,
+    setActiveInspectorTab,
+  } = useSceneEditorStore();
 
   const breadcrumbItems = React.useMemo<BreadcrumbItem[]>(
     () => [
@@ -325,16 +302,14 @@ export const App: React.FC = () => {
     if (!isPrimaryTabId(tabId)) {
       return;
     }
-    setActivePrimaryTab(tabId);
-    setNavigationLog(primaryTabLogMessages[tabId]);
+    setActivePrimaryTab(tabId, primaryTabLogMessages[tabId]);
   };
 
   const handleInspectorTabChange = (tabId: string) => {
     if (!isInspectorTabId(tabId)) {
       return;
     }
-    setActiveInspectorTab(tabId);
-    setNavigationLog(inspectorTabLogMessages[tabId]);
+    setActiveInspectorTab(tabId, inspectorTabLogMessages[tabId]);
   };
 
   const sceneIdError = sceneId.trim()
@@ -349,10 +324,6 @@ export const App: React.FC = () => {
     }
     setStatusMessage(`Draft saved for ${sceneId.trim()}.`);
   };
-
-  React.useEffect(() => {
-    setStatusMessage(null);
-  }, [sceneId, sceneType, sceneSummary]);
 
   return (
     <EditorShell
