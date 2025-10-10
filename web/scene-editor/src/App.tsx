@@ -6,11 +6,8 @@ import {
   EditorSidebar,
   type EditorSidebarSection,
 } from "./components/layout";
-import {
-  SelectField,
-  TextAreaField,
-  TextField,
-} from "./components/forms";
+import { SelectField, TextAreaField, TextField } from "./components/forms";
+import { Badge, Card, DataTable, type DataTableColumn } from "./components/display";
 
 const onboardingSections: EditorSidebarSection[] = [
   {
@@ -37,6 +34,112 @@ const onboardingSections: EditorSidebarSection[] = [
         <li>Design navigation for scene list and detail pages.</li>
       </ul>
     ),
+  },
+];
+
+type ValidationState = "clean" | "warnings" | "errors";
+
+interface SceneTableRow {
+  readonly id: string;
+  readonly title: string;
+  readonly type: "Branch" | "Linear" | "Ending" | "Puzzle";
+  readonly choices: number;
+  readonly transitions: number;
+  readonly validation: ValidationState;
+  readonly lastUpdated: string;
+}
+
+const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
+  {
+    id: "scene",
+    header: "Scene",
+    render: (row) => (
+      <div className="flex flex-col">
+        <span className="font-semibold text-slate-50">{row.title}</span>
+        <span className="text-xs text-slate-400">{row.id}</span>
+      </div>
+    ),
+  },
+  {
+    id: "type",
+    header: "Type",
+    align: "center",
+    render: (row) => (
+      <Badge variant="info" size="sm">
+        {row.type}
+      </Badge>
+    ),
+  },
+  {
+    id: "choices",
+    header: "Choices",
+    align: "center",
+    accessor: (row) => row.choices,
+  },
+  {
+    id: "transitions",
+    header: "Transitions",
+    align: "center",
+    accessor: (row) => row.transitions,
+  },
+  {
+    id: "validation",
+    header: "Validation",
+    align: "center",
+    render: (row) => (
+      <Badge
+        variant={
+          row.validation === "clean"
+            ? "success"
+            : row.validation === "warnings"
+            ? "warning"
+            : "danger"
+        }
+        size="sm"
+      >
+        {row.validation === "clean"
+          ? "Ready"
+          : row.validation === "warnings"
+          ? "Review"
+          : "Needs Fix"}
+      </Badge>
+    ),
+  },
+  {
+    id: "lastUpdated",
+    header: "Last Updated",
+    align: "right",
+    accessor: (row) => row.lastUpdated,
+  },
+];
+
+const sampleSceneRows: SceneTableRow[] = [
+  {
+    id: "mysterious-grove",
+    title: "Mysterious Grove",
+    type: "Branch",
+    choices: 3,
+    transitions: 4,
+    validation: "clean",
+    lastUpdated: "2 minutes ago",
+  },
+  {
+    id: "shrouded-altar",
+    title: "Shrouded Altar",
+    type: "Puzzle",
+    choices: 2,
+    transitions: 3,
+    validation: "warnings",
+    lastUpdated: "12 minutes ago",
+  },
+  {
+    id: "lunar-eclipse",
+    title: "Lunar Eclipse",
+    type: "Ending",
+    choices: 1,
+    transitions: 1,
+    validation: "errors",
+    lastUpdated: "27 minutes ago",
   },
 ];
 
@@ -108,33 +211,51 @@ export const App: React.FC = () => {
           variant="subtle"
           description="Quick tips for extending the component set as new editor surfaces come online."
         >
-          <ul className="grid gap-3 md:grid-cols-2">
-            <li className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-4 text-sm">
-              <h3 className="text-sm font-semibold text-white">Use Form Primitives</h3>
-              <p className="mt-2 text-slate-300">
-                Reuse the shared <code>TextField</code>, <code>SelectField</code>, and <code>TextAreaField</code> components to
-                ensure consistent styling and accessibility across editor screens.
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Card
+              compact
+              title="Form primitives"
+              description="Input components provide consistent states, helper text, and validation messaging."
+              actions={<Badge size="sm">Stable</Badge>}
+            >
+              <p className="text-slate-300">
+                Reuse <code>TextField</code>, <code>SelectField</code>, and <code>TextAreaField</code> for upcoming editor flows
+                to minimise duplicated Tailwind classes.
               </p>
-            </li>
-            <li className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-4 text-sm">
-              <h3 className="text-sm font-semibold text-white">Compose Layouts</h3>
-              <p className="mt-2 text-slate-300">
-                Combine panels with the sidebar to create split views for scene lists and detail editors.
+            </Card>
+            <Card
+              compact
+              title="Layout shells"
+              description="Compose panels, shells, and sidebars to build new views quickly."
+              actions={<Badge size="sm">Stable</Badge>}
+            >
+              <p className="text-slate-300">
+                Combine <code>EditorShell</code>, <code>EditorPanel</code>, and <code>EditorSidebar</code> to create dashboards
+                for scenes, analytics, or collaborative tools.
               </p>
-            </li>
-            <li className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-4 text-sm">
-              <h3 className="text-sm font-semibold text-white">Document Patterns</h3>
-              <p className="mt-2 text-slate-300">
-                Update the design system documentation as new primitives and tokens are added.
+            </Card>
+            <Card
+              compact
+              title="Display components"
+              description="Cards, badges, and tables showcase scene metadata with consistent styling."
+              actions={<Badge variant="info" size="sm">New</Badge>}
+            >
+              <p className="text-slate-300">
+                Adopt the new <code>Card</code>, <code>Badge</code>, and <code>DataTable</code> primitives as building blocks for
+                dashboards and validation summaries.
               </p>
-            </li>
-            <li className="rounded-lg border border-slate-800/60 bg-slate-900/40 p-4 text-sm">
-              <h3 className="text-sm font-semibold text-white">Iterate Quickly</h3>
-              <p className="mt-2 text-slate-300">
-                Tailwind utilities keep prototypes fast while maintaining visual consistency.
+            </Card>
+            <Card
+              compact
+              title="Document patterns"
+              description="Keep usage guidelines current as primitives evolve."
+              actions={<Badge variant="warning" size="sm">Todo</Badge>}
+            >
+              <p className="text-slate-300">
+                Update the design system docs with examples, variant guidance, and theming tokens as additional UI is added.
               </p>
-            </li>
-          </ul>
+            </Card>
+          </div>
         </EditorPanel>
 
         <EditorPanel
@@ -192,6 +313,59 @@ export const App: React.FC = () => {
               </button>
             </div>
           </form>
+        </EditorPanel>
+
+        <EditorPanel
+          title="Data Display Components"
+          description="Scene summaries, validation states, and statistics can be presented with shared primitives."
+        >
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <DataTable
+                columns={sceneTableColumns}
+                data={sampleSceneRows}
+                caption="Sample dataset highlighting validation coverage for recent scenes"
+              />
+            </div>
+            <div className="flex flex-col gap-4">
+              <Card
+                title="Status breakdown"
+                description="Use badges to provide quick validation state overviews."
+                footer="Status summaries will align with analytics from the validation engine."
+              >
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center justify-between">
+                    <span className="text-slate-300">Ready for publish</span>
+                    <Badge variant="success" size="sm">
+                      12 scenes
+                    </Badge>
+                  </li>
+                  <li className="flex items-center justify-between">
+                    <span className="text-slate-300">Needs review</span>
+                    <Badge variant="warning" size="sm">
+                      5 scenes
+                    </Badge>
+                  </li>
+                  <li className="flex items-center justify-between">
+                    <span className="text-slate-300">Blocked</span>
+                    <Badge variant="danger" size="sm">
+                      1 scene
+                    </Badge>
+                  </li>
+                </ul>
+              </Card>
+              <Card
+                title="Design tokens"
+                description="Cards and tables inherit Tailwind theme tokens for consistent surfaces."
+                variant="subtle"
+              >
+                <p className="text-slate-300">
+                  Extend component variants by mapping new Tailwind utility combinations to semantic names. Theme updates can
+                  then roll out across the editor from a single location.
+                </p>
+              </Card>
+            </div>
+          </div>
         </EditorPanel>
       </div>
     </EditorShell>
