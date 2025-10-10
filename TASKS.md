@@ -171,7 +171,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Create base component library:
       - [x] Layout components (headers, sidebars, panels) *(Introduced reusable EditorShell, Header, Sidebar, and Panel React components to establish shared layout primitives.)*
       - [x] Form components (inputs, selects, textareas) *(Added shared TextField, SelectField, and TextAreaField components with accessibility helpers and demo usage in the shell.)*
-      - [ ] Data display components (tables, cards, badges)
+      - [x] Data display components (tables, cards, badges) *(Added Card, Badge, and DataTable primitives with demo usage inside the editor shell to showcase validation summaries.)*
       - [ ] Navigation components (breadcrumbs, tabs)
     - [ ] Set up state management (Redux Toolkit or Zustand).
     - [ ] Implement API client with proper error handling and loading states.
