@@ -18,6 +18,8 @@ export type InspectorTabId = (typeof INSPECTOR_TAB_IDS)[number];
 
 export type ValidationState = "valid" | "warnings" | "errors";
 
+export type SceneTableValidationFilter = "all" | ValidationState;
+
 export type AsyncStatus = "idle" | "loading" | "success" | "error";
 
 export interface AsyncState<TData> {
@@ -46,6 +48,8 @@ export interface SceneEditorState {
   readonly activePrimaryTab: PrimaryTabId;
   readonly activeInspectorTab: InspectorTabId;
   readonly sceneTableState: AsyncState<SceneTableRow[]>;
+  readonly sceneTableQuery: string;
+  readonly sceneTableValidationFilter: SceneTableValidationFilter;
 
   readonly setSceneId: (value: string) => void;
   readonly setSceneType: (value: string) => void;
@@ -56,6 +60,10 @@ export interface SceneEditorState {
   readonly setActiveInspectorTab: (
     tabId: InspectorTabId,
     logMessage: string,
+  ) => void;
+  readonly setSceneTableQuery: (value: string) => void;
+  readonly setSceneTableValidationFilter: (
+    value: SceneTableValidationFilter,
   ) => void;
   readonly loadSceneTable: (
     client: SceneEditorApiClient,
@@ -120,6 +128,8 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     error: null,
     lastUpdatedAt: null,
   },
+  sceneTableQuery: "",
+  sceneTableValidationFilter: "all",
   setSceneId: (value) =>
     set(() => ({
       sceneId: value,
@@ -141,8 +151,25 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     set(() => ({ activePrimaryTab: tabId, navigationLog: logMessage })),
   setActiveInspectorTab: (tabId, logMessage) =>
     set(() => ({ activeInspectorTab: tabId, navigationLog: logMessage })),
+  setSceneTableQuery: (value) =>
+    set(() => ({
+      sceneTableQuery: value,
+      statusMessage: null,
+    })),
+  setSceneTableValidationFilter: (value) =>
+    set(() => ({
+      sceneTableValidationFilter: value,
+      statusMessage: null,
+    })),
   loadSceneTable: async (client, params = {}) => {
     const previous = get().sceneTableState;
+    const { sceneTableQuery } = get();
+    const { search: searchOverride, ...restParams } = params;
+    const resolvedQuery =
+      typeof searchOverride === "string"
+        ? searchOverride.trim()
+        : sceneTableQuery.trim();
+    const search = resolvedQuery ? resolvedQuery : undefined;
     set(() => ({
       sceneTableState: {
         status: "loading",
@@ -156,7 +183,8 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     try {
       const response = await client.listScenes({
         include_validation: true,
-        ...params,
+        ...restParams,
+        search,
       });
       const rows = response.data.map(mapSceneSummaryToRow);
       set(() => ({

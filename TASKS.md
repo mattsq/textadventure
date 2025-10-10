@@ -179,7 +179,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 
   - [ ] **Phase 3: Scene List & Basic Editing**
     - [ ] Implement scene list view:
-      - [ ] Searchable/filterable scene table
+      - [x] Searchable/filterable scene table *(Implemented live search with debounce, validation status filters, and reset controls in the library view.)*
       - [ ] Scene metadata display (description preview, choice count, transition count)
       - [ ] Quick actions (edit, duplicate, delete)
       - [ ] Validation status indicators (errors, warnings)

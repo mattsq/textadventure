@@ -10,6 +10,7 @@ import {
   type InspectorTabId,
   type PrimaryTabId,
   type SceneTableRow,
+  type SceneTableValidationFilter,
   type ValidationState,
   useSceneEditorStore,
 } from "../state";
@@ -25,6 +26,20 @@ const validationLabels: Record<ValidationState, string> = {
   warnings: "Review",
   errors: "Needs Fix",
 };
+
+const validationFilterLabels: Record<SceneTableValidationFilter, string> = {
+  all: "All statuses",
+  valid: validationLabels.valid,
+  warnings: validationLabels.warnings,
+  errors: validationLabels.errors,
+};
+
+const validationFilterOptions: readonly SceneTableValidationFilter[] = [
+  "all",
+  "valid",
+  "warnings",
+  "errors",
+];
 
 const formatTimestamp = (value: string): string => {
   const parsed = new Date(value);
@@ -122,6 +137,8 @@ export const SceneLibraryPage: React.FC = () => {
     activePrimaryTab,
     activeInspectorTab,
     sceneTableState,
+    sceneTableQuery,
+    sceneTableValidationFilter,
     loadSceneTable,
     setSceneId,
     setSceneType,
@@ -130,21 +147,115 @@ export const SceneLibraryPage: React.FC = () => {
     setNavigationLog,
     setActivePrimaryTab,
     setActiveInspectorTab,
+    setSceneTableQuery,
+    setSceneTableValidationFilter,
   } = useSceneEditorStore();
+
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState(
+    sceneTableQuery,
+  );
+
+  React.useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearchQuery(sceneTableQuery);
+    }, 300);
+
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [sceneTableQuery]);
 
   React.useEffect(() => {
     const abortController = new AbortController();
-    void loadSceneTable(apiClient, { signal: abortController.signal });
+    void loadSceneTable(apiClient, {
+      signal: abortController.signal,
+      search: debouncedSearchQuery.trim() || undefined,
+    });
 
     return () => {
       abortController.abort();
     };
-  }, [apiClient, loadSceneTable]);
+  }, [apiClient, debouncedSearchQuery, loadSceneTable]);
 
   const sceneTableRows = sceneTableState.data ?? [];
+  const normalizedSearchQuery = sceneTableQuery.trim().toLowerCase();
+  const filteredSceneTableRows = React.useMemo<SceneTableRow[]>(
+    () =>
+      sceneTableRows.filter((row) => {
+        const matchesValidation =
+          sceneTableValidationFilter === "all" ||
+          row.validationStatus === sceneTableValidationFilter;
+        if (!matchesValidation) {
+          return false;
+        }
+
+        if (!normalizedSearchQuery) {
+          return true;
+        }
+
+        return (
+          row.id.toLowerCase().includes(normalizedSearchQuery) ||
+          row.description.toLowerCase().includes(normalizedSearchQuery)
+        );
+      }),
+    [normalizedSearchQuery, sceneTableRows, sceneTableValidationFilter],
+  );
   const sceneTableError = sceneTableState.error;
   const isSceneTableLoading = sceneTableState.status === "loading";
   const sceneTableLastSyncedAt = sceneTableState.lastUpdatedAt;
+  const totalFetchedScenes = sceneTableRows.length;
+  const visibleSceneCount = filteredSceneTableRows.length;
+  const validationCounts = React.useMemo<
+    Record<SceneTableValidationFilter, number>
+  >(
+    () => {
+      const counts: Record<SceneTableValidationFilter, number> = {
+        all: sceneTableRows.length,
+        valid: 0,
+        warnings: 0,
+        errors: 0,
+      };
+
+      for (const row of sceneTableRows) {
+        counts[row.validationStatus] += 1;
+      }
+
+      return counts;
+    },
+    [sceneTableRows],
+  );
+  const hasActiveQuery = normalizedSearchQuery.length > 0;
+  const hasActiveFilters =
+    hasActiveQuery || sceneTableValidationFilter !== "all";
+  const sceneTableEmptyState = isSceneTableLoading
+    ? "Loading scenes…"
+    : hasActiveFilters
+      ? "No scenes match your filters yet. Try adjusting the search or status filter."
+      : "No scenes available yet. Create a scene to get started.";
+
+  const handleSceneTableQueryChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setSceneTableQuery(event.target.value);
+  };
+
+  const handleSceneTableValidationFilterChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    setSceneTableValidationFilter(
+      event.target.value as SceneTableValidationFilter,
+    );
+  };
+
+  const handleResetSceneTableFilters = () => {
+    if (!hasActiveFilters) {
+      return;
+    }
+
+    setSceneTableQuery("");
+    setSceneTableValidationFilter("all");
+    setDebouncedSearchQuery("");
+  };
 
   const breadcrumbItems = React.useMemo<BreadcrumbItem[]>(
     () => [
@@ -496,6 +607,44 @@ export const SceneLibraryPage: React.FC = () => {
       >
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-3">
+            <div className="space-y-3 rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                <TextField
+                  label="Search scenes"
+                  value={sceneTableQuery}
+                  onChange={handleSceneTableQueryChange}
+                  placeholder="Search by ID or description"
+                  description="Filter the table in real time while new results load from the API."
+                />
+                <SelectField
+                  label="Validation status"
+                  value={sceneTableValidationFilter}
+                  onChange={handleSceneTableValidationFilterChange}
+                  description="Limit the table to scenes with a specific validation outcome."
+                >
+                  {validationFilterOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {validationFilterLabels[option]} ({validationCounts[option]})
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+              <div className="flex flex-col gap-2 pt-1 text-xs text-slate-400 md:flex-row md:items-center md:justify-between md:text-sm">
+                <span>
+                  Showing <span className="font-semibold text-slate-200">{visibleSceneCount}</span> of{" "}
+                  <span className="font-semibold text-slate-200">{totalFetchedScenes}</span> scenes
+                  {hasActiveFilters ? " after filters." : "."}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleResetSceneTableFilters}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-700/70 bg-slate-900/60 px-3 py-1.5 font-semibold text-slate-200 transition hover:border-slate-500/80 hover:bg-slate-900/80 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
+                  disabled={!hasActiveFilters}
+                >
+                  Reset filters
+                </button>
+              </div>
+            </div>
             {isSceneTableLoading ? (
               <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 text-sm text-slate-300">
                 Loading scenes from the API…
@@ -503,13 +652,17 @@ export const SceneLibraryPage: React.FC = () => {
             ) : null}
             <DataTable
               columns={sceneTableColumns}
-              data={sceneTableRows}
-              emptyState={
-                isSceneTableLoading
-                  ? "Loading scenes…"
-                  : "No scenes available yet. Create a scene to get started."
+              data={filteredSceneTableRows}
+              emptyState={sceneTableEmptyState}
+              caption={
+                <div className="flex flex-col gap-1">
+                  <span>Scene dataset loaded from the API with validation coverage.</span>
+                  <span className="text-xs text-slate-400">
+                    Showing {visibleSceneCount} of {totalFetchedScenes} scenes
+                    {hasActiveFilters ? " matching your filters." : "."}
+                  </span>
+                </div>
               }
-              caption="Scene dataset loaded from the API with validation coverage"
             />
             {sceneTableError ? (
               <p className="text-sm text-rose-300">{sceneTableError}</p>
