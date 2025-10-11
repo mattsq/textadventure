@@ -187,7 +187,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Scene ID and description editing *(Implemented dedicated scene detail page with editable ID/description fields, API-backed save flow, and validation messaging.)*
     - [x] Dynamic choice list editor (add/remove/reorder) *(Added interactive choice list management with validation, reordering controls, and API integration.)*
     - [x] Basic transition editor (target selection, narration) *(Implemented transition editor with target suggestions, narration validation, and save integration.)*
-    - [ ] Real-time validation feedback
+    - [x] Real-time validation feedback *(Inline field errors now update as you type, and saving is blocked until issues are resolved.)*
     - [ ] Auto-save functionality
     - [ ] Implement scene creation wizard:
       - [ ] Template selection (empty, copy from existing)
