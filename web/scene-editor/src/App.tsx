@@ -4,7 +4,7 @@ import SceneEditorLayout from "./routes/SceneEditorLayout";
 import OverviewPage from "./pages/OverviewPage";
 import SceneLibraryPage from "./pages/SceneLibraryPage";
 import SceneCreatePlaceholderPage from "./pages/SceneCreatePlaceholderPage";
-import SceneDetailsPlaceholderPage from "./pages/SceneDetailsPlaceholderPage";
+import SceneDetailsPage from "./pages/SceneDetailsPage";
 
 export const App: React.FC = () => (
   <BrowserRouter>
@@ -13,7 +13,7 @@ export const App: React.FC = () => (
         <Route index element={<OverviewPage />} />
         <Route path="scenes" element={<SceneLibraryPage />} />
         <Route path="scenes/new" element={<SceneCreatePlaceholderPage />} />
-        <Route path="scenes/:sceneId" element={<SceneDetailsPlaceholderPage />} />
+        <Route path="scenes/:sceneId" element={<SceneDetailsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
