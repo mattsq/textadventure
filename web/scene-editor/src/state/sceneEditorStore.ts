@@ -72,6 +72,7 @@ export interface SceneEditorState {
   readonly prepareSceneEdit: (scene: SceneTableRow) => void;
   readonly prepareSceneDuplicate: (scene: SceneTableRow) => void;
   readonly requestSceneDeletion: (scene: SceneTableRow) => void;
+  readonly upsertSceneTableRow: (row: SceneTableRow) => void;
 }
 
 const mapSceneSummaryToRow = (summary: SceneSummary): SceneTableRow => ({
@@ -239,6 +240,30 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       statusMessage: `Deletion workflow for "${scene.id}" will request confirmation in a future update.`,
       navigationLog: `Delete action queued for "${scene.id}".`,
     })),
+  upsertSceneTableRow: (row) =>
+    set((state) => {
+      const previous = state.sceneTableState;
+      const existingRows = previous.data ?? [];
+      const nextRows = [
+        {
+          ...row,
+          updatedAt: row.updatedAt,
+        },
+        ...existingRows.filter((existing) => existing.id !== row.id),
+      ].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+      const timestamp = new Date().toISOString();
+
+      return {
+        sceneTableState: {
+          status: "success",
+          data: nextRows,
+          error: null,
+          lastUpdatedAt: timestamp,
+        },
+        statusMessage: state.statusMessage,
+      };
+    }),
 }));
 
 export type { SceneSummary };

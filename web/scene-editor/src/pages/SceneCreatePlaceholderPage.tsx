@@ -1,8 +1,9 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { EditorPanel } from "../components/layout";
 import { Badge, Card } from "../components/display";
 import { SelectField, TextAreaField, TextField } from "../components/forms";
-import { useSceneEditorStore } from "../state";
+import { useSceneEditorStore, type SceneTableRow } from "../state";
 
 const classNames = (...values: Array<string | false | null | undefined>): string =>
   values.filter(Boolean).join(" ");
@@ -139,6 +140,7 @@ const TemplateOptionCard: React.FC<TemplateOptionCardProps> = ({
 );
 
 const SceneCreateWizardPage: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedTemplate, setSelectedTemplate] = React.useState<TemplateOptionId | null>(null);
   const [selectedSourceSceneId, setSelectedSourceSceneId] = React.useState<string>("");
   const [currentStep, setCurrentStep] = React.useState<WizardStep>(1);
@@ -156,6 +158,7 @@ const SceneCreateWizardPage: React.FC = () => {
   const setStatusMessage = useSceneEditorStore((state) => state.setStatusMessage);
   const setNavigationLog = useSceneEditorStore((state) => state.setNavigationLog);
   const prepareSceneDuplicate = useSceneEditorStore((state) => state.prepareSceneDuplicate);
+  const upsertSceneTableRow = useSceneEditorStore((state) => state.upsertSceneTableRow);
 
   const handleSelectTemplate = (templateId: TemplateOptionId) => {
     setSelectedTemplate(templateId);
@@ -254,11 +257,55 @@ const SceneCreateWizardPage: React.FC = () => {
       return;
     }
 
+    if (!selectedTemplate) {
+      setStatusMessage("Select a template before saving your draft.");
+      setMetadataSaved(false);
+      return;
+    }
+
     const trimmedId = sceneId.trim();
+    const trimmedSummary = sceneSummary.trim();
+    const timestamp = new Date().toISOString();
+
+    let baseRow: SceneTableRow;
+    if (selectedTemplate === "copy" && selectedSourceSceneId) {
+      const source = sceneTableRows.find((row) => row.id === selectedSourceSceneId);
+      if (!source) {
+        setStatusMessage("The selected source scene is no longer available. Refresh the library and try again.");
+        setMetadataSaved(false);
+        return;
+      }
+      baseRow = {
+        ...source,
+        id: trimmedId,
+        description: trimmedSummary,
+        updatedAt: timestamp,
+        validationStatus: "warnings",
+      };
+    } else {
+      baseRow = {
+        id: trimmedId,
+        description: trimmedSummary,
+        choiceCount: 0,
+        transitionCount: 0,
+        hasTerminalTransition: false,
+        validationStatus: "warnings",
+        updatedAt: timestamp,
+      };
+    }
+
+    upsertSceneTableRow(baseRow);
+    setSceneId(trimmedId);
+    setSceneSummary(trimmedSummary);
+    const statusPrefix = `Draft saved for ${trimmedId}`;
     setStatusMessage(
-      `Metadata captured for ${trimmedId}. Choice drafting will unlock in the next milestone once this step is stable.`,
+      `${statusPrefix} and added to the scene library. Branching tools will unlock in upcoming wizard steps.`,
     );
-    setNavigationLog(`Metadata configured for "${trimmedId}".`);
+    const logSuffix =
+      selectedTemplate === "copy" && selectedSourceSceneId
+        ? `Duplicated from "${selectedSourceSceneId}" via the wizard.`
+        : "Created from the blank template via the wizard.";
+    setNavigationLog(`Scene library updated with "${trimmedId}". ${logSuffix}`);
     setMetadataSaved(true);
   };
 
@@ -287,7 +334,7 @@ const SceneCreateWizardPage: React.FC = () => {
     : "text-xs text-slate-400";
 
   const metadataStatusText = metadataSaved
-    ? `Metadata captured for ${sceneId.trim() || "your scene"}. Branching tools will unlock soon.`
+    ? `Draft ${sceneId.trim() || "your scene"} has been added to the scene library. Branching tools will unlock soon.`
     : statusMessage ??
       "Fill out these basics so future wizard steps can focus on narration, choices, and validation.";
 
@@ -482,9 +529,34 @@ const SceneCreateWizardPage: React.FC = () => {
               variant="transparent"
               className="border border-emerald-500/30 bg-emerald-500/5"
               icon={<span aria-hidden className="text-emerald-300">✓</span>}
-              title="Metadata locked in"
+              title="Draft added to scene library"
               description="You're ready for the next stage of the wizard. Branching, narration, and validation helpers will unlock soon."
-            />
+              actions={
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNavigationLog(
+                      `Navigating to the scene library to review "${sceneId.trim()}".`,
+                    );
+                    navigate("/scenes");
+                  }}
+                  className="inline-flex items-center justify-center rounded-md border border-indigo-400/60 bg-indigo-500/20 px-3 py-1.5 text-xs font-semibold text-indigo-100 transition hover:bg-indigo-500/30"
+                >
+                  Open scene library
+                </button>
+              }
+            >
+              {selectedTemplate === "copy" && selectedSourceSceneId ? (
+                <p className="text-xs text-emerald-200">
+                  Based on <span className="font-semibold">{selectedSourceSceneId}</span>. Review the duplicate in the
+                  library and continue iterating.
+                </p>
+              ) : (
+                <p className="text-xs text-emerald-200">
+                  Start enriching the blank template from the library once narrative and branching tools are available.
+                </p>
+              )}
+            </Card>
           ) : (
             <p className="text-xs text-slate-400">
               Once metadata is saved, the wizard will guide you through drafting choices, transitions, and validation checks in
