@@ -207,7 +207,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Implement scene node components:
       - [x] Color-coded by type (start, end, branch, linear)
       - [ ] Validation status indicators (error, warning, valid)
-      - [ ] Hover tooltips with scene metadata
+      - [x] Hover tooltips with scene metadata
       - [ ] Click to open editor
     - [ ] Implement transition edge components:
       - [ ] Different styles for different transition types
