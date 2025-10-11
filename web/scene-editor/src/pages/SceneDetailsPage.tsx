@@ -4,6 +4,7 @@ import {
   createSceneEditorApiClient,
   SceneEditorApiError,
   type ChoiceResource,
+  type TransitionResource,
   type SceneResource,
   type ValidationIssue,
 } from "../api";
@@ -14,6 +15,10 @@ import {
   ChoiceListEditor,
   type ChoiceEditorFieldErrors,
   type ChoiceEditorItem,
+  TransitionListEditor,
+  type TransitionEditorFieldErrors,
+  type TransitionEditorValues,
+  type TransitionExtras,
 } from "../components/scene-editor";
 import { useSceneEditorStore } from "../state";
 
@@ -70,6 +75,100 @@ const mapChoicesToDrafts = (
     description: choice.description,
   }));
 
+const mapTransitionsToDrafts = (
+  choices: readonly ChoiceEditorItem[],
+  transitions: Readonly<Record<string, TransitionResource>>,
+): {
+  readonly drafts: Record<string, TransitionEditorValues>;
+  readonly unmanaged: Record<string, TransitionResource>;
+} => {
+  const drafts: Record<string, TransitionEditorValues> = {};
+  const assignedCommands = new Set<string>();
+
+  for (const choice of choices) {
+    const transition = transitions[choice.command];
+    if (transition) {
+      const { target, narration, ...extras } = transition;
+      drafts[choice.key] = {
+        target: target ?? null,
+        narration: narration ?? "",
+        extras: (extras as TransitionExtras) ?? ({} as TransitionExtras),
+      };
+      assignedCommands.add(choice.command);
+    } else {
+      drafts[choice.key] = {
+        target: null,
+        narration: "",
+        extras: {} as TransitionExtras,
+      };
+    }
+  }
+
+  const unmanaged: Record<string, TransitionResource> = {};
+  for (const [command, transition] of Object.entries(transitions)) {
+    if (!assignedCommands.has(command)) {
+      unmanaged[command] = transition;
+    }
+  }
+
+  return { drafts, unmanaged };
+};
+
+const createEmptyTransition = (): TransitionEditorValues => ({
+  target: null,
+  narration: "",
+  extras: {} as TransitionExtras,
+});
+
+const serializeTransition = (transition: TransitionResource): string => {
+  const { target, narration, ...extras } = transition;
+  const filteredExtras = Object.entries(extras).filter(
+    ([, value]) => value !== undefined,
+  );
+  filteredExtras.sort(([a], [b]) => a.localeCompare(b));
+  const normalisedExtras: Record<string, unknown> = {};
+  for (const [key, value] of filteredExtras) {
+    normalisedExtras[key] = value;
+  }
+
+  return JSON.stringify({
+    target: target ?? null,
+    narration: (narration ?? "").trim(),
+    extras: normalisedExtras,
+  });
+};
+
+const areTransitionsEqual = (
+  previous: Readonly<Record<string, TransitionResource>>,
+  next: Readonly<Record<string, TransitionResource>>,
+): boolean => {
+  const previousKeys = Object.keys(previous).sort();
+  const nextKeys = Object.keys(next).sort();
+
+  if (previousKeys.length !== nextKeys.length) {
+    return false;
+  }
+
+  for (let index = 0; index < previousKeys.length; index += 1) {
+    if (previousKeys[index] !== nextKeys[index]) {
+      return false;
+    }
+  }
+
+  return previousKeys.every((key) => {
+    const previousTransition = previous[key];
+    const nextTransition = next[key];
+    if (!previousTransition || !nextTransition) {
+      return false;
+    }
+
+    return (
+      serializeTransition(previousTransition) ===
+      serializeTransition(nextTransition)
+    );
+  });
+};
+
 interface FieldErrors {
   sceneId?: string;
   description?: string;
@@ -117,6 +216,7 @@ const SceneDetailsPage: React.FC = () => {
     sceneId: "",
     description: "",
     choices: [] as ChoiceEditorItem[],
+    transitions: {} as Record<string, TransitionEditorValues>,
   });
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [statusNotice, setStatusNotice] = React.useState<StatusNotice | null>(null);
@@ -124,6 +224,13 @@ const SceneDetailsPage: React.FC = () => {
   const [choiceErrors, setChoiceErrors] = React.useState<
     Record<string, ChoiceEditorFieldErrors>
   >({});
+  const [transitionErrors, setTransitionErrors] = React.useState<
+    Record<string, TransitionEditorFieldErrors>
+  >({});
+  const [unmanagedTransitions, setUnmanagedTransitions] = React.useState<
+    Readonly<Record<string, TransitionResource>>
+  >({});
+  const [targetSceneOptions, setTargetSceneOptions] = React.useState<readonly string[]>([]);
 
   React.useEffect(() => {
     if (!routeSceneId) {
@@ -145,14 +252,22 @@ const SceneDetailsPage: React.FC = () => {
         });
 
         setScene(response.data);
+        const choiceDrafts = mapChoicesToDrafts(response.data.choices);
+        const { drafts, unmanaged } = mapTransitionsToDrafts(
+          choiceDrafts,
+          response.data.transitions,
+        );
         setFormState({
           sceneId: response.data.id,
           description: response.data.description,
-          choices: mapChoicesToDrafts(response.data.choices),
+          choices: choiceDrafts,
+          transitions: drafts,
         });
+        setUnmanagedTransitions(unmanaged);
         setValidationIssues(response.validation?.issues ?? []);
         setFieldErrors({});
         setChoiceErrors({});
+        setTransitionErrors({});
         setLoadStatus("success");
         setNavigationLog(
           `Loaded scene "${response.data.id}" for detailed editing.`,
@@ -178,6 +293,31 @@ const SceneDetailsPage: React.FC = () => {
     };
   }, [apiClient, routeSceneId, setNavigationLog]);
 
+  React.useEffect(() => {
+    const abortController = new AbortController();
+
+    void (async () => {
+      try {
+        const response = await apiClient.listScenes({
+          page_size: 200,
+          signal: abortController.signal,
+        });
+        const sceneIds = Array.from(
+          new Set(response.data.map((item) => item.id)),
+        ).sort((a, b) => a.localeCompare(b));
+        setTargetSceneOptions(sceneIds);
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          setTargetSceneOptions([]);
+        }
+      }
+    })();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [apiClient]);
+
   const handleFieldChange = <T extends keyof typeof formState>(
     field: T,
     value: (typeof formState)[T],
@@ -192,13 +332,22 @@ const SceneDetailsPage: React.FC = () => {
       return;
     }
 
+    const choiceDrafts = mapChoicesToDrafts(scene.choices);
+    const { drafts, unmanaged } = mapTransitionsToDrafts(
+      choiceDrafts,
+      scene.transitions,
+    );
+
     setFormState({
       sceneId: scene.id,
       description: scene.description,
-      choices: mapChoicesToDrafts(scene.choices),
+      choices: choiceDrafts,
+      transitions: drafts,
     });
+    setUnmanagedTransitions(unmanaged);
     setFieldErrors({});
     setChoiceErrors({});
+    setTransitionErrors({});
     setStatusNotice(buildStatusMessage("Reverted changes to the last saved state.", "info"));
     setNavigationLog(`Reverted edits for scene "${scene.id}".`);
   };
@@ -214,6 +363,74 @@ const SceneDetailsPage: React.FC = () => {
       })),
     [formState.choices],
   );
+
+  interface TrimmedTransitionItem {
+    readonly key: string;
+    readonly command: string;
+    readonly target: string | null;
+    readonly narration: string;
+    readonly extras: TransitionExtras;
+  }
+
+  const trimmedTransitions = React.useMemo<TrimmedTransitionItem[]>(() => {
+    return formState.choices.map((choice, index) => {
+      const trimmedChoice = trimmedChoices[index];
+      const transitionState =
+        formState.transitions[choice.key] ?? createEmptyTransition();
+      const rawTarget = transitionState.target;
+      const normalisedTarget =
+        typeof rawTarget === "string"
+          ? rawTarget.trim().length > 0
+            ? rawTarget.trim()
+            : null
+          : rawTarget;
+
+      return {
+        key: choice.key,
+        command: trimmedChoice.command,
+        target: normalisedTarget,
+        narration: transitionState.narration.trim(),
+        extras: transitionState.extras ?? ({} as TransitionExtras),
+      };
+    });
+  }, [formState.choices, formState.transitions, trimmedChoices]);
+
+  const availableTargetOptions = React.useMemo(() => {
+    const unique = new Set(targetSceneOptions);
+    if (trimmedSceneId) {
+      unique.add(trimmedSceneId);
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }, [targetSceneOptions, trimmedSceneId]);
+
+  const combinedTransitions = React.useMemo(
+    () => {
+      const map: Record<string, TransitionResource> = {
+        ...unmanagedTransitions,
+      };
+
+      for (const item of trimmedTransitions) {
+        if (!item.command) {
+          continue;
+        }
+
+        map[item.command] = {
+          ...item.extras,
+          target: item.target,
+          narration: item.narration,
+        };
+      }
+
+      return map;
+    },
+    [trimmedTransitions, unmanagedTransitions],
+  );
+
+  const transitionsDirty =
+    scene !== null
+      ? !areTransitionsEqual(scene.transitions, combinedTransitions)
+      : false;
+
   const isDirty =
     scene !== null &&
     ((trimmedSceneId !== scene.id || trimmedDescription !== scene.description ||
@@ -227,7 +444,8 @@ const SceneDetailsPage: React.FC = () => {
           choice.command !== original.command.trim() ||
           choice.description !== original.description.trim()
         );
-      })));
+      }) ||
+      transitionsDirty));
 
   const handleChoiceChange = (
     choiceKey: string,
@@ -260,22 +478,40 @@ const SceneDetailsPage: React.FC = () => {
   };
 
   const handleAddChoice = () => {
+    const newChoiceKey = createChoiceKey();
     setFormState((previous) => ({
       ...previous,
       choices: [
         ...previous.choices,
-        { key: createChoiceKey(), command: "", description: "" },
+        { key: newChoiceKey, command: "", description: "" },
       ],
+      transitions: {
+        ...previous.transitions,
+        [newChoiceKey]: createEmptyTransition(),
+      },
     }));
     setStatusNotice(null);
   };
 
   const handleRemoveChoice = (choiceKey: string) => {
-    setFormState((previous) => ({
-      ...previous,
-      choices: previous.choices.filter((choice) => choice.key !== choiceKey),
-    }));
+    setFormState((previous) => {
+      const { [choiceKey]: _removedTransition, ...restTransitions } =
+        previous.transitions;
+      return {
+        ...previous,
+        choices: previous.choices.filter((choice) => choice.key !== choiceKey),
+        transitions: restTransitions,
+      };
+    });
     setChoiceErrors((previous) => {
+      if (!previous[choiceKey]) {
+        return previous;
+      }
+
+      const { [choiceKey]: _removed, ...rest } = previous;
+      return rest;
+    });
+    setTransitionErrors((previous) => {
       if (!previous[choiceKey]) {
         return previous;
       }
@@ -310,6 +546,77 @@ const SceneDetailsPage: React.FC = () => {
     setStatusNotice(null);
   };
 
+  const handleTransitionTargetChange = (choiceKey: string, value: string) => {
+    setFormState((previous) => ({
+      ...previous,
+      transitions: {
+        ...previous.transitions,
+        [choiceKey]: {
+          ...(previous.transitions[choiceKey] ?? createEmptyTransition()),
+          target: value === "" ? null : value,
+        },
+      },
+    }));
+
+    setTransitionErrors((previous) => {
+      const existing = previous[choiceKey];
+      if (!existing) {
+        return previous;
+      }
+
+      const updated: TransitionEditorFieldErrors = {
+        ...existing,
+        target: undefined,
+      };
+
+      if (!updated.target && !updated.narration) {
+        const { [choiceKey]: _removed, ...rest } = previous;
+        return rest;
+      }
+
+      return { ...previous, [choiceKey]: updated };
+    });
+
+    setStatusNotice(null);
+  };
+
+  const handleTransitionNarrationChange = (
+    choiceKey: string,
+    value: string,
+  ) => {
+    setFormState((previous) => ({
+      ...previous,
+      transitions: {
+        ...previous.transitions,
+        [choiceKey]: {
+          ...(previous.transitions[choiceKey] ?? createEmptyTransition()),
+          narration: value,
+        },
+      },
+    }));
+
+    setTransitionErrors((previous) => {
+      const existing = previous[choiceKey];
+      if (!existing) {
+        return previous;
+      }
+
+      const updated: TransitionEditorFieldErrors = {
+        ...existing,
+        narration: undefined,
+      };
+
+      if (!updated.target && !updated.narration) {
+        const { [choiceKey]: _removed, ...rest } = previous;
+        return rest;
+      }
+
+      return { ...previous, [choiceKey]: updated };
+    });
+
+    setStatusNotice(null);
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -329,10 +636,12 @@ const SceneDetailsPage: React.FC = () => {
     }
 
     const nextChoiceErrors: Record<string, ChoiceEditorFieldErrors> = {};
+    const nextTransitionErrors: Record<string, TransitionEditorFieldErrors> = {};
     let hasChoiceErrors = false;
+    let hasTransitionErrors = false;
     const commandToKeys = new Map<string, string[]>();
 
-    for (const choice of trimmedChoices) {
+    trimmedChoices.forEach((choice, index) => {
       const choiceIssues: ChoiceEditorFieldErrors = {};
       if (!choice.command) {
         choiceIssues.command = "Command is required.";
@@ -350,7 +659,18 @@ const SceneDetailsPage: React.FC = () => {
         nextChoiceErrors[choice.key] = choiceIssues;
         hasChoiceErrors = true;
       }
-    }
+
+      const transitionDraft = trimmedTransitions[index];
+      const transitionIssues: TransitionEditorFieldErrors = {};
+      if (!transitionDraft || !transitionDraft.narration) {
+        transitionIssues.narration = "Narration is required.";
+      }
+
+      if (transitionIssues.narration) {
+        nextTransitionErrors[choice.key] = transitionIssues;
+        hasTransitionErrors = true;
+      }
+    });
 
     for (const [, keys] of commandToKeys) {
       if (keys.length > 1) {
@@ -365,9 +685,10 @@ const SceneDetailsPage: React.FC = () => {
       }
     }
 
-    if (Object.keys(errors).length > 0 || hasChoiceErrors) {
+    if (Object.keys(errors).length > 0 || hasChoiceErrors || hasTransitionErrors) {
       setFieldErrors(errors);
       setChoiceErrors(nextChoiceErrors);
+      setTransitionErrors(nextTransitionErrors);
       setStatusNotice(
         buildStatusMessage("Resolve the highlighted fields before saving.", "error"),
       );
@@ -375,6 +696,7 @@ const SceneDetailsPage: React.FC = () => {
     }
 
     setChoiceErrors({});
+    setTransitionErrors({});
 
     if (!isDirty) {
       setStatusNotice(
@@ -387,6 +709,22 @@ const SceneDetailsPage: React.FC = () => {
     setStatusNotice(buildStatusMessage("Saving changes…", "info"));
 
     try {
+      const transitionsPayload: Record<string, TransitionResource> = {
+        ...unmanagedTransitions,
+      };
+
+      for (const item of trimmedTransitions) {
+        if (!item.command) {
+          continue;
+        }
+
+        transitionsPayload[item.command] = {
+          ...item.extras,
+          target: item.target,
+          narration: item.narration,
+        };
+      }
+
       const response = await apiClient.updateScene(scene.id, {
         id: trimmedSceneId,
         description: trimmedDescription,
@@ -394,17 +732,26 @@ const SceneDetailsPage: React.FC = () => {
           command: choice.command,
           description: choice.description,
         })),
+        transitions: transitionsPayload,
       });
 
       setScene(response.data);
+      const choiceDrafts = mapChoicesToDrafts(response.data.choices);
+      const { drafts, unmanaged } = mapTransitionsToDrafts(
+        choiceDrafts,
+        response.data.transitions,
+      );
       setFormState({
         sceneId: response.data.id,
         description: response.data.description,
-        choices: mapChoicesToDrafts(response.data.choices),
+        choices: choiceDrafts,
+        transitions: drafts,
       });
+      setUnmanagedTransitions(unmanaged);
       setValidationIssues(response.validation?.issues ?? []);
       setFieldErrors({});
       setChoiceErrors({});
+      setTransitionErrors({});
       setStatusNotice(buildStatusMessage("Scene saved successfully.", "success"));
       setNavigationLog(`Saved changes to scene "${response.data.id}".`);
 
@@ -433,7 +780,7 @@ const SceneDetailsPage: React.FC = () => {
   return (
     <EditorPanel
       title={panelTitle}
-      description="Edit the scene identifier, description, and branching choices before wiring in transitions."
+      description="Edit the scene identifier, description, branching choices, and transition outcomes to shape the adventure flow."
     >
       {loadStatus === "loading" ? (
         <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 px-4 py-3 text-sm text-slate-300">
@@ -494,6 +841,16 @@ const SceneDetailsPage: React.FC = () => {
               onRemoveChoice={handleRemoveChoice}
               onMoveChoice={handleMoveChoice}
               onChange={handleChoiceChange}
+            />
+            <TransitionListEditor
+              className="md:col-span-2"
+              choices={formState.choices}
+              transitions={formState.transitions}
+              errors={transitionErrors}
+              targetOptions={availableTargetOptions}
+              disabled={isSaving}
+              onTargetChange={handleTransitionTargetChange}
+              onNarrationChange={handleTransitionNarrationChange}
             />
             <div className="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">

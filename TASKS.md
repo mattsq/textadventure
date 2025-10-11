@@ -180,15 +180,15 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] **Phase 3: Scene List & Basic Editing**
     - [ ] Implement scene list view:
       - [x] Searchable/filterable scene table *(Implemented live search with debounce, validation status filters, and reset controls in the library view.)*
-      - [x] Scene metadata display (description preview, choice count, transition count)
-      - [x] Quick actions (edit, duplicate, delete) *(Added action buttons that prefill the editor form, prepare duplicates, and surface deletion placeholders with navigation log updates.)*
-      - [x] Validation status indicators (errors, warnings) *(Icon-based badges in the scene table and status breakdown now reflect API validation states.)*
-    - [ ] Create basic scene editor form:
-      - [x] Scene ID and description editing *(Implemented dedicated scene detail page with editable ID/description fields, API-backed save flow, and validation messaging.)*
-      - [x] Dynamic choice list editor (add/remove/reorder) *(Added interactive choice list management with validation, reordering controls, and API integration.)*
-      - [ ] Basic transition editor (target selection, narration)
-      - [ ] Real-time validation feedback
-      - [ ] Auto-save functionality
+    - [x] Scene metadata display (description preview, choice count, transition count)
+    - [x] Quick actions (edit, duplicate, delete) *(Added action buttons that prefill the editor form, prepare duplicates, and surface deletion placeholders with navigation log updates.)*
+    - [x] Validation status indicators (errors, warnings) *(Icon-based badges in the scene table and status breakdown now reflect API validation states.)*
+  - [ ] Create basic scene editor form:
+    - [x] Scene ID and description editing *(Implemented dedicated scene detail page with editable ID/description fields, API-backed save flow, and validation messaging.)*
+    - [x] Dynamic choice list editor (add/remove/reorder) *(Added interactive choice list management with validation, reordering controls, and API integration.)*
+    - [x] Basic transition editor (target selection, narration) *(Implemented transition editor with target suggestions, narration validation, and save integration.)*
+    - [ ] Real-time validation feedback
+    - [ ] Auto-save functionality
     - [ ] Implement scene creation wizard:
       - [ ] Template selection (empty, copy from existing)
       - [ ] Guided setup for basic properties
