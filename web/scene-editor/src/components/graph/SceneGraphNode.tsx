@@ -5,7 +5,11 @@ import {
   type NodeProps,
 } from "reactflow";
 
-import { Badge, ValidationStatusIndicator } from "../display";
+import {
+  Badge,
+  ValidationStatusIndicator,
+  VALIDATION_STATUS_DESCRIPTORS,
+} from "../display";
 import type { ValidationState } from "../../state";
 
 const classNames = (...values: Array<string | false | null | undefined>): string =>
@@ -75,16 +79,100 @@ const sceneTypeLabels: Record<SceneGraphSceneType, string> = {
 export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
   data,
 }) => {
+  const tooltipId = React.useId();
+
+  const tooltipContent = React.useMemo(() => {
+    if (data.variant === "scene") {
+      const descriptor = VALIDATION_STATUS_DESCRIPTORS[data.validationStatus];
+      return (
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">
+              Scene overview
+            </p>
+            <p className="text-sm font-semibold text-slate-100">
+              {data.label}
+            </p>
+            <p className="text-xs leading-relaxed text-slate-300">
+              {data.description}
+            </p>
+          </div>
+          <dl className="space-y-1 text-xs text-slate-200">
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-[10px] uppercase tracking-wide text-slate-500">
+                Validation
+              </dt>
+              <dd className="font-medium text-slate-100">
+                {descriptor.label}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-[10px] uppercase tracking-wide text-slate-500">
+                Scene type
+              </dt>
+              <dd className="font-medium text-slate-100">
+                {sceneTypeLabels[data.sceneType]}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-[10px] uppercase tracking-wide text-slate-500">
+                Choices
+              </dt>
+              <dd className="font-medium text-slate-100">
+                {data.choiceCount}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-[10px] uppercase tracking-wide text-slate-500">
+                Transitions
+              </dt>
+              <dd className="font-medium text-slate-100">
+                {data.transitionCount}
+              </dd>
+            </div>
+            {data.hasTerminalTransition ? (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[10px] uppercase tracking-wide text-slate-500">
+                  Has ending branch
+                </dt>
+                <dd className="font-medium text-slate-100">Yes</dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="space-y-1">
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">
+            Terminal branch
+          </p>
+          <p className="text-sm font-semibold text-slate-100">
+            {data.command}
+          </p>
+        </div>
+        <p className="text-xs leading-relaxed text-slate-300">{data.narration}</p>
+        <p className="text-[10px] uppercase tracking-wide text-slate-500">
+          Origin scene: <span className="text-slate-100">{data.sourceScene}</span>
+        </p>
+      </div>
+    );
+  }, [data]);
+
   return (
     <div
       className={classNames(
-        "relative w-64 rounded-xl border px-4 py-3 text-left", // base
+        "group relative w-64 rounded-xl border px-4 py-3 text-left focus:outline-none focus:ring-2 focus:ring-slate-200/60", // base
         data.variant === "scene"
           ? sceneValidationClasses[data.validationStatus]
           : terminalClasses,
         data.variant === "scene" && sceneTypeAccentBase,
         data.variant === "scene" && sceneTypeAccentClasses[data.sceneType],
       )}
+      tabIndex={0}
+      aria-describedby={tooltipId}
     >
       <Handle
         type="target"
@@ -159,6 +247,13 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
             </div>
           </>
         )}
+      </div>
+      <div
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-20 hidden w-72 -translate-x-1/2 translate-y-3 rounded-lg border border-slate-800/80 bg-slate-950/90 p-4 text-xs leading-relaxed text-slate-200 shadow-2xl shadow-slate-950/80 group-focus-visible:block group-hover:block"
+      >
+        {tooltipContent}
       </div>
     </div>
   );
