@@ -192,7 +192,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Implement scene creation wizard:
       - [x] Template selection (empty, copy from existing) *(Added interactive wizard step with template cards and duplication flow.)*
       - [x] Guided setup for basic properties *(Wizard now walks through scene ID, type, and summary with validation hints and success messaging.)*
-      - [ ] Integration with scene list
+      - [x] Integration with scene list *(Wizard saves drafts into the client-side library, updates navigation logs, and links back to the table view.)*
+      - [ ] Persist new scene drafts through the API and refresh the library from the server once creation is supported end-to-end
     - [ ] Add scene deletion with dependency checking:
       - [ ] Show which scenes reference the target
       - [ ] Confirmation dialog with impact analysis
