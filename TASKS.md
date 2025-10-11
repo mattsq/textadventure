@@ -191,7 +191,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Auto-save functionality *(Scene editor now auto-saves after periods of inactivity when changes are valid, with status feedback.)*
     - [ ] Implement scene creation wizard:
       - [x] Template selection (empty, copy from existing) *(Added interactive wizard step with template cards and duplication flow.)*
-      - [ ] Guided setup for basic properties
+      - [x] Guided setup for basic properties *(Wizard now walks through scene ID, type, and summary with validation hints and success messaging.)*
       - [ ] Integration with scene list
     - [ ] Add scene deletion with dependency checking:
       - [ ] Show which scenes reference the target
