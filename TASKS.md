@@ -188,7 +188,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Dynamic choice list editor (add/remove/reorder) *(Added interactive choice list management with validation, reordering controls, and API integration.)*
     - [x] Basic transition editor (target selection, narration) *(Implemented transition editor with target suggestions, narration validation, and save integration.)*
     - [x] Real-time validation feedback *(Inline field errors now update as you type, and saving is blocked until issues are resolved.)*
-    - [ ] Auto-save functionality
+    - [x] Auto-save functionality *(Scene editor now auto-saves after periods of inactivity when changes are valid, with status feedback.)*
     - [ ] Implement scene creation wizard:
       - [ ] Template selection (empty, copy from existing)
       - [ ] Guided setup for basic properties

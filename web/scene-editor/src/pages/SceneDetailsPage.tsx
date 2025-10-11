@@ -50,6 +50,8 @@ const validationSeverityVariants: Record<
   error: "danger",
 };
 
+const AUTO_SAVE_DEBOUNCE_MS = 2000;
+
 const createChoiceKey = (): string => {
   const randomUuid =
     typeof globalThis.crypto !== "undefined" &&
@@ -657,6 +659,147 @@ const SceneDetailsPage: React.FC = () => {
       }) ||
       transitionsDirty));
 
+  const performSave = React.useCallback(
+    async (mode: "manual" | "auto") => {
+      if (!scene) {
+        return false;
+      }
+
+      if (validationSnapshot.hasErrors) {
+        if (mode === "manual") {
+          setFieldErrors(validationSnapshot.fieldErrors);
+          setChoiceErrors(validationSnapshot.choiceErrors);
+          setTransitionErrors(validationSnapshot.transitionErrors);
+          setStatusNotice(
+            buildStatusMessage(
+              "Resolve the highlighted fields before saving.",
+              "error",
+            ),
+          );
+        }
+
+        return false;
+      }
+
+      if (!isDirty) {
+        if (mode === "manual") {
+          setStatusNotice(
+            buildStatusMessage(
+              "No changes detected. Update a field before saving.",
+              "info",
+            ),
+          );
+        }
+
+        return false;
+      }
+
+      setChoiceErrors({});
+      setTransitionErrors({});
+      setIsSaving(true);
+      setStatusNotice(
+        buildStatusMessage(
+          mode === "auto" ? "Auto-saving changes…" : "Saving changes…",
+          "info",
+        ),
+      );
+
+      try {
+        const transitionsPayload: Record<string, TransitionResource> = {
+          ...unmanagedTransitions,
+        };
+
+        for (const item of trimmedTransitions) {
+          if (!item.command) {
+            continue;
+          }
+
+          transitionsPayload[item.command] = {
+            ...item.extras,
+            target: item.target,
+            narration: item.narration,
+          };
+        }
+
+        const response = await apiClient.updateScene(scene.id, {
+          id: trimmedSceneId,
+          description: trimmedDescription,
+          choices: trimmedChoices.map((choice) => ({
+            command: choice.command,
+            description: choice.description,
+          })),
+          transitions: transitionsPayload,
+        });
+
+        setScene(response.data);
+        const choiceDrafts = mapChoicesToDrafts(response.data.choices);
+        const { drafts, unmanaged } = mapTransitionsToDrafts(
+          choiceDrafts,
+          response.data.transitions,
+        );
+        setFormState({
+          sceneId: response.data.id,
+          description: response.data.description,
+          choices: choiceDrafts,
+          transitions: drafts,
+        });
+        setUnmanagedTransitions(unmanaged);
+        setValidationIssues(response.validation?.issues ?? []);
+        setFieldErrors({});
+        setChoiceErrors({});
+        setTransitionErrors({});
+
+        const successMessage =
+          mode === "auto"
+            ? `Auto-saved at ${new Date().toLocaleTimeString()}.`
+            : "Scene saved successfully.";
+        setStatusNotice(buildStatusMessage(successMessage, "success"));
+        setNavigationLog(
+          mode === "auto"
+            ? `Auto-saved scene "${response.data.id}" after idle period.`
+            : `Saved changes to scene "${response.data.id}".`,
+        );
+
+        if (response.data.id !== scene.id) {
+          navigate(`/scenes/${encodeURIComponent(response.data.id)}`, {
+            replace: true,
+          });
+        }
+
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof SceneEditorApiError
+            ? error.message
+            : "Unable to save changes. Please try again.";
+        setStatusNotice(buildStatusMessage(message, "error"));
+
+        return false;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [
+      apiClient,
+      isDirty,
+      navigate,
+      scene,
+      setChoiceErrors,
+      setFieldErrors,
+      setNavigationLog,
+      setStatusNotice,
+      setTransitionErrors,
+      setUnmanagedTransitions,
+      setValidationIssues,
+      trimmedChoices,
+      trimmedDescription,
+      trimmedSceneId,
+      trimmedTransitions,
+      unmanagedTransitions,
+      validationSnapshot,
+    ],
+  );
+
   const handleChoiceChange = (
     choiceKey: string,
     field: "command" | "description",
@@ -827,98 +970,35 @@ const SceneDetailsPage: React.FC = () => {
     setStatusNotice(null);
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (!scene) {
-      return;
-    }
-
-    if (validationSnapshot.hasErrors) {
-      setFieldErrors(validationSnapshot.fieldErrors);
-      setChoiceErrors(validationSnapshot.choiceErrors);
-      setTransitionErrors(validationSnapshot.transitionErrors);
-      setStatusNotice(
-        buildStatusMessage("Resolve the highlighted fields before saving.", "error"),
-      );
-      return;
-    }
-
-    setChoiceErrors({});
-    setTransitionErrors({});
-
-    if (!isDirty) {
-      setStatusNotice(
-        buildStatusMessage("No changes detected. Update a field before saving.", "info"),
-      );
-      return;
-    }
-
-    setIsSaving(true);
-    setStatusNotice(buildStatusMessage("Saving changes…", "info"));
-
-    try {
-      const transitionsPayload: Record<string, TransitionResource> = {
-        ...unmanagedTransitions,
-      };
-
-      for (const item of trimmedTransitions) {
-        if (!item.command) {
-          continue;
-        }
-
-        transitionsPayload[item.command] = {
-          ...item.extras,
-          target: item.target,
-          narration: item.narration,
-        };
-      }
-
-      const response = await apiClient.updateScene(scene.id, {
-        id: trimmedSceneId,
-        description: trimmedDescription,
-        choices: trimmedChoices.map((choice) => ({
-          command: choice.command,
-          description: choice.description,
-        })),
-        transitions: transitionsPayload,
-      });
-
-      setScene(response.data);
-      const choiceDrafts = mapChoicesToDrafts(response.data.choices);
-      const { drafts, unmanaged } = mapTransitionsToDrafts(
-        choiceDrafts,
-        response.data.transitions,
-      );
-      setFormState({
-        sceneId: response.data.id,
-        description: response.data.description,
-        choices: choiceDrafts,
-        transitions: drafts,
-      });
-      setUnmanagedTransitions(unmanaged);
-      setValidationIssues(response.validation?.issues ?? []);
-      setFieldErrors({});
-      setChoiceErrors({});
-      setTransitionErrors({});
-      setStatusNotice(buildStatusMessage("Scene saved successfully.", "success"));
-      setNavigationLog(`Saved changes to scene "${response.data.id}".`);
-
-      if (response.data.id !== scene.id) {
-        navigate(`/scenes/${encodeURIComponent(response.data.id)}`, {
-          replace: true,
-        });
-      }
-    } catch (error) {
-      const message =
-        error instanceof SceneEditorApiError
-          ? error.message
-          : "Unable to save changes. Please try again.";
-      setStatusNotice(buildStatusMessage(message, "error"));
-    } finally {
-      setIsSaving(false);
-    }
+    void performSave("manual");
   };
+
+  React.useEffect(() => {
+    if (
+      !scene ||
+      isSaving ||
+      !isDirty ||
+      validationSnapshot.hasErrors
+    ) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void performSave("auto");
+    }, AUTO_SAVE_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    isDirty,
+    isSaving,
+    performSave,
+    scene,
+    validationSnapshot.hasErrors,
+  ]);
 
   const panelTitle = scene
     ? `Scene detail: ${scene.id}`
