@@ -6,6 +6,8 @@ import {
   Card,
   DataTable,
   SceneMetadataCell,
+  ValidationStatusIndicator,
+  VALIDATION_STATUS_DESCRIPTORS,
   type DataTableColumn,
 } from "../components/display";
 import { SelectField, TextAreaField, TextField } from "../components/forms";
@@ -21,23 +23,11 @@ import {
   useSceneEditorStore,
 } from "../state";
 
-const validationVariants: Record<ValidationState, React.ComponentProps<typeof Badge>["variant"]> = {
-  valid: "success",
-  warnings: "warning",
-  errors: "danger",
-};
-
-const validationLabels: Record<ValidationState, string> = {
-  valid: "Ready",
-  warnings: "Review",
-  errors: "Needs Fix",
-};
-
 const validationFilterLabels: Record<SceneTableValidationFilter, string> = {
   all: "All statuses",
-  valid: validationLabels.valid,
-  warnings: validationLabels.warnings,
-  errors: validationLabels.errors,
+  valid: VALIDATION_STATUS_DESCRIPTORS.valid.label,
+  warnings: VALIDATION_STATUS_DESCRIPTORS.warnings.label,
+  errors: VALIDATION_STATUS_DESCRIPTORS.errors.label,
 };
 
 const validationFilterOptions: readonly SceneTableValidationFilter[] = [
@@ -55,6 +45,9 @@ const formatTimestamp = (value: string): string => {
 
   return parsed.toLocaleString();
 };
+
+const formatSceneCountLabel = (count: number): string =>
+  `${count} ${count === 1 ? "scene" : "scenes"}`;
 
 const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
   {
@@ -85,9 +78,7 @@ const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
     header: "Validation",
     align: "center",
     render: (row) => (
-      <Badge variant={validationVariants[row.validationStatus]} size="sm">
-        {validationLabels[row.validationStatus]}
-      </Badge>
+      <ValidationStatusIndicator status={row.validationStatus} />
     ),
   },
   {
@@ -675,24 +666,17 @@ export const SceneLibraryPage: React.FC = () => {
               footer="Status summaries will align with analytics from the validation engine."
             >
               <ul className="space-y-2 text-sm">
-                <li className="flex items-center justify-between">
-                  <span className="text-slate-300">Ready for publish</span>
-                  <Badge variant="success" size="sm">
-                    12 scenes
-                  </Badge>
-                </li>
-                <li className="flex items-center justify-between">
-                  <span className="text-slate-300">Needs review</span>
-                  <Badge variant="warning" size="sm">
-                    5 scenes
-                  </Badge>
-                </li>
-                <li className="flex items-center justify-between">
-                  <span className="text-slate-300">Blocked</span>
-                  <Badge variant="danger" size="sm">
-                    1 scene
-                  </Badge>
-                </li>
+                {(["valid", "warnings", "errors"] as const).map((status) => (
+                  <li
+                    key={status}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <ValidationStatusIndicator status={status} />
+                    <span className="text-slate-300">
+                      {formatSceneCountLabel(validationCounts[status])}
+                    </span>
+                  </li>
+                ))}
               </ul>
             </Card>
             <Card
