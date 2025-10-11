@@ -3,12 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   createSceneEditorApiClient,
   SceneEditorApiError,
+  type ChoiceResource,
   type SceneResource,
   type ValidationIssue,
 } from "../api";
 import { EditorPanel } from "../components/layout";
 import { Badge, Card } from "../components/display";
 import { TextAreaField, TextField } from "../components/forms";
+import {
+  ChoiceListEditor,
+  type ChoiceEditorFieldErrors,
+  type ChoiceEditorItem,
+} from "../components/scene-editor";
 import { useSceneEditorStore } from "../state";
 
 const formatTimestamp = (value: string): string => {
@@ -38,6 +44,31 @@ const validationSeverityVariants: Record<
   warning: "warning",
   error: "danger",
 };
+
+const createChoiceKey = (): string => {
+  const randomUuid =
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : null;
+
+  if (randomUuid) {
+    return randomUuid;
+  }
+
+  const randomSuffix = Math.random().toString(36).slice(2, 10);
+  const timestamp = Date.now().toString(36);
+  return `choice-${timestamp}-${randomSuffix}`;
+};
+
+const mapChoicesToDrafts = (
+  choices: readonly ChoiceResource[],
+): ChoiceEditorItem[] =>
+  choices.map((choice) => ({
+    key: createChoiceKey(),
+    command: choice.command,
+    description: choice.description,
+  }));
 
 interface FieldErrors {
   sceneId?: string;
@@ -82,10 +113,17 @@ const SceneDetailsPage: React.FC = () => {
   const [validationIssues, setValidationIssues] = React.useState<
     readonly ValidationIssue[]
   >([]);
-  const [formState, setFormState] = React.useState({ sceneId: "", description: "" });
+  const [formState, setFormState] = React.useState({
+    sceneId: "",
+    description: "",
+    choices: [] as ChoiceEditorItem[],
+  });
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
   const [statusNotice, setStatusNotice] = React.useState<StatusNotice | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [choiceErrors, setChoiceErrors] = React.useState<
+    Record<string, ChoiceEditorFieldErrors>
+  >({});
 
   React.useEffect(() => {
     if (!routeSceneId) {
@@ -110,9 +148,11 @@ const SceneDetailsPage: React.FC = () => {
         setFormState({
           sceneId: response.data.id,
           description: response.data.description,
+          choices: mapChoicesToDrafts(response.data.choices),
         });
         setValidationIssues(response.validation?.issues ?? []);
         setFieldErrors({});
+        setChoiceErrors({});
         setLoadStatus("success");
         setNavigationLog(
           `Loaded scene "${response.data.id}" for detailed editing.`,
@@ -152,17 +192,123 @@ const SceneDetailsPage: React.FC = () => {
       return;
     }
 
-    setFormState({ sceneId: scene.id, description: scene.description });
+    setFormState({
+      sceneId: scene.id,
+      description: scene.description,
+      choices: mapChoicesToDrafts(scene.choices),
+    });
     setFieldErrors({});
+    setChoiceErrors({});
     setStatusNotice(buildStatusMessage("Reverted changes to the last saved state.", "info"));
     setNavigationLog(`Reverted edits for scene "${scene.id}".`);
   };
 
   const trimmedSceneId = formState.sceneId.trim();
   const trimmedDescription = formState.description.trim();
+  const trimmedChoices = React.useMemo(
+    () =>
+      formState.choices.map((choice) => ({
+        key: choice.key,
+        command: choice.command.trim(),
+        description: choice.description.trim(),
+      })),
+    [formState.choices],
+  );
   const isDirty =
     scene !== null &&
-    (trimmedSceneId !== scene.id || trimmedDescription !== scene.description);
+    ((trimmedSceneId !== scene.id || trimmedDescription !== scene.description ||
+      trimmedChoices.length !== scene.choices.length ||
+      trimmedChoices.some((choice, index) => {
+        const original = scene.choices[index];
+        if (!original) {
+          return true;
+        }
+        return (
+          choice.command !== original.command.trim() ||
+          choice.description !== original.description.trim()
+        );
+      })));
+
+  const handleChoiceChange = (
+    choiceKey: string,
+    field: "command" | "description",
+    value: string,
+  ) => {
+    setFormState((previous) => ({
+      ...previous,
+      choices: previous.choices.map((choice) =>
+        choice.key === choiceKey ? { ...choice, [field]: value } : choice,
+      ),
+    }));
+
+    setChoiceErrors((previous) => {
+      const existing = previous[choiceKey];
+      if (!existing) {
+        return previous;
+      }
+
+      const updated: ChoiceEditorFieldErrors = { ...existing, [field]: undefined };
+      if (!updated.command && !updated.description) {
+        const { [choiceKey]: _removed, ...rest } = previous;
+        return rest;
+      }
+
+      return { ...previous, [choiceKey]: updated };
+    });
+
+    setStatusNotice(null);
+  };
+
+  const handleAddChoice = () => {
+    setFormState((previous) => ({
+      ...previous,
+      choices: [
+        ...previous.choices,
+        { key: createChoiceKey(), command: "", description: "" },
+      ],
+    }));
+    setStatusNotice(null);
+  };
+
+  const handleRemoveChoice = (choiceKey: string) => {
+    setFormState((previous) => ({
+      ...previous,
+      choices: previous.choices.filter((choice) => choice.key !== choiceKey),
+    }));
+    setChoiceErrors((previous) => {
+      if (!previous[choiceKey]) {
+        return previous;
+      }
+
+      const { [choiceKey]: _removed, ...rest } = previous;
+      return rest;
+    });
+    setStatusNotice(null);
+  };
+
+  const handleMoveChoice = (choiceKey: string, direction: "up" | "down") => {
+    setFormState((previous) => {
+      const currentIndex = previous.choices.findIndex(
+        (choice) => choice.key === choiceKey,
+      );
+      if (currentIndex === -1) {
+        return previous;
+      }
+
+      const targetIndex =
+        direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= previous.choices.length) {
+        return previous;
+      }
+
+      const nextChoices = [...previous.choices];
+      const [moved] = nextChoices.splice(currentIndex, 1);
+      nextChoices.splice(targetIndex, 0, moved);
+
+      return { ...previous, choices: nextChoices };
+    });
+    setStatusNotice(null);
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -182,13 +328,53 @@ const SceneDetailsPage: React.FC = () => {
       errors.description = "Provide a short description for collaborators.";
     }
 
-    if (Object.keys(errors).length > 0) {
+    const nextChoiceErrors: Record<string, ChoiceEditorFieldErrors> = {};
+    let hasChoiceErrors = false;
+    const commandToKeys = new Map<string, string[]>();
+
+    for (const choice of trimmedChoices) {
+      const choiceIssues: ChoiceEditorFieldErrors = {};
+      if (!choice.command) {
+        choiceIssues.command = "Command is required.";
+      } else {
+        const keys = commandToKeys.get(choice.command) ?? [];
+        keys.push(choice.key);
+        commandToKeys.set(choice.command, keys);
+      }
+
+      if (!choice.description) {
+        choiceIssues.description = "Description is required.";
+      }
+
+      if (choiceIssues.command || choiceIssues.description) {
+        nextChoiceErrors[choice.key] = choiceIssues;
+        hasChoiceErrors = true;
+      }
+    }
+
+    for (const [, keys] of commandToKeys) {
+      if (keys.length > 1) {
+        hasChoiceErrors = true;
+        for (const key of keys) {
+          const existing = nextChoiceErrors[key] ?? {};
+          nextChoiceErrors[key] = {
+            ...existing,
+            command: "Command must be unique per scene.",
+          };
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0 || hasChoiceErrors) {
       setFieldErrors(errors);
+      setChoiceErrors(nextChoiceErrors);
       setStatusNotice(
         buildStatusMessage("Resolve the highlighted fields before saving.", "error"),
       );
       return;
     }
+
+    setChoiceErrors({});
 
     if (!isDirty) {
       setStatusNotice(
@@ -204,15 +390,21 @@ const SceneDetailsPage: React.FC = () => {
       const response = await apiClient.updateScene(scene.id, {
         id: trimmedSceneId,
         description: trimmedDescription,
+        choices: trimmedChoices.map((choice) => ({
+          command: choice.command,
+          description: choice.description,
+        })),
       });
 
       setScene(response.data);
       setFormState({
         sceneId: response.data.id,
         description: response.data.description,
+        choices: mapChoicesToDrafts(response.data.choices),
       });
       setValidationIssues(response.validation?.issues ?? []);
       setFieldErrors({});
+      setChoiceErrors({});
       setStatusNotice(buildStatusMessage("Scene saved successfully.", "success"));
       setNavigationLog(`Saved changes to scene "${response.data.id}".`);
 
@@ -241,7 +433,7 @@ const SceneDetailsPage: React.FC = () => {
   return (
     <EditorPanel
       title={panelTitle}
-      description="Edit the scene identifier and description before wiring in branching choices and transitions."
+      description="Edit the scene identifier, description, and branching choices before wiring in transitions."
     >
       {loadStatus === "loading" ? (
         <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 px-4 py-3 text-sm text-slate-300">
@@ -292,6 +484,16 @@ const SceneDetailsPage: React.FC = () => {
               rows={6}
               error={fieldErrors.description}
               required
+            />
+            <ChoiceListEditor
+              className="md:col-span-2"
+              choices={formState.choices}
+              errors={choiceErrors}
+              disabled={isSaving}
+              onAddChoice={handleAddChoice}
+              onRemoveChoice={handleRemoveChoice}
+              onMoveChoice={handleMoveChoice}
+              onChange={handleChoiceChange}
             />
             <div className="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
