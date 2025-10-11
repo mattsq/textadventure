@@ -205,7 +205,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Render scene/transition data from the API in React Flow with a basic auto-layout.
       - [x] Surface loading, error, and legend UI so the graph view feels production-ready.
     - [ ] Implement scene node components:
-      - [ ] Color-coded by type (start, end, branch, linear)
+      - [x] Color-coded by type (start, end, branch, linear)
       - [ ] Validation status indicators (error, warning, valid)
       - [ ] Hover tooltips with scene metadata
       - [ ] Click to open editor

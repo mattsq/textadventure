@@ -13,11 +13,14 @@ const classNames = (...values: Array<string | false | null | undefined>): string
 
 export type SceneGraphNodeVariant = "scene" | "terminal";
 
+export type SceneGraphSceneType = "start" | "end" | "branch" | "linear";
+
 export interface SceneGraphSceneNodeData {
   readonly variant: "scene";
   readonly id: string;
   readonly label: string;
   readonly description: string;
+  readonly sceneType: SceneGraphSceneType;
   readonly validationStatus: ValidationState;
   readonly choiceCount: number;
   readonly transitionCount: number;
@@ -52,6 +55,23 @@ const terminalClasses =
 const handleClassName =
   "h-3 w-3 rounded-full border-2 border-slate-950 bg-slate-100";
 
+const sceneTypeAccentBase =
+  "before:absolute before:left-0 before:top-0 before:h-1 before:w-full before:content-['']";
+
+const sceneTypeAccentClasses: Record<SceneGraphSceneType, string> = {
+  start: "ring-2 ring-sky-400/60 before:bg-sky-400/80",
+  end: "ring-2 ring-rose-400/60 before:bg-rose-400/80",
+  branch: "ring-2 ring-violet-400/60 before:bg-violet-400/80",
+  linear: "ring-2 ring-slate-300/50 before:bg-slate-300/80",
+};
+
+const sceneTypeLabels: Record<SceneGraphSceneType, string> = {
+  start: "Start scene",
+  end: "Ending scene",
+  branch: "Branching scene",
+  linear: "Linear scene",
+};
+
 export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
   data,
 }) => {
@@ -62,6 +82,8 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
         data.variant === "scene"
           ? sceneValidationClasses[data.validationStatus]
           : terminalClasses,
+        data.variant === "scene" && sceneTypeAccentBase,
+        data.variant === "scene" && sceneTypeAccentClasses[data.sceneType],
       )}
     >
       <Handle
@@ -82,7 +104,9 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <p className="text-[11px] uppercase tracking-wide text-slate-300/80">
-              {data.variant === "scene" ? "Scene" : `Ending from ${data.sourceScene}`}
+              {data.variant === "scene"
+                ? sceneTypeLabels[data.sceneType]
+                : `Ending from ${data.sourceScene}`}
             </p>
             <h3 className="text-base font-semibold text-slate-50">
               {data.label}
