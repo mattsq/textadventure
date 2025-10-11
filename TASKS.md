@@ -190,7 +190,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Real-time validation feedback *(Inline field errors now update as you type, and saving is blocked until issues are resolved.)*
     - [x] Auto-save functionality *(Scene editor now auto-saves after periods of inactivity when changes are valid, with status feedback.)*
     - [ ] Implement scene creation wizard:
-      - [ ] Template selection (empty, copy from existing)
+      - [x] Template selection (empty, copy from existing) *(Added interactive wizard step with template cards and duplication flow.)*
       - [ ] Guided setup for basic properties
       - [ ] Integration with scene list
     - [ ] Add scene deletion with dependency checking:
