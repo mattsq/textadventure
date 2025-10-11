@@ -49,7 +49,7 @@ const formatTimestamp = (value: string): string => {
 const formatSceneCountLabel = (count: number): string =>
   `${count} ${count === 1 ? "scene" : "scenes"}`;
 
-const sceneTableColumns: DataTableColumn<SceneTableRow>[] = [
+const baseSceneTableColumns: DataTableColumn<SceneTableRow>[] = [
   {
     id: "scene",
     header: "Scene",
@@ -137,6 +137,9 @@ export const SceneLibraryPage: React.FC = () => {
     setActiveInspectorTab,
     setSceneTableQuery,
     setSceneTableValidationFilter,
+    prepareSceneEdit,
+    prepareSceneDuplicate,
+    requestSceneDeletion,
   } = useSceneEditorStore();
 
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState(
@@ -234,6 +237,76 @@ export const SceneLibraryPage: React.FC = () => {
       event.target.value as SceneTableValidationFilter,
     );
   };
+
+  const handleEditScene = React.useCallback(
+    (row: SceneTableRow) => {
+      prepareSceneEdit(row);
+    },
+    [prepareSceneEdit],
+  );
+
+  const handleDuplicateScene = React.useCallback(
+    (row: SceneTableRow) => {
+      prepareSceneDuplicate(row);
+    },
+    [prepareSceneDuplicate],
+  );
+
+  const handleRequestSceneDeletion = React.useCallback(
+    (row: SceneTableRow) => {
+      requestSceneDeletion(row);
+    },
+    [requestSceneDeletion],
+  );
+
+  const sceneTableColumns = React.useMemo<
+    DataTableColumn<SceneTableRow>[]
+  >(
+    () => [
+      ...baseSceneTableColumns,
+      {
+        id: "quick-actions",
+        header: "Quick Actions",
+        align: "center",
+        className: "w-64",
+        render: (row) => (
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleEditScene(row);
+              }}
+              className="inline-flex items-center justify-center rounded-md border border-indigo-400/60 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-100 transition hover:bg-indigo-500/25"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleDuplicateScene(row);
+              }}
+              className="inline-flex items-center justify-center rounded-md border border-sky-400/60 bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/25"
+            >
+              Duplicate
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleRequestSceneDeletion(row);
+              }}
+              className="inline-flex items-center justify-center rounded-md border border-rose-500/60 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20"
+            >
+              Delete
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [handleDuplicateScene, handleEditScene, handleRequestSceneDeletion],
+  );
 
   const handleResetSceneTableFilters = () => {
     if (!hasActiveFilters) {

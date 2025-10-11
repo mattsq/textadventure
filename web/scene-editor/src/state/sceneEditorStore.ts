@@ -69,6 +69,9 @@ export interface SceneEditorState {
     client: SceneEditorApiClient,
     params?: ListScenesParams,
   ) => Promise<void>;
+  readonly prepareSceneEdit: (scene: SceneTableRow) => void;
+  readonly prepareSceneDuplicate: (scene: SceneTableRow) => void;
+  readonly requestSceneDeletion: (scene: SceneTableRow) => void;
 }
 
 const mapSceneSummaryToRow = (summary: SceneSummary): SceneTableRow => ({
@@ -213,6 +216,29 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       }));
     }
   },
+  prepareSceneEdit: (scene) =>
+    set(() => ({
+      sceneId: scene.id,
+      sceneSummary: scene.description,
+      statusMessage: `Loaded "${scene.id}" into the editor.`,
+      navigationLog: `Editing scene "${scene.id}".`,
+    })),
+  prepareSceneDuplicate: (scene) => {
+    const duplicateId = scene.id.endsWith("-copy")
+      ? `${scene.id}-draft`
+      : `${scene.id}-copy`;
+    set(() => ({
+      sceneId: duplicateId,
+      sceneSummary: scene.description,
+      statusMessage: `Prepared duplicate of "${scene.id}". Update the new ID before saving.`,
+      navigationLog: `Duplicating scene "${scene.id}".`,
+    }));
+  },
+  requestSceneDeletion: (scene) =>
+    set(() => ({
+      statusMessage: `Deletion workflow for "${scene.id}" will request confirmation in a future update.`,
+      navigationLog: `Delete action queued for "${scene.id}".`,
+    })),
 }));
 
 export type { SceneSummary };

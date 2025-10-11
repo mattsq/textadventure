@@ -180,9 +180,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] **Phase 3: Scene List & Basic Editing**
     - [ ] Implement scene list view:
       - [x] Searchable/filterable scene table *(Implemented live search with debounce, validation status filters, and reset controls in the library view.)*
-    - [x] Scene metadata display (description preview, choice count, transition count)
-    - [ ] Quick actions (edit, duplicate, delete)
-    - [x] Validation status indicators (errors, warnings) *(Icon-based badges in the scene table and status breakdown now reflect API validation states.)*
+      - [x] Scene metadata display (description preview, choice count, transition count)
+      - [x] Quick actions (edit, duplicate, delete) *(Added action buttons that prefill the editor form, prepare duplicates, and surface deletion placeholders with navigation log updates.)*
+      - [x] Validation status indicators (errors, warnings) *(Icon-based badges in the scene table and status breakdown now reflect API validation states.)*
     - [ ] Create basic scene editor form:
       - [ ] Scene ID and description editing
       - [ ] Dynamic choice list editor (add/remove/reorder)
