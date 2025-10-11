@@ -151,6 +151,16 @@ export interface SceneMutationResponse {
   readonly version: SceneVersionInfo;
 }
 
+export interface SceneReferenceResource {
+  readonly scene_id: string;
+  readonly command: string;
+}
+
+export interface SceneReferenceListResponse {
+  readonly scene_id: string;
+  readonly data: readonly SceneReferenceResource[];
+}
+
 export interface ValidationSummaryResponse {
   readonly data: {
     readonly issues: readonly ValidationIssue[];
@@ -343,6 +353,16 @@ export class SceneEditorApiClient {
         headers,
         signal: options.signal,
       },
+    );
+  }
+
+  async listSceneReferences(
+    sceneId: string,
+    options: RequestOptions = {},
+  ): Promise<SceneReferenceListResponse> {
+    return this.request<SceneReferenceListResponse>(
+      `/scenes/${encodeURIComponent(sceneId)}/references`,
+      { signal: options.signal },
     );
   }
 

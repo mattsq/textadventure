@@ -257,9 +257,9 @@ export const SceneLibraryPage: React.FC = () => {
 
   const handleRequestSceneDeletion = React.useCallback(
     (row: SceneTableRow) => {
-      requestSceneDeletion(row);
+      void requestSceneDeletion(apiClient, row);
     },
-    [requestSceneDeletion],
+    [apiClient, requestSceneDeletion],
   );
 
   const sceneTableColumns = React.useMemo<
