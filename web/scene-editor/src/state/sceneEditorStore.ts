@@ -4,7 +4,9 @@ import {
   SceneEditorApiError,
   type ListScenesParams,
   type SceneReferenceListResponse,
+  type SceneReferenceResource,
   type SceneSummary,
+  type TransitionResource,
 } from "../api";
 
 export const PRIMARY_TAB_IDS = ["details", "choices", "testing"] as const;
@@ -40,6 +42,13 @@ export interface SceneTableRow {
   readonly updatedAt: string;
 }
 
+export interface SceneDeletionState {
+  readonly status: "idle" | "checking" | "ready" | "deleting" | "error";
+  readonly scene: SceneTableRow | null;
+  readonly references: readonly SceneReferenceResource[];
+  readonly error: string | null;
+}
+
 export interface SceneEditorState {
   readonly sceneId: string;
   readonly sceneType: string;
@@ -51,6 +60,7 @@ export interface SceneEditorState {
   readonly sceneTableState: AsyncState<SceneTableRow[]>;
   readonly sceneTableQuery: string;
   readonly sceneTableValidationFilter: SceneTableValidationFilter;
+  readonly sceneDeletionState: SceneDeletionState;
 
   readonly setSceneId: (value: string) => void;
   readonly setSceneType: (value: string) => void;
@@ -75,6 +85,10 @@ export interface SceneEditorState {
   readonly requestSceneDeletion: (
     client: SceneEditorApiClient,
     scene: SceneTableRow,
+  ) => Promise<void>;
+  readonly cancelSceneDeletion: () => void;
+  readonly confirmSceneDeletion: (
+    client: SceneEditorApiClient,
   ) => Promise<void>;
   readonly upsertSceneTableRow: (row: SceneTableRow) => void;
 }
@@ -121,6 +135,13 @@ const defaultSceneTableRows: SceneTableRow[] = [
 
 const resetStatus = () => ({ statusMessage: null as string | null });
 
+const DEFAULT_DELETION_STATE: SceneDeletionState = {
+  status: "idle",
+  scene: null,
+  references: [],
+  error: null,
+};
+
 export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   sceneId: "mysterious-grove",
   sceneType: "branch",
@@ -138,6 +159,7 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
   },
   sceneTableQuery: "",
   sceneTableValidationFilter: "all",
+  sceneDeletionState: DEFAULT_DELETION_STATE,
   setSceneId: (value) =>
     set(() => ({
       sceneId: value,
@@ -243,6 +265,12 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
     set(() => ({
       statusMessage: `Checking references before deleting "${scene.id}"...`,
       navigationLog: `Delete action queued for "${scene.id}".`,
+      sceneDeletionState: {
+        status: "checking",
+        scene,
+        references: [],
+        error: null,
+      },
     }));
 
     try {
@@ -250,25 +278,27 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
         await client.listSceneReferences(scene.id);
       const references = response.data;
 
-      if (references.length === 0) {
-        set(() => ({
-          statusMessage:
-            `"${scene.id}" has no incoming references. Confirmation and cascading updates will be available in a future release.`,
-          navigationLog: `Deletion ready for "${scene.id}" once confirmation workflow is implemented.`,
-        }));
-        return;
-      }
-
-      const formatted = references
-        .map((reference) =>
-          `"${reference.scene_id}" (command "${reference.command}")`,
-        )
-        .join(", ");
-
       set(() => ({
+        sceneDeletionState: {
+          status: "ready",
+          scene,
+          references,
+          error: null,
+        },
         statusMessage:
-          `"${scene.id}" cannot be deleted yet. Update or remove references from ${formatted}.`,
-        navigationLog: `Deletion blocked for "${scene.id}" due to existing references.`,
+          references.length === 0
+            ? `"${scene.id}" has no incoming references. Ready to confirm deletion.`
+            : `Found ${references.length} reference${
+                references.length === 1 ? "" : "s"
+              } to "${scene.id}". Review the impact before deleting.`,
+        navigationLog:
+          references.length === 0
+            ? `Deletion ready for "${scene.id}".`
+            : `Deletion requires updating ${
+                references.length === 1
+                  ? "a dependent transition"
+                  : "dependent transitions"
+              } before removing "${scene.id}".`,
       }));
     } catch (error) {
       const message =
@@ -279,6 +309,141 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       set(() => ({
         statusMessage: message,
         navigationLog: `Deletion check failed for "${scene.id}".`,
+        sceneDeletionState: {
+          status: "error",
+          scene,
+          references: [],
+          error: message,
+        },
+      }));
+    }
+  },
+  cancelSceneDeletion: () => {
+    const { sceneDeletionState } = get();
+    const cancelledSceneId = sceneDeletionState.scene?.id;
+    set((state) => ({
+      sceneDeletionState: DEFAULT_DELETION_STATE,
+      statusMessage: cancelledSceneId
+        ? `Deletion cancelled for "${cancelledSceneId}".`
+        : state.statusMessage,
+      navigationLog: cancelledSceneId
+        ? `Deletion cancelled for "${cancelledSceneId}".`
+        : state.navigationLog,
+    }));
+  },
+  confirmSceneDeletion: async (client) => {
+    const { sceneDeletionState } = get();
+    if (sceneDeletionState.status === "error") {
+      const scene = sceneDeletionState.scene;
+      if (!scene) {
+        return;
+      }
+
+      await get().requestSceneDeletion(client, scene);
+      return;
+    }
+
+    if (sceneDeletionState.status !== "ready") {
+      return;
+    }
+
+    const scene = sceneDeletionState.scene;
+    if (!scene) {
+      return;
+    }
+
+    const references = sceneDeletionState.references;
+
+    set(() => ({
+      statusMessage: references.length
+        ? `Updating ${references.length} reference${
+            references.length === 1 ? "" : "s"
+          } before deleting "${scene.id}"...`
+        : `Deleting "${scene.id}"...`,
+      navigationLog: `Deletion workflow started for "${scene.id}".`,
+      sceneDeletionState: {
+        status: "deleting",
+        scene,
+        references,
+        error: null,
+      },
+    }));
+
+    try {
+      const referencesByScene = new Map<
+        string,
+        SceneReferenceResource[]
+      >();
+      for (const reference of references) {
+        const bucket = referencesByScene.get(reference.scene_id);
+        if (bucket) {
+          bucket.push(reference);
+        } else {
+          referencesByScene.set(reference.scene_id, [reference]);
+        }
+      }
+
+      for (const [referencingSceneId, referencingCommands] of referencesByScene) {
+        const detail = await client.getScene(referencingSceneId);
+        const resource = detail.data;
+        const nextTransitions: Record<string, TransitionResource> = {
+          ...resource.transitions,
+        };
+        let mutated = false;
+
+        for (const reference of referencingCommands) {
+          const transition = nextTransitions[reference.command];
+          if (transition && transition.target === scene.id) {
+            nextTransitions[reference.command] = {
+              ...transition,
+              target: null,
+            };
+            mutated = true;
+          }
+        }
+
+        if (!mutated) {
+          continue;
+        }
+
+        await client.updateScene(referencingSceneId, {
+          scene: {
+            description: resource.description,
+            choices: resource.choices,
+            transitions: nextTransitions,
+          },
+        });
+      }
+
+      await client.deleteScene(scene.id);
+
+      await get().loadSceneTable(client);
+
+      set(() => ({
+        sceneDeletionState: DEFAULT_DELETION_STATE,
+        statusMessage:
+          references.length === 0
+            ? `Scene "${scene.id}" deleted successfully.`
+            : `Scene "${scene.id}" deleted after clearing ${references.length} reference${
+                references.length === 1 ? "" : "s"
+              }.`,
+        navigationLog: `Scene "${scene.id}" deleted via library view.`,
+      }));
+    } catch (error) {
+      const message =
+        error instanceof SceneEditorApiError
+          ? error.message
+          : `Unable to delete "${scene.id}". Please try again.`;
+
+      set(() => ({
+        statusMessage: message,
+        navigationLog: `Deletion failed for "${scene.id}".`,
+        sceneDeletionState: {
+          status: "error",
+          scene,
+          references,
+          error: message,
+        },
       }));
     }
   },
