@@ -13,6 +13,7 @@ import {
 } from "../components/display";
 import { SelectField, TextAreaField, TextField } from "../components/forms";
 import { Breadcrumbs, Tabs, type BreadcrumbItem, type TabItem } from "../components/navigation";
+import { SceneDeletionDialog } from "../components/scene-editor";
 import {
   INSPECTOR_TAB_IDS,
   PRIMARY_TAB_IDS,
@@ -142,6 +143,9 @@ export const SceneLibraryPage: React.FC = () => {
     prepareSceneEdit,
     prepareSceneDuplicate,
     requestSceneDeletion,
+    sceneDeletionState,
+    cancelSceneDeletion,
+    confirmSceneDeletion,
   } = useSceneEditorStore();
 
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState(
@@ -261,6 +265,10 @@ export const SceneLibraryPage: React.FC = () => {
     },
     [apiClient, requestSceneDeletion],
   );
+
+  const handleConfirmSceneDeletion = React.useCallback(() => {
+    void confirmSceneDeletion(apiClient);
+  }, [apiClient, confirmSceneDeletion]);
 
   const sceneTableColumns = React.useMemo<
     DataTableColumn<SceneTableRow>[]
@@ -768,6 +776,12 @@ export const SceneLibraryPage: React.FC = () => {
           </div>
         </div>
       </EditorPanel>
+
+      <SceneDeletionDialog
+        state={sceneDeletionState}
+        onCancel={cancelSceneDeletion}
+        onConfirm={handleConfirmSceneDeletion}
+      />
     </>
   );
 };
