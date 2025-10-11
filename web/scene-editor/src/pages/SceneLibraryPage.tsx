@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { createSceneEditorApiClient } from "../api";
 import { EditorPanel } from "../components/layout";
 import {
@@ -92,6 +93,7 @@ const baseSceneTableColumns: DataTableColumn<SceneTableRow>[] = [
 ];
 
 export const SceneLibraryPage: React.FC = () => {
+  const navigate = useNavigate();
   const apiClient = React.useMemo(
     () =>
       createSceneEditorApiClient({
@@ -241,8 +243,9 @@ export const SceneLibraryPage: React.FC = () => {
   const handleEditScene = React.useCallback(
     (row: SceneTableRow) => {
       prepareSceneEdit(row);
+      navigate(`/scenes/${encodeURIComponent(row.id)}`);
     },
-    [prepareSceneEdit],
+    [navigate, prepareSceneEdit],
   );
 
   const handleDuplicateScene = React.useCallback(

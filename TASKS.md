@@ -184,7 +184,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Quick actions (edit, duplicate, delete) *(Added action buttons that prefill the editor form, prepare duplicates, and surface deletion placeholders with navigation log updates.)*
       - [x] Validation status indicators (errors, warnings) *(Icon-based badges in the scene table and status breakdown now reflect API validation states.)*
     - [ ] Create basic scene editor form:
-      - [ ] Scene ID and description editing
+      - [x] Scene ID and description editing *(Implemented dedicated scene detail page with editable ID/description fields, API-backed save flow, and validation messaging.)*
       - [ ] Dynamic choice list editor (add/remove/reorder)
       - [ ] Basic transition editor (target selection, narration)
       - [ ] Real-time validation feedback
