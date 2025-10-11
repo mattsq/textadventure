@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import ReactFlow, {
   Background,
   Controls,
@@ -480,12 +481,41 @@ export const SceneGraphPage: React.FC = () => {
     return createSceneEditorApiClient({ baseUrl });
   }, []);
 
+  const navigate = useNavigate();
+
   const [graphState, setGraphState] = React.useState<GraphState>({
     status: "idle",
     data: null,
     error: null,
   });
   const reactFlowInstanceRef = React.useRef<ReactFlowInstance | null>(null);
+
+  const handleSceneOpen = React.useCallback(
+    (sceneId: string) => {
+      navigate(`/scenes/${encodeURIComponent(sceneId)}`);
+    },
+    [navigate],
+  );
+
+  const nodesWithHandlers = React.useMemo<Node<SceneGraphNodeData>[]>(() => {
+    if (!graphState.data) {
+      return [];
+    }
+
+    return graphState.data.nodes.map((node) => {
+      if (node.data.variant !== "scene") {
+        return node;
+      }
+
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          onOpen: handleSceneOpen,
+        },
+      };
+    });
+  }, [graphState.data, handleSceneOpen]);
 
   const loadGraph = React.useCallback(
     (params?: SceneGraphParams, signal?: AbortSignal) => {
@@ -667,7 +697,7 @@ export const SceneGraphPage: React.FC = () => {
         {hasData ? (
           <div className="h-[620px] w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/60">
             <ReactFlow
-              nodes={graphState.data!.nodes}
+              nodes={nodesWithHandlers}
               edges={graphState.data!.edges}
               nodeTypes={nodeTypes}
               fitView

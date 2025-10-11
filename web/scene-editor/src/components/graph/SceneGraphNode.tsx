@@ -29,6 +29,7 @@ export interface SceneGraphSceneNodeData {
   readonly choiceCount: number;
   readonly transitionCount: number;
   readonly hasTerminalTransition: boolean;
+  readonly onOpen?: (sceneId: string) => void;
 }
 
 export interface SceneGraphTerminalNodeData {
@@ -80,6 +81,29 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
   data,
 }) => {
   const tooltipId = React.useId();
+
+  const isSceneNode = data.variant === "scene";
+
+  const handleActivate = React.useCallback(() => {
+    if (!isSceneNode || !data.onOpen) {
+      return;
+    }
+    data.onOpen(data.id);
+  }, [data, isSceneNode]);
+
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!isSceneNode || !data.onOpen) {
+        return;
+      }
+
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        data.onOpen(data.id);
+      }
+    },
+    [data, isSceneNode],
+  );
 
   const tooltipContent = React.useMemo(() => {
     if (data.variant === "scene") {
@@ -165,14 +189,18 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
     <div
       className={classNames(
         "group relative w-64 rounded-xl border px-4 py-3 text-left focus:outline-none focus:ring-2 focus:ring-slate-200/60", // base
-        data.variant === "scene"
+        isSceneNode
           ? sceneValidationClasses[data.validationStatus]
           : terminalClasses,
-        data.variant === "scene" && sceneTypeAccentBase,
-        data.variant === "scene" && sceneTypeAccentClasses[data.sceneType],
+        isSceneNode && sceneTypeAccentBase,
+        isSceneNode && sceneTypeAccentClasses[data.sceneType],
+        isSceneNode && data.onOpen ? "cursor-pointer" : undefined,
       )}
       tabIndex={0}
       aria-describedby={tooltipId}
+      role={isSceneNode && data.onOpen ? "button" : undefined}
+      onClick={isSceneNode ? handleActivate : undefined}
+      onKeyDown={isSceneNode ? handleKeyDown : undefined}
     >
       <Handle
         type="target"
@@ -180,7 +208,7 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
         isConnectable={false}
         className={handleClassName}
       />
-      {data.variant === "scene" ? (
+      {isSceneNode ? (
         <Handle
           type="source"
           position={Position.Right}
@@ -192,7 +220,7 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <p className="text-[11px] uppercase tracking-wide text-slate-300/80">
-              {data.variant === "scene"
+              {isSceneNode
                 ? sceneTypeLabels[data.sceneType]
                 : `Ending from ${data.sourceScene}`}
             </p>
@@ -200,7 +228,7 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
               {data.label}
             </h3>
           </div>
-          {data.variant === "scene" ? (
+          {isSceneNode ? (
             <ValidationStatusIndicator
               status={data.validationStatus}
               hideLabel
@@ -213,7 +241,7 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
             </Badge>
           )}
         </div>
-        {data.variant === "scene" ? (
+        {isSceneNode ? (
           <>
             <p className="text-xs leading-relaxed text-slate-200">
               {data.description}
