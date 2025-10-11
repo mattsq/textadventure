@@ -208,7 +208,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Color-coded by type (start, end, branch, linear)
       - [ ] Validation status indicators (error, warning, valid)
       - [x] Hover tooltips with scene metadata
-      - [ ] Click to open editor
+      - [x] Click to open editor *(Graph nodes now navigate directly to the scene detail editor when activated, including keyboard support.)*
     - [ ] Implement transition edge components:
       - [ ] Different styles for different transition types
       - [ ] Conditional edges (requirements) shown differently
