@@ -179,6 +179,190 @@ interface StatusNotice {
   readonly message: string;
 }
 
+interface ChoiceDraft {
+  readonly key: string;
+  readonly command: string;
+  readonly description: string;
+}
+
+interface TransitionDraft {
+  readonly key: string;
+  readonly narration: string;
+}
+
+interface ValidationSnapshot {
+  readonly fieldErrors: FieldErrors;
+  readonly choiceErrors: Record<string, ChoiceEditorFieldErrors>;
+  readonly transitionErrors: Record<string, TransitionEditorFieldErrors>;
+  readonly hasErrors: boolean;
+}
+
+const areFieldErrorsEqual = (
+  previous: FieldErrors,
+  next: FieldErrors,
+): boolean => {
+  const previousKeys = Object.keys(previous) as (keyof FieldErrors)[];
+  const nextKeys = Object.keys(next) as (keyof FieldErrors)[];
+
+  if (previousKeys.length !== nextKeys.length) {
+    return false;
+  }
+
+  return previousKeys.every(
+    (key) => Object.prototype.hasOwnProperty.call(next, key) && previous[key] === next[key],
+  );
+};
+
+const areChoiceErrorMapsEqual = (
+  previous: Readonly<Record<string, ChoiceEditorFieldErrors>>,
+  next: Readonly<Record<string, ChoiceEditorFieldErrors>>,
+): boolean => {
+  const previousKeys = Object.keys(previous);
+  const nextKeys = Object.keys(next);
+
+  if (previousKeys.length !== nextKeys.length) {
+    return false;
+  }
+
+  return previousKeys.every((key) => {
+    const previousErrors = previous[key];
+    const nextErrors = next[key];
+    if (!previousErrors && !nextErrors) {
+      return true;
+    }
+
+    if (!previousErrors || !nextErrors) {
+      return false;
+    }
+
+    const previousFields = Object.keys(previousErrors) as (keyof ChoiceEditorFieldErrors)[];
+    const nextFields = Object.keys(nextErrors) as (keyof ChoiceEditorFieldErrors)[];
+
+    if (previousFields.length !== nextFields.length) {
+      return false;
+    }
+
+    return previousFields.every(
+      (field) => Object.prototype.hasOwnProperty.call(nextErrors, field) && previousErrors[field] === nextErrors[field],
+    );
+  });
+};
+
+const areTransitionErrorMapsEqual = (
+  previous: Readonly<Record<string, TransitionEditorFieldErrors>>,
+  next: Readonly<Record<string, TransitionEditorFieldErrors>>,
+): boolean => {
+  const previousKeys = Object.keys(previous);
+  const nextKeys = Object.keys(next);
+
+  if (previousKeys.length !== nextKeys.length) {
+    return false;
+  }
+
+  return previousKeys.every((key) => {
+    const previousErrors = previous[key];
+    const nextErrors = next[key];
+    if (!previousErrors && !nextErrors) {
+      return true;
+    }
+
+    if (!previousErrors || !nextErrors) {
+      return false;
+    }
+
+    const previousFields = Object.keys(previousErrors) as (keyof TransitionEditorFieldErrors)[];
+    const nextFields = Object.keys(nextErrors) as (keyof TransitionEditorFieldErrors)[];
+
+    if (previousFields.length !== nextFields.length) {
+      return false;
+    }
+
+    return previousFields.every(
+      (field) => Object.prototype.hasOwnProperty.call(nextErrors, field) && previousErrors[field] === nextErrors[field],
+    );
+  });
+};
+
+const buildValidationSnapshot = (
+  sceneId: string,
+  description: string,
+  choices: readonly ChoiceDraft[],
+  transitions: readonly TransitionDraft[],
+): ValidationSnapshot => {
+  const fieldErrors: FieldErrors = {};
+  if (!sceneId) {
+    fieldErrors.sceneId = "Scene ID is required.";
+  } else if (!/^[a-z0-9-]+$/.test(sceneId)) {
+    fieldErrors.sceneId = "Use lowercase letters, numbers, and dashes only.";
+  }
+
+  if (description.length === 0) {
+    fieldErrors.description = "Provide a short description for collaborators.";
+  }
+
+  const choiceErrors: Record<string, ChoiceEditorFieldErrors> = {};
+  const transitionErrors: Record<string, TransitionEditorFieldErrors> = {};
+  let hasChoiceErrors = false;
+  let hasTransitionErrors = false;
+  const commandToKeys = new Map<string, string[]>();
+
+  choices.forEach((choice, index) => {
+    const nextChoiceErrors: ChoiceEditorFieldErrors = {};
+    if (!choice.command) {
+      nextChoiceErrors.command = "Command is required.";
+    } else {
+      const keys = commandToKeys.get(choice.command) ?? [];
+      keys.push(choice.key);
+      commandToKeys.set(choice.command, keys);
+    }
+
+    if (!choice.description) {
+      nextChoiceErrors.description = "Description is required.";
+    }
+
+    if (nextChoiceErrors.command || nextChoiceErrors.description) {
+      choiceErrors[choice.key] = nextChoiceErrors;
+      hasChoiceErrors = true;
+    }
+
+    const transition = transitions[index];
+    if (!transition) {
+      return;
+    }
+
+    const nextTransitionErrors: TransitionEditorFieldErrors = {};
+    if (!transition.narration) {
+      nextTransitionErrors.narration = "Narration is required.";
+    }
+
+    if (nextTransitionErrors.narration) {
+      transitionErrors[choice.key] = nextTransitionErrors;
+      hasTransitionErrors = true;
+    }
+  });
+
+  for (const [, keys] of commandToKeys) {
+    if (keys.length > 1) {
+      hasChoiceErrors = true;
+      for (const key of keys) {
+        const existing = choiceErrors[key] ?? {};
+        choiceErrors[key] = {
+          ...existing,
+          command: "Command must be unique per scene.",
+        };
+      }
+    }
+  }
+
+  return {
+    fieldErrors,
+    choiceErrors,
+    transitionErrors,
+    hasErrors:
+      Object.keys(fieldErrors).length > 0 || hasChoiceErrors || hasTransitionErrors,
+  };
+};
+
 const buildStatusMessage = (
   message: string,
   tone: StatusNotice["tone"],
@@ -403,6 +587,32 @@ const SceneDetailsPage: React.FC = () => {
     return Array.from(unique).sort((a, b) => a.localeCompare(b));
   }, [targetSceneOptions, trimmedSceneId]);
 
+  const validationSnapshot = React.useMemo(
+    () =>
+      buildValidationSnapshot(trimmedSceneId, trimmedDescription, trimmedChoices, trimmedTransitions),
+    [trimmedChoices, trimmedDescription, trimmedSceneId, trimmedTransitions],
+  );
+
+  const hasBlockingValidationErrors = validationSnapshot.hasErrors;
+
+  React.useEffect(() => {
+    setFieldErrors((previous) =>
+      areFieldErrorsEqual(previous, validationSnapshot.fieldErrors)
+        ? previous
+        : validationSnapshot.fieldErrors,
+    );
+    setChoiceErrors((previous) =>
+      areChoiceErrorMapsEqual(previous, validationSnapshot.choiceErrors)
+        ? previous
+        : validationSnapshot.choiceErrors,
+    );
+    setTransitionErrors((previous) =>
+      areTransitionErrorMapsEqual(previous, validationSnapshot.transitionErrors)
+        ? previous
+        : validationSnapshot.transitionErrors,
+    );
+  }, [validationSnapshot]);
+
   const combinedTransitions = React.useMemo(
     () => {
       const map: Record<string, TransitionResource> = {
@@ -624,71 +834,10 @@ const SceneDetailsPage: React.FC = () => {
       return;
     }
 
-    const errors: FieldErrors = {};
-    if (!trimmedSceneId) {
-      errors.sceneId = "Scene ID is required.";
-    } else if (!/^[a-z0-9-]+$/.test(trimmedSceneId)) {
-      errors.sceneId = "Use lowercase letters, numbers, and dashes only.";
-    }
-
-    if (trimmedDescription.length === 0) {
-      errors.description = "Provide a short description for collaborators.";
-    }
-
-    const nextChoiceErrors: Record<string, ChoiceEditorFieldErrors> = {};
-    const nextTransitionErrors: Record<string, TransitionEditorFieldErrors> = {};
-    let hasChoiceErrors = false;
-    let hasTransitionErrors = false;
-    const commandToKeys = new Map<string, string[]>();
-
-    trimmedChoices.forEach((choice, index) => {
-      const choiceIssues: ChoiceEditorFieldErrors = {};
-      if (!choice.command) {
-        choiceIssues.command = "Command is required.";
-      } else {
-        const keys = commandToKeys.get(choice.command) ?? [];
-        keys.push(choice.key);
-        commandToKeys.set(choice.command, keys);
-      }
-
-      if (!choice.description) {
-        choiceIssues.description = "Description is required.";
-      }
-
-      if (choiceIssues.command || choiceIssues.description) {
-        nextChoiceErrors[choice.key] = choiceIssues;
-        hasChoiceErrors = true;
-      }
-
-      const transitionDraft = trimmedTransitions[index];
-      const transitionIssues: TransitionEditorFieldErrors = {};
-      if (!transitionDraft || !transitionDraft.narration) {
-        transitionIssues.narration = "Narration is required.";
-      }
-
-      if (transitionIssues.narration) {
-        nextTransitionErrors[choice.key] = transitionIssues;
-        hasTransitionErrors = true;
-      }
-    });
-
-    for (const [, keys] of commandToKeys) {
-      if (keys.length > 1) {
-        hasChoiceErrors = true;
-        for (const key of keys) {
-          const existing = nextChoiceErrors[key] ?? {};
-          nextChoiceErrors[key] = {
-            ...existing,
-            command: "Command must be unique per scene.",
-          };
-        }
-      }
-    }
-
-    if (Object.keys(errors).length > 0 || hasChoiceErrors || hasTransitionErrors) {
-      setFieldErrors(errors);
-      setChoiceErrors(nextChoiceErrors);
-      setTransitionErrors(nextTransitionErrors);
+    if (validationSnapshot.hasErrors) {
+      setFieldErrors(validationSnapshot.fieldErrors);
+      setChoiceErrors(validationSnapshot.choiceErrors);
+      setTransitionErrors(validationSnapshot.transitionErrors);
       setStatusNotice(
         buildStatusMessage("Resolve the highlighted fields before saving.", "error"),
       );
@@ -869,13 +1018,20 @@ const SceneDetailsPage: React.FC = () => {
                 >
                   Reset changes
                 </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center rounded-md border border-indigo-400/60 bg-indigo-500/30 px-4 py-2 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/40 disabled:text-slate-500"
-                  disabled={!isDirty || isSaving}
-                >
-                  {isSaving ? "Saving…" : "Save changes"}
-                </button>
+                <div className="flex flex-col items-stretch gap-2 md:items-end">
+                  {hasBlockingValidationErrors ? (
+                    <p className="text-xs text-rose-300 md:text-right">
+                      Fix the highlighted fields to enable saving.
+                    </p>
+                  ) : null}
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center rounded-md border border-indigo-400/60 bg-indigo-500/30 px-4 py-2 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900/40 disabled:text-slate-500"
+                    disabled={!isDirty || isSaving || hasBlockingValidationErrors}
+                  >
+                    {isSaving ? "Saving…" : "Save changes"}
+                  </button>
+                </div>
               </div>
             </div>
           </form>
