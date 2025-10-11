@@ -3,6 +3,7 @@ import {
   SceneEditorApiClient,
   SceneEditorApiError,
   type ListScenesParams,
+  type SceneReferenceListResponse,
   type SceneSummary,
 } from "../api";
 
@@ -71,7 +72,10 @@ export interface SceneEditorState {
   ) => Promise<void>;
   readonly prepareSceneEdit: (scene: SceneTableRow) => void;
   readonly prepareSceneDuplicate: (scene: SceneTableRow) => void;
-  readonly requestSceneDeletion: (scene: SceneTableRow) => void;
+  readonly requestSceneDeletion: (
+    client: SceneEditorApiClient,
+    scene: SceneTableRow,
+  ) => Promise<void>;
   readonly upsertSceneTableRow: (row: SceneTableRow) => void;
 }
 
@@ -235,11 +239,49 @@ export const useSceneEditorStore = create<SceneEditorState>((set, get) => ({
       navigationLog: `Duplicating scene "${scene.id}".`,
     }));
   },
-  requestSceneDeletion: (scene) =>
+  requestSceneDeletion: async (client, scene) => {
     set(() => ({
-      statusMessage: `Deletion workflow for "${scene.id}" will request confirmation in a future update.`,
+      statusMessage: `Checking references before deleting "${scene.id}"...`,
       navigationLog: `Delete action queued for "${scene.id}".`,
-    })),
+    }));
+
+    try {
+      const response: SceneReferenceListResponse =
+        await client.listSceneReferences(scene.id);
+      const references = response.data;
+
+      if (references.length === 0) {
+        set(() => ({
+          statusMessage:
+            `"${scene.id}" has no incoming references. Confirmation and cascading updates will be available in a future release.`,
+          navigationLog: `Deletion ready for "${scene.id}" once confirmation workflow is implemented.`,
+        }));
+        return;
+      }
+
+      const formatted = references
+        .map((reference) =>
+          `"${reference.scene_id}" (command "${reference.command}")`,
+        )
+        .join(", ");
+
+      set(() => ({
+        statusMessage:
+          `"${scene.id}" cannot be deleted yet. Update or remove references from ${formatted}.`,
+        navigationLog: `Deletion blocked for "${scene.id}" due to existing references.`,
+      }));
+    } catch (error) {
+      const message =
+        error instanceof SceneEditorApiError
+          ? error.message
+          : `Unable to check references for "${scene.id}". Please try again.`;
+
+      set(() => ({
+        statusMessage: message,
+        navigationLog: `Deletion check failed for "${scene.id}".`,
+      }));
+    }
+  },
   upsertSceneTableRow: (row) =>
     set((state) => {
       const previous = state.sceneTableState;

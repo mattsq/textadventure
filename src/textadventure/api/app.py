@@ -563,6 +563,20 @@ class SceneDiffResponse(BaseModel):
     entries: list[SceneDiffEntry] = Field(default_factory=list)
 
 
+class SceneReferenceResource(BaseModel):
+    """Reference indicating another scene points at the target scene."""
+
+    scene_id: str
+    command: str
+
+
+class SceneReferenceListResponse(BaseModel):
+    """Listing of references for a particular scene identifier."""
+
+    scene_id: str
+    data: tuple[SceneReferenceResource, ...]
+
+
 @dataclass(frozen=True)
 class SceneBackupResult:
     """Details about a backup snapshot created before importing scenes."""
@@ -5986,6 +6000,30 @@ class SceneService:
             ),
         )
 
+    def list_scene_references(
+        self,
+        *,
+        scene_id: str,
+    ) -> tuple[str, tuple[SceneReference, ...]]:
+        """Return scenes referencing ``scene_id`` along with the normalised id."""
+
+        if not scene_id or not scene_id.strip():
+            raise ValueError("Scene identifier must be a non-empty string.")
+
+        normalised_id = scene_id.strip()
+
+        existing_definitions, _ = self._repository.load()
+
+        if normalised_id not in existing_definitions:
+            raise KeyError(f"Scene '{normalised_id}' does not exist.")
+
+        scenes = load_scenes_from_mapping(existing_definitions)
+        references = _find_scene_references(
+            normalised_id, cast(Mapping[str, Any], scenes)
+        )
+
+        return normalised_id, tuple(references)
+
     def validate_import_payload(
         self,
         *,
@@ -6907,6 +6945,25 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/scenes/{scene_id}/references",
+        response_model=SceneReferenceListResponse,
+        tags=["Scenes"],
+    )
+    def list_scene_references(scene_id: str) -> SceneReferenceListResponse:
+        try:
+            normalised_id, references = service.list_scene_references(scene_id=scene_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        resources = (
+            SceneReferenceResource(scene_id=ref.scene_id, command=ref.command)
+            for ref in references
+        )
+        return SceneReferenceListResponse(scene_id=normalised_id, data=tuple(resources))
 
     @app.get(
         "/api/scenes/graph",

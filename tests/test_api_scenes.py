@@ -2597,6 +2597,37 @@ def test_delete_scene_blocks_referenced_targets(tmp_path: Path) -> None:
     assert any(ref["scene_id"] == "alpha" for ref in detail["references"])
 
 
+def test_list_scene_references_returns_callers(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/scenes/beta/references")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scene_id"] == "beta"
+    assert payload["data"] == [{"scene_id": "alpha", "command": "forward"}]
+
+
+def test_list_scene_references_rejects_unknown_scene(tmp_path: Path) -> None:
+    dataset = _import_dataset()
+    data_path = tmp_path / "scenes.json"
+    _write_dataset(data_path, dataset)
+
+    repository = SceneRepository(path=data_path)
+    service = SceneService(repository=repository)
+    client = TestClient(create_app(scene_service=service))
+
+    response = client.get("/api/scenes/unknown/references")
+
+    assert response.status_code == 404
+
+
 def test_create_app_uses_environment_scene_path(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
