@@ -200,7 +200,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Safe deletion that updates references
 
   - [ ] **Phase 4: Visual Scene Graph**
-    - [ ] Integrate React Flow library for interactive graph visualization.
+    - [x] Integrate React Flow library for interactive graph visualization.
+      - [x] Add React Flow dependency and expose a dedicated graph route in the editor.
+      - [x] Render scene/transition data from the API in React Flow with a basic auto-layout.
+      - [x] Surface loading, error, and legend UI so the graph view feels production-ready.
     - [ ] Implement scene node components:
       - [ ] Color-coded by type (start, end, branch, linear)
       - [ ] Validation status indicators (error, warning, valid)
