@@ -161,6 +161,41 @@ export interface SceneReferenceListResponse {
   readonly data: readonly SceneReferenceResource[];
 }
 
+export interface SceneGraphNodeResource {
+  readonly id: string;
+  readonly description: string;
+  readonly choice_count: number;
+  readonly transition_count: number;
+  readonly has_terminal_transition: boolean;
+  readonly validation_status: ValidationSeverity;
+}
+
+export interface SceneGraphEdgeResource {
+  readonly id: string;
+  readonly source: string;
+  readonly command: string;
+  readonly target: string | null;
+  readonly narration: string;
+  readonly is_terminal: boolean;
+  readonly item?: string | null;
+  readonly requires: readonly string[];
+  readonly consumes: readonly string[];
+  readonly records: readonly string[];
+  readonly failure_narration?: string | null;
+  readonly override_count: number;
+}
+
+export interface SceneGraphResponse {
+  readonly generated_at: string;
+  readonly start_scene: string;
+  readonly nodes: readonly SceneGraphNodeResource[];
+  readonly edges: readonly SceneGraphEdgeResource[];
+}
+
+export interface SceneGraphParams {
+  readonly startScene?: string;
+}
+
 export interface ValidationSummaryResponse {
   readonly data: {
     readonly issues: readonly ValidationIssue[];
@@ -395,8 +430,13 @@ export class SceneEditorApiClient {
     );
   }
 
-  async getSceneGraph(options: RequestOptions = {}): Promise<unknown> {
-    return this.request<unknown>("/scenes/graph", { signal: options.signal });
+  async getSceneGraph(
+    params: SceneGraphParams = {},
+    options: RequestOptions = {},
+  ): Promise<SceneGraphResponse> {
+    const query = toQueryString({ start_scene: params.startScene });
+    const path = query ? `/scenes/graph?${query}` : "/scenes/graph";
+    return this.request<SceneGraphResponse>(path, { signal: options.signal });
   }
 }
 

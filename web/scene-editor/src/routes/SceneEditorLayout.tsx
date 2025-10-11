@@ -40,6 +40,7 @@ const onboardingSections: EditorSidebarSection[] = [
 const navigationLinks = [
   { to: "/", label: "Overview" },
   { to: "/scenes", label: "Scene Library" },
+  { to: "/graph", label: "Scene Graph" },
   { to: "/scenes/new", label: "Create Scene" },
 ] as const;
 
@@ -78,6 +79,19 @@ const getRouteMetadata = (pathname: string) => {
         </span>
       ),
       logMessage: "New scene workflow staged for future template-driven authoring.",
+    };
+  }
+
+  if (pathname === "/graph") {
+    return {
+      currentLabel: "Scene Graph",
+      subtitle: (
+        <span>
+          Explore the connectivity map for the adventure to understand branching flow, terminal paths,
+          and upcoming validation overlays.
+        </span>
+      ),
+      logMessage: "Scene graph visualisation ready for topology reviews and validation planning.",
     };
   }
 
@@ -143,6 +157,8 @@ export const SceneEditorLayout: React.FC = () => {
     } else if (location.pathname === "/scenes/new") {
       items.push({ id: "scene-library", label: "Scene Library", onClick: () => navigate("/scenes") });
       items.push({ id: "scene-create", label: "Create Scene", current: true });
+    } else if (location.pathname === "/graph") {
+      items.push({ id: "scene-graph", label: "Scene Graph", current: true });
     } else if (sceneId) {
       items.push({ id: "scene-library", label: "Scene Library", onClick: () => navigate("/scenes") });
       items.push({ id: "scene-detail", label: sceneId, current: true });
