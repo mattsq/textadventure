@@ -11,3 +11,7 @@ export {
   type TransitionExtras,
   type TransitionListEditorProps,
 } from "./TransitionListEditor";
+export {
+  SceneDeletionDialog,
+  type SceneDeletionDialogProps,
+} from "./SceneDeletionDialog";

@@ -194,10 +194,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Guided setup for basic properties *(Wizard now walks through scene ID, type, and summary with validation hints and success messaging.)*
       - [x] Integration with scene list *(Wizard saves drafts into the client-side library, updates navigation logs, and links back to the table view.)*
       - [x] Persist new scene drafts through the API and refresh the library from the server once creation is supported end-to-end *(Wizard now posts new scenes to the FastAPI backend, duplicates full scene data when cloning, and reloads the library from the server.)*
-    - [ ] Add scene deletion with dependency checking:
+    - [x] Add scene deletion with dependency checking:
       - [x] Show which scenes reference the target *(Scene API now exposes a references endpoint and the library view surfaces referencing scenes before deletion.)*
-      - [ ] Confirmation dialog with impact analysis
-      - [ ] Safe deletion that updates references
+      - [x] Confirmation dialog with impact analysis
+      - [x] Safe deletion that updates references
 
   - [ ] **Phase 4: Visual Scene Graph**
     - [ ] Integrate React Flow library for interactive graph visualization.
