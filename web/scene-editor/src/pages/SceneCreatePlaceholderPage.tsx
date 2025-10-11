@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { createSceneEditorApiClient, SceneEditorApiError, type SceneDefinitionPayload, type SceneResource } from "../api";
 import { EditorPanel } from "../components/layout";
 import { Badge, Card } from "../components/display";
 import { SelectField, TextAreaField, TextField } from "../components/forms";
@@ -58,6 +59,66 @@ const TEMPLATE_OPTIONS: readonly TemplateOption[] = [
 const defaultDraftId = "untitled-scene";
 const initialTouchedState: MetadataTouchedState = { sceneId: false, sceneSummary: false };
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+const buildDuplicateDefinition = (
+  source: SceneResource,
+  description: string,
+): SceneDefinitionPayload => {
+  const duplicateChoices = source.choices.map((choice) => ({
+    command: choice.command,
+    description: choice.description,
+  }));
+
+  const duplicateTransitionsEntries = Object.entries(source.transitions).map(
+    ([command, transition]) => [
+      command,
+      {
+        narration: transition.narration,
+        target: transition.target ?? null,
+        item: transition.item ?? null,
+        requires: transition.requires ? [...transition.requires] : undefined,
+        consumes: transition.consumes ? [...transition.consumes] : undefined,
+        records: transition.records ? [...transition.records] : undefined,
+        failure_narration: transition.failure_narration ?? null,
+        narration_overrides: transition.narration_overrides
+          ? transition.narration_overrides.map((override) => ({
+              narration: override.narration,
+              requires_history_all: override.requires_history_all
+                ? [...override.requires_history_all]
+                : undefined,
+              requires_history_any: override.requires_history_any
+                ? [...override.requires_history_any]
+                : undefined,
+              forbids_history_any: override.forbids_history_any
+                ? [...override.forbids_history_any]
+                : undefined,
+              requires_inventory_all: override.requires_inventory_all
+                ? [...override.requires_inventory_all]
+                : undefined,
+              requires_inventory_any: override.requires_inventory_any
+                ? [...override.requires_inventory_any]
+                : undefined,
+              forbids_inventory_any: override.forbids_inventory_any
+                ? [...override.forbids_inventory_any]
+                : undefined,
+              records: override.records ? [...override.records] : undefined,
+            }))
+          : undefined,
+      } satisfies SceneDefinitionPayload["transitions"][string],
+    ],
+  );
+
+  const transitions = Object.fromEntries(duplicateTransitionsEntries) as Record<
+    string,
+    SceneDefinitionPayload["transitions"][string]
+  >;
+
+  return {
+    description,
+    choices: duplicateChoices,
+    transitions,
+  };
+};
 
 const validateSceneId = (value: string): string | undefined => {
   const trimmed = value.trim();
@@ -146,6 +207,19 @@ const SceneCreateWizardPage: React.FC = () => {
   const [currentStep, setCurrentStep] = React.useState<WizardStep>(1);
   const [metadataTouched, setMetadataTouched] = React.useState<MetadataTouchedState>(initialTouchedState);
   const [metadataSaved, setMetadataSaved] = React.useState<boolean>(false);
+  const [isSaving, setIsSaving] = React.useState<boolean>(false);
+
+  const apiClient = React.useMemo(
+    () =>
+      createSceneEditorApiClient({
+        baseUrl:
+          typeof import.meta.env.VITE_SCENE_API_BASE_URL === "string" &&
+          import.meta.env.VITE_SCENE_API_BASE_URL.trim() !== ""
+            ? import.meta.env.VITE_SCENE_API_BASE_URL
+            : undefined,
+      }),
+    [],
+  );
 
   const sceneTableRows = useSceneEditorStore((state) => state.sceneTableState.data ?? []);
   const sceneId = useSceneEditorStore((state) => state.sceneId);
@@ -158,7 +232,7 @@ const SceneCreateWizardPage: React.FC = () => {
   const setStatusMessage = useSceneEditorStore((state) => state.setStatusMessage);
   const setNavigationLog = useSceneEditorStore((state) => state.setNavigationLog);
   const prepareSceneDuplicate = useSceneEditorStore((state) => state.prepareSceneDuplicate);
-  const upsertSceneTableRow = useSceneEditorStore((state) => state.upsertSceneTableRow);
+  const loadSceneTable = useSceneEditorStore((state) => state.loadSceneTable);
 
   const handleSelectTemplate = (templateId: TemplateOptionId) => {
     setSelectedTemplate(templateId);
@@ -246,7 +320,7 @@ const SceneCreateWizardPage: React.FC = () => {
     setNavigationLog("Returned to template selection to adjust the starting point.");
   };
 
-  const handleMetadataConfirm = () => {
+  const handleMetadataConfirm = async () => {
     setMetadataTouched({ sceneId: true, sceneSummary: true });
     const sceneIdValidation = validateSceneId(sceneId);
     const sceneSummaryValidation = validateSceneSummary(sceneSummary);
@@ -265,48 +339,70 @@ const SceneCreateWizardPage: React.FC = () => {
 
     const trimmedId = sceneId.trim();
     const trimmedSummary = sceneSummary.trim();
-    const timestamp = new Date().toISOString();
+    setIsSaving(true);
+    setMetadataSaved(false);
+    setStatusMessage("Saving scene draft to the server…");
 
-    let baseRow: SceneTableRow;
-    if (selectedTemplate === "copy" && selectedSourceSceneId) {
-      const source = sceneTableRows.find((row) => row.id === selectedSourceSceneId);
-      if (!source) {
-        setStatusMessage("The selected source scene is no longer available. Refresh the library and try again.");
-        setMetadataSaved(false);
-        return;
+    try {
+      let scenePayload: SceneDefinitionPayload;
+
+      if (selectedTemplate === "copy") {
+        if (!selectedSourceSceneId) {
+          setStatusMessage("Choose a source scene to duplicate before saving.");
+          setIsSaving(false);
+          return;
+        }
+
+        const sourceRow = sceneTableRows.find((row) => row.id === selectedSourceSceneId);
+        if (!sourceRow) {
+          setStatusMessage("The selected source scene is no longer available. Refresh the library and try again.");
+          setIsSaving(false);
+          return;
+        }
+
+        const sourceScene = await apiClient.getScene(selectedSourceSceneId);
+        scenePayload = buildDuplicateDefinition(sourceScene.data, trimmedSummary);
+      } else {
+        scenePayload = {
+          description: trimmedSummary,
+          choices: [],
+          transitions: {},
+        };
       }
-      baseRow = {
-        ...source,
-        id: trimmedId,
-        description: trimmedSummary,
-        updatedAt: timestamp,
-        validationStatus: "warnings",
-      };
-    } else {
-      baseRow = {
-        id: trimmedId,
-        description: trimmedSummary,
-        choiceCount: 0,
-        transitionCount: 0,
-        hasTerminalTransition: false,
-        validationStatus: "warnings",
-        updatedAt: timestamp,
-      };
-    }
 
-    upsertSceneTableRow(baseRow);
-    setSceneId(trimmedId);
-    setSceneSummary(trimmedSummary);
-    const statusPrefix = `Draft saved for ${trimmedId}`;
-    setStatusMessage(
-      `${statusPrefix} and added to the scene library. Branching tools will unlock in upcoming wizard steps.`,
-    );
-    const logSuffix =
-      selectedTemplate === "copy" && selectedSourceSceneId
-        ? `Duplicated from "${selectedSourceSceneId}" via the wizard.`
-        : "Created from the blank template via the wizard.";
-    setNavigationLog(`Scene library updated with "${trimmedId}". ${logSuffix}`);
-    setMetadataSaved(true);
+      const response = await apiClient.createScene({
+        id: trimmedId,
+        scene: scenePayload,
+      });
+
+      await loadSceneTable(apiClient);
+
+      setSceneId(response.data.id);
+      setSceneSummary(response.data.description);
+      const statusPrefix = `Draft saved for ${response.data.id}`;
+      setStatusMessage(
+        `${statusPrefix} and synced with the scene library. Branching tools will unlock in upcoming wizard steps.`,
+      );
+      const logSuffix =
+        selectedTemplate === "copy" && selectedSourceSceneId
+          ? `Duplicated from "${selectedSourceSceneId}" via the wizard.`
+          : "Created from the blank template via the wizard.";
+      setNavigationLog(`Scene library refreshed with "${response.data.id}". ${logSuffix}`);
+      setMetadataSaved(true);
+    } catch (error) {
+      let message = "Unable to save the draft. Please try again.";
+      if (error instanceof SceneEditorApiError) {
+        message =
+          error.status === 409
+            ? "A scene with this identifier already exists. Choose a different ID and try again."
+            : error.message;
+      }
+      setStatusMessage(message);
+      setMetadataSaved(false);
+      setNavigationLog("Scene creation failed. Review the metadata and try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const sceneIdValidation = validateSceneId(sceneId);
@@ -329,12 +425,16 @@ const SceneCreateWizardPage: React.FC = () => {
 
   const metadataStatusClassName = metadataSaved
     ? "text-xs font-semibold text-emerald-400"
+    : isSaving
+    ? "text-xs font-semibold text-indigo-200"
     : statusMessage
     ? "text-xs font-semibold text-indigo-200"
     : "text-xs text-slate-400";
 
   const metadataStatusText = metadataSaved
     ? `Draft ${sceneId.trim() || "your scene"} has been added to the scene library. Branching tools will unlock soon.`
+    : isSaving
+    ? "Saving scene draft to the server…"
     : statusMessage ??
       "Fill out these basics so future wizard steps can focus on narration, choices, and validation.";
 
@@ -470,7 +570,7 @@ const SceneCreateWizardPage: React.FC = () => {
             className="grid gap-5 md:grid-cols-2"
             onSubmit={(event) => {
               event.preventDefault();
-              handleMetadataConfirm();
+              void handleMetadataConfirm();
             }}
           >
             <TextField
@@ -513,13 +613,13 @@ const SceneCreateWizardPage: React.FC = () => {
                 type="submit"
                 className={classNames(
                   "inline-flex items-center justify-center rounded-lg border px-4 py-2 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-indigo-400/60 focus:ring-offset-2 focus:ring-offset-slate-950",
-                  metadataSaved
+                  metadataSaved || isSaving
                     ? "cursor-not-allowed border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
                     : "border border-indigo-400/80 bg-indigo-500/30 text-indigo-50 hover:bg-indigo-500/40",
                 )}
-                disabled={metadataSaved}
+                disabled={metadataSaved || isSaving}
               >
-                Save metadata
+                {metadataSaved ? "Metadata saved" : isSaving ? "Saving…" : "Save metadata"}
               </button>
             </div>
           </form>

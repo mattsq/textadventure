@@ -722,13 +722,14 @@ const SceneDetailsPage: React.FC = () => {
         }
 
         const response = await apiClient.updateScene(scene.id, {
-          id: trimmedSceneId,
-          description: trimmedDescription,
-          choices: trimmedChoices.map((choice) => ({
-            command: choice.command,
-            description: choice.description,
-          })),
-          transitions: transitionsPayload,
+          scene: {
+            description: trimmedDescription,
+            choices: trimmedChoices.map((choice) => ({
+              command: choice.command,
+              description: choice.description,
+            })),
+            transitions: transitionsPayload,
+          },
         });
 
         setScene(response.data);

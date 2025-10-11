@@ -104,11 +104,29 @@ export interface SceneResource {
   readonly updated_at: string;
 }
 
-export interface SceneResourceResponse {
-  readonly data: SceneResource;
-  readonly validation?: {
-    readonly issues: readonly ValidationIssue[];
-  };
+export interface SceneDefinitionPayload {
+  readonly description: string;
+  readonly choices: readonly ChoiceResource[];
+  readonly transitions: Readonly<Record<string, TransitionResource>>;
+}
+
+export interface SceneCreateRequest {
+  readonly id: string;
+  readonly scene: SceneDefinitionPayload;
+  readonly schema_version?: number;
+  readonly expected_version_id?: string;
+}
+
+export interface SceneUpdateRequest {
+  readonly scene: SceneDefinitionPayload;
+  readonly schema_version?: number;
+  readonly expected_version_id?: string;
+}
+
+export interface SceneVersionInfo {
+  readonly generated_at: string;
+  readonly version_id: string;
+  readonly checksum: string;
 }
 
 export interface ValidationIssue {
@@ -116,6 +134,21 @@ export interface ValidationIssue {
   readonly code: string;
   readonly message: string;
   readonly path: string;
+}
+
+export interface SceneResourceResponse {
+  readonly data: SceneResource;
+  readonly validation?: {
+    readonly issues: readonly ValidationIssue[];
+  };
+}
+
+export interface SceneMutationResponse {
+  readonly data: SceneResource;
+  readonly validation?: {
+    readonly issues: readonly ValidationIssue[];
+  };
+  readonly version: SceneVersionInfo;
 }
 
 export interface ValidationSummaryResponse {
@@ -259,10 +292,10 @@ export class SceneEditorApiClient {
   }
 
   async createScene(
-    payload: SceneResource,
+    payload: SceneCreateRequest,
     options: RequestOptions = {},
-  ): Promise<SceneResourceResponse> {
-    return this.request<SceneResourceResponse>(
+  ): Promise<SceneMutationResponse> {
+    return this.request<SceneMutationResponse>(
       "/scenes",
       {
         method: "POST",
@@ -275,15 +308,15 @@ export class SceneEditorApiClient {
 
   async updateScene(
     sceneId: string,
-    payload: Partial<SceneResource>,
+    payload: SceneUpdateRequest,
     options: RequestOptions & { version?: string } = {},
-  ): Promise<SceneResourceResponse> {
+  ): Promise<SceneMutationResponse> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (options.version) {
       headers["If-Match"] = options.version;
     }
 
-    return this.request<SceneResourceResponse>(
+    return this.request<SceneMutationResponse>(
       `/scenes/${encodeURIComponent(sceneId)}`,
       {
         method: "PUT",
