@@ -20,7 +20,11 @@ import {
 } from "../api";
 import { EditorPanel } from "../components/layout";
 import { Card } from "../components/display";
-import { SceneGraphNode, type SceneGraphNodeData } from "../components/graph";
+import {
+  SceneGraphNode,
+  type SceneGraphNodeData,
+  type SceneGraphSceneType,
+} from "../components/graph";
 import type { AsyncStatus } from "../state";
 
 interface SceneGraphEdgeData {
@@ -199,11 +203,50 @@ const toLevelEntries = (
   return { levelEntries, levelBySceneId, terminals, unreachableScenes };
 };
 
+const classifySceneType = (
+  sceneId: string,
+  startScene: string,
+  edgesBySource: Map<string, SceneGraphEdgeResource[]>,
+): SceneGraphSceneType => {
+  if (sceneId === startScene) {
+    return "start";
+  }
+
+  const edges = edgesBySource.get(sceneId) ?? [];
+  let terminalCount = 0;
+  let nonTerminalCount = 0;
+  for (const edge of edges) {
+    if (edge.is_terminal || edge.target === null) {
+      terminalCount += 1;
+    } else {
+      nonTerminalCount += 1;
+    }
+  }
+
+  if (nonTerminalCount === 0) {
+    return "end";
+  }
+
+  if (nonTerminalCount > 1 || terminalCount > 0) {
+    return "branch";
+  }
+
+  return "linear";
+};
+
 const buildGraphView = (
   response: SceneGraphResponse,
 ): GraphViewModel => {
   const { levelEntries, levelBySceneId, terminals, unreachableScenes } =
     toLevelEntries(response.nodes, response.edges, response.start_scene);
+
+  const edgesBySource = new Map<string, SceneGraphEdgeResource[]>();
+  for (const edge of response.edges) {
+    if (!edgesBySource.has(edge.source)) {
+      edgesBySource.set(edge.source, []);
+    }
+    edgesBySource.get(edge.source)!.push(edge);
+  }
 
   const positions = new Map<string, { x: number; y: number }>();
   const orderedLevels = [...levelEntries.keys()].sort((a, b) => a - b);
@@ -227,6 +270,11 @@ const buildGraphView = (
       id: node.id,
       label: node.id,
       description: node.description,
+      sceneType: classifySceneType(
+        node.id,
+        response.start_scene,
+        edgesBySource,
+      ),
       validationStatus: node.validation_status,
       choiceCount: node.choice_count,
       transitionCount: node.transition_count,
@@ -323,7 +371,7 @@ const formatTimestamp = (value: string): string => {
 };
 
 const GraphLegend: React.FC = () => {
-  const legendItems = [
+  const validationLegendItems = [
     {
       id: "valid-scenes",
       label: "Validated scene",
@@ -342,6 +390,36 @@ const GraphLegend: React.FC = () => {
       description: "Requires fixes to pass validation.",
       swatch: "bg-rose-400/80",
     },
+  ];
+
+  const sceneTypeLegendItems = [
+    {
+      id: "start-scene",
+      label: "Start scene",
+      description: "Entry point for the adventure graph.",
+      swatch: "bg-sky-400/80",
+    },
+    {
+      id: "end-scene",
+      label: "Ending scene",
+      description: "Leads exclusively to endings or has no exits.",
+      swatch: "bg-rose-400/80",
+    },
+    {
+      id: "branch-scene",
+      label: "Branching scene",
+      description: "Multiple possible destinations or endings.",
+      swatch: "bg-violet-400/80",
+    },
+    {
+      id: "linear-scene",
+      label: "Linear scene",
+      description: "Progresses to a single follow-up scene.",
+      swatch: "bg-slate-300/80",
+    },
+  ];
+
+  const edgeLegendItems = [
     {
       id: "terminal-edge",
       label: "Terminal transition",
@@ -350,25 +428,44 @@ const GraphLegend: React.FC = () => {
     },
   ];
 
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {legendItems.map((item) => (
-        <div
-          key={item.id}
-          className="flex items-start gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 p-3"
-        >
-          <span
-            className={`mt-1 h-3.5 w-3.5 rounded-full ${item.swatch}`}
-            aria-hidden
-          />
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-slate-100">{item.label}</p>
-            <p className="text-xs leading-relaxed text-slate-300">
-              {item.description}
-            </p>
+  const renderLegend = (
+    title: string,
+    items: typeof validationLegendItems,
+    titleId: string,
+  ): React.ReactNode => (
+    <section aria-labelledby={titleId} className="space-y-3">
+      <h3 id={titleId} className="text-sm font-semibold text-slate-200">
+        {title}
+      </h3>
+      <div className="grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="flex items-start gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 p-3"
+          >
+            <span
+              className={`mt-1 h-3.5 w-3.5 rounded-full ${item.swatch}`}
+              aria-hidden
+            />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-100">
+                {item.label}
+              </p>
+              <p className="text-xs leading-relaxed text-slate-300">
+                {item.description}
+              </p>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+    </section>
+  );
+
+  return (
+    <div className="space-y-6">
+      {renderLegend("Node validation", validationLegendItems, "legend-validation")}
+      {renderLegend("Scene types", sceneTypeLegendItems, "legend-types")}
+      {renderLegend("Transition styles", edgeLegendItems, "legend-edges")}
     </div>
   );
 };
