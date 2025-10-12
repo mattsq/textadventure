@@ -160,8 +160,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Circular dependency detection
       - [x] Command uniqueness validation
     - [x] Implement WebSocket endpoint for live adventure testing.
-    - [ ] Add unit tests covering all API endpoints and validation logic.
+    - [x] Add unit tests covering all API endpoints and validation logic.
       - [x] Added regression coverage for the create/delete endpoints and import/export aliases.
+      - [x] Added permission enforcement tests for scene and branch mutations when project collaboration is enabled.
     - [x] Document API specification with OpenAPI/Swagger. *(Documented the FastAPI OpenAPI/Swagger workflow and added tagged metadata so the auto-generated docs surface grouped endpoints.)*
 
   - [ ] **Phase 2: Core Frontend Architecture**
