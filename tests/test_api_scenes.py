@@ -18,8 +18,10 @@ from textadventure.api import SceneApiSettings, create_app
 from textadventure.api.backup import BackupUploadMetadata
 from textadventure.api.app import (
     CURRENT_SCENE_SCHEMA_VERSION,
+    CollaboratorRole,
     ExportFormat,
     ImportStrategy,
+    ProjectPermissionError,
     SceneBranchStore,
     SceneRepository,
     SceneService,
@@ -81,6 +83,116 @@ def _expected_metadata(
 def _write_dataset(path: Path, payload: Mapping[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle)
+
+
+class _RecordingProjectService:
+    """Project service stub that records permission checks."""
+
+    def __init__(self, *, allow: bool = True, project_id: str = "project-1") -> None:
+        self.allow = allow
+        self.project_id = project_id
+        self.calls: list[dict[str, Any]] = []
+
+    def require_scene_dataset_permission(
+        self,
+        *,
+        scene_path: Path | None,
+        acting_user_id: str | None,
+        allowed_roles: tuple[CollaboratorRole, ...],
+        action: str,
+    ) -> None:
+        self.calls.append(
+            {
+                "scene_path": scene_path,
+                "acting_user_id": acting_user_id,
+                "allowed_roles": allowed_roles,
+                "action": action,
+            }
+        )
+        if not self.allow:
+            raise ProjectPermissionError(
+                self.project_id, f"Project '{self.project_id}' cannot {action}."
+            )
+
+
+class _StubSceneService:
+    """Scene service stub capturing mutation calls without touching disk."""
+
+    def __init__(self) -> None:
+        self.create_calls: list[dict[str, Any]] = []
+        self.branch_calls: list[dict[str, Any]] = []
+
+    def create_scene(
+        self,
+        *,
+        scene_id: str,
+        scene: Mapping[str, Any],
+        schema_version: int | None,
+        expected_version_id: str | None,
+    ) -> dict[str, Any]:
+        self.create_calls.append(
+            {
+                "scene_id": scene_id,
+                "scene": scene,
+                "schema_version": schema_version,
+                "expected_version_id": expected_version_id,
+            }
+        )
+        timestamp = datetime.now(timezone.utc).isoformat()
+        return {
+            "data": {"id": scene_id},
+            "validation": None,
+            "version": {
+                "generated_at": timestamp,
+                "version_id": "stub-version",
+                "checksum": "stub-checksum",
+            },
+        }
+
+    def create_branch(
+        self,
+        *,
+        branch_name: str,
+        scenes: Mapping[str, Any],
+        schema_version: int | None,
+        generated_at: datetime | None,
+        expected_base_version: str | None,
+    ) -> dict[str, Any]:
+        self.branch_calls.append(
+            {
+                "branch_name": branch_name,
+                "scenes": scenes,
+                "schema_version": schema_version,
+                "generated_at": generated_at,
+                "expected_base_version": expected_base_version,
+            }
+        )
+        timestamp = datetime.now(timezone.utc).isoformat()
+        summary_ids = list(scenes.keys())
+        return {
+            "id": branch_name,
+            "name": branch_name,
+            "created_at": timestamp,
+            "base": {
+                "generated_at": timestamp,
+                "version_id": "base-version",
+                "checksum": "base-checksum",
+            },
+            "target": {
+                "generated_at": timestamp,
+                "version_id": "branch-version",
+                "checksum": "branch-checksum",
+            },
+            "expected_base_version_id": expected_base_version,
+            "base_version_matches": True,
+            "summary": {
+                "added_scene_ids": summary_ids,
+                "removed_scene_ids": [],
+                "modified_scene_ids": [],
+                "unchanged_scene_ids": [],
+            },
+            "scene_count": len(scenes),
+        }
 
 
 def test_openapi_documents_tag_metadata() -> None:
@@ -2409,6 +2521,139 @@ def test_update_scene_rejects_version_conflicts(tmp_path: Path) -> None:
 
     persisted_definitions, _ = repository.load()
     assert persisted_definitions == stored_definitions
+
+
+def test_create_scene_enforces_project_permissions(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "project" / "scenes.json"
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_path.write_text("{}", encoding="utf-8")
+
+    project_service = _RecordingProjectService(allow=False, project_id="adventure-1")
+    scene_service = _StubSceneService()
+    app = create_app(
+        scene_service=scene_service,
+        project_service=project_service,
+        settings=SceneApiSettings(scene_path=dataset_path),
+    )
+    client = TestClient(app)
+
+    payload = {
+        "id": "gamma",
+        "scene": {"description": "Gamma", "choices": [], "transitions": {}},
+        "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+        "expected_version_id": "expected-version",
+    }
+
+    response = client.post(
+        "/api/scenes",
+        params={"acting_user_id": "viewer-1"},
+        json=payload,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Project 'adventure-1' cannot create scenes."
+    assert scene_service.create_calls == []
+    assert project_service.calls, "Expected project permission checks to be recorded"
+
+    call = project_service.calls[0]
+    assert call["scene_path"] == dataset_path
+    assert call["acting_user_id"] == "viewer-1"
+    assert call["action"] == "create scenes"
+    assert call["allowed_roles"] == (
+        CollaboratorRole.OWNER,
+        CollaboratorRole.EDITOR,
+    )
+
+
+def test_create_scene_forwards_permission_context(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "project" / "scenes.json"
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_path.write_text("{}", encoding="utf-8")
+
+    project_service = _RecordingProjectService(allow=True, project_id="adventure-2")
+    scene_service = _StubSceneService()
+    app = create_app(
+        scene_service=scene_service,
+        project_service=project_service,
+        settings=SceneApiSettings(scene_path=dataset_path),
+    )
+    client = TestClient(app)
+
+    payload = {
+        "id": "delta",
+        "scene": {"description": "Delta", "choices": [], "transitions": {}},
+        "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+        "expected_version_id": "expected-version",
+    }
+
+    response = client.post(
+        "/api/scenes",
+        params={"acting_user_id": "editor-1"},
+        json=payload,
+    )
+
+    assert response.status_code == 201
+    assert len(scene_service.create_calls) == 1
+    assert project_service.calls, "Expected permission enforcement to occur"
+
+    call = project_service.calls[0]
+    assert call["scene_path"] == dataset_path
+    assert call["acting_user_id"] == "editor-1"
+    assert call["action"] == "create scenes"
+    assert call["allowed_roles"] == (
+        CollaboratorRole.OWNER,
+        CollaboratorRole.EDITOR,
+    )
+
+
+def test_create_branch_requires_project_permissions(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "project" / "scenes.json"
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_path.write_text("{}", encoding="utf-8")
+
+    project_service = _RecordingProjectService(
+        allow=False, project_id="adventure-branch"
+    )
+    scene_service = _StubSceneService()
+    app = create_app(
+        scene_service=scene_service,
+        project_service=project_service,
+        settings=SceneApiSettings(scene_path=dataset_path),
+    )
+    client = TestClient(app)
+
+    payload = {
+        "branch_name": "experimental",
+        "scenes": {
+            "alpha": {"description": "Alpha", "choices": [], "transitions": {}},
+        },
+        "schema_version": CURRENT_SCENE_SCHEMA_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "base_version_id": "expected-base",
+    }
+
+    response = client.post(
+        "/api/scenes/branches",
+        params={"acting_user_id": "viewer-1"},
+        json=payload,
+    )
+
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"]
+        == "Project 'adventure-branch' cannot create branches."
+    )
+    assert scene_service.branch_calls == []
+    assert project_service.calls, "Expected project permission checks to be recorded"
+
+    call = project_service.calls[0]
+    assert call["scene_path"] == dataset_path
+    assert call["acting_user_id"] == "viewer-1"
+    assert call["action"] == "create branches"
+    assert call["allowed_roles"] == (
+        CollaboratorRole.OWNER,
+        CollaboratorRole.EDITOR,
+    )
 
 
 def test_create_scene_persists_new_definition(tmp_path: Path) -> None:
