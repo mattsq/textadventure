@@ -386,6 +386,7 @@ const buildGraphView = (
         fill: "#e2e8f0",
         fontSize: 12,
         textTransform: "uppercase",
+        cursor: "pointer",
       },
       labelBgPadding: [6, 3],
       labelBgBorderRadius: 12,
@@ -397,6 +398,7 @@ const buildGraphView = (
         stroke: styleConfig.stroke,
         strokeWidth: 2,
         strokeDasharray: styleConfig.strokeDasharray,
+        cursor: "pointer",
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
@@ -418,6 +420,7 @@ const buildGraphView = (
         variant,
         hasRequirements,
       },
+      interactionWidth: 24,
     };
   });
 
@@ -581,6 +584,25 @@ export const SceneGraphPage: React.FC = () => {
   const handleSceneOpen = React.useCallback(
     (sceneId: string) => {
       navigate(`/scenes/${encodeURIComponent(sceneId)}`);
+    },
+    [navigate],
+  );
+
+  const handleEdgeOpen = React.useCallback(
+    (_event: React.MouseEvent, edge: Edge<SceneGraphEdgeData>) => {
+      if (!edge?.source) {
+        return;
+      }
+
+      const command = edge.data?.command?.trim();
+      const params = new URLSearchParams();
+      if (command) {
+        params.set("transition", command);
+      }
+
+      const search = params.toString();
+      const searchSuffix = search ? `?${search}` : "";
+      navigate(`/scenes/${encodeURIComponent(edge.source)}${searchSuffix}`);
     },
     [navigate],
   );
@@ -789,6 +811,7 @@ export const SceneGraphPage: React.FC = () => {
               edges={graphState.data!.edges}
               nodeTypes={nodeTypes}
               fitView
+              onEdgeClick={handleEdgeOpen}
               onInit={(instance) => {
                 reactFlowInstanceRef.current = instance;
                 instance.fitView({ padding: 0.25, includeHiddenNodes: true });

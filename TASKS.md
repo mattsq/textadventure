@@ -213,7 +213,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Different styles for different transition types
       - [x] Conditional edges (requirements) shown differently *(Transitions that require inventory or history now render as dashed blue edges with "requires" labels and legend support.)*
       - [ ] Edge labels showing command names
-      - [ ] Click to edit transition
+      - [x] Click to edit transition *(Graph edges now open the scene detail editor and focus the corresponding transition for quick edits.)*
     - [ ] Add graph interaction features:
       - [ ] Drag-and-drop scene positioning
       - [ ] Zoom and pan controls
