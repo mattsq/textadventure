@@ -206,7 +206,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Surface loading, error, and legend UI so the graph view feels production-ready.
     - [ ] Implement scene node components:
       - [x] Color-coded by type (start, end, branch, linear)
-      - [ ] Validation status indicators (error, warning, valid)
+      - [x] Validation status indicators (error, warning, valid) *(Scene graph nodes now include a dedicated status accent and badge pairing for valid, warning, and error states.)*
       - [x] Hover tooltips with scene metadata
       - [x] Click to open editor *(Graph nodes now navigate directly to the scene detail editor when activated, including keyboard support.)*
     - [ ] Implement transition edge components:

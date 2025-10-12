@@ -74,6 +74,15 @@ const sceneTypeAccentClasses: Record<SceneGraphSceneType, string> = {
   linear: "ring-2 ring-slate-300/50 before:bg-slate-300/80",
 };
 
+const validationStatusAccentBase =
+  "after:pointer-events-none after:absolute after:-left-1.5 after:top-3 after:bottom-3 after:w-1 after:rounded-full after:opacity-90 after:content-['']";
+
+const validationStatusAccentClasses: Record<ValidationState, string> = {
+  valid: "after:bg-emerald-400/90 after:shadow after:shadow-emerald-400/40",
+  warnings: "after:bg-amber-400/90 after:shadow after:shadow-amber-400/40",
+  errors: "after:bg-rose-400/90 after:shadow after:shadow-rose-400/40",
+};
+
 const sceneTypeLabels: Record<SceneGraphSceneType, string> = {
   start: "Start scene",
   end: "Ending scene",
@@ -203,6 +212,8 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
           : terminalClasses,
         isSceneNode && sceneTypeAccentBase,
         isSceneNode && sceneTypeAccentClasses[data.sceneType],
+        isSceneNode && validationStatusAccentBase,
+        isSceneNode && validationStatusAccentClasses[data.validationStatus],
         isSceneNode && !data.isReachable && unreachableSceneClasses,
         isSceneNode && data.onOpen ? "cursor-pointer" : undefined,
       )}
