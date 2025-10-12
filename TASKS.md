@@ -222,7 +222,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Search and focus on specific scenes
     - [ ] Implement dependency highlighting:
       - [ ] Highlight item flow chains
-      - [ ] Show unreachable scenes in red
+      - [x] Show unreachable scenes in red *(Scene graph nodes, tooltips, minimap, and legend now surface unreachable scenes with distinct red styling.)*
       - [ ] Trace paths between scenes
       - [ ] Critical path analysis
 

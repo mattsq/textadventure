@@ -81,6 +81,7 @@ const toLevelEntries = (
   readonly levelBySceneId: Map<string, number>;
   readonly terminals: TerminalNodeInfo[];
   readonly unreachableScenes: number;
+  readonly unreachableSceneIds: readonly string[];
 } => {
   const adjacency = new Map<string, Set<string>>();
   for (const edge of edges) {
@@ -199,9 +200,22 @@ const toLevelEntries = (
     });
   }
 
-  const unreachableScenes = nodes.length - visited.size;
+  const unreachableSceneIds: string[] = [];
+  for (const node of nodes) {
+    if (!visited.has(node.id)) {
+      unreachableSceneIds.push(node.id);
+    }
+  }
 
-  return { levelEntries, levelBySceneId, terminals, unreachableScenes };
+  const unreachableScenes = unreachableSceneIds.length;
+
+  return {
+    levelEntries,
+    levelBySceneId,
+    terminals,
+    unreachableScenes,
+    unreachableSceneIds,
+  };
 };
 
 const classifySceneType = (
@@ -238,8 +252,15 @@ const classifySceneType = (
 const buildGraphView = (
   response: SceneGraphResponse,
 ): GraphViewModel => {
-  const { levelEntries, levelBySceneId, terminals, unreachableScenes } =
-    toLevelEntries(response.nodes, response.edges, response.start_scene);
+  const {
+    levelEntries,
+    levelBySceneId,
+    terminals,
+    unreachableScenes,
+    unreachableSceneIds,
+  } = toLevelEntries(response.nodes, response.edges, response.start_scene);
+
+  const unreachableSceneSet = new Set(unreachableSceneIds);
 
   const edgesBySource = new Map<string, SceneGraphEdgeResource[]>();
   for (const edge of response.edges) {
@@ -280,6 +301,7 @@ const buildGraphView = (
       choiceCount: node.choice_count,
       transitionCount: node.transition_count,
       hasTerminalTransition: node.has_terminal_transition,
+      isReachable: !unreachableSceneSet.has(node.id),
     },
     draggable: false,
   }));
@@ -393,6 +415,15 @@ const GraphLegend: React.FC = () => {
     },
   ];
 
+  const reachabilityLegendItems = [
+    {
+      id: "unreachable-scene",
+      label: "Unreachable scene",
+      description: "Not reachable from the configured start scene.",
+      swatch: "bg-rose-500/80",
+    },
+  ];
+
   const sceneTypeLegendItems = [
     {
       id: "start-scene",
@@ -465,6 +496,7 @@ const GraphLegend: React.FC = () => {
   return (
     <div className="space-y-6">
       {renderLegend("Node validation", validationLegendItems, "legend-validation")}
+      {renderLegend("Reachability", reachabilityLegendItems, "legend-reachability")}
       {renderLegend("Scene types", sceneTypeLegendItems, "legend-types")}
       {renderLegend("Transition styles", edgeLegendItems, "legend-edges")}
     </div>
@@ -718,9 +750,28 @@ export const SceneGraphPage: React.FC = () => {
               <MiniMap
                 pannable
                 zoomable
-                nodeColor={(node) =>
-                  node.data.variant === "terminal" ? "#fb7185" : "#38bdf8"
-                }
+                nodeColor={(node) => {
+                  if (node?.data?.variant === "terminal") {
+                    return "#fb7185";
+                  }
+                  if (node?.data?.variant === "scene") {
+                    if (!node.data.isReachable) {
+                      return "#ef4444";
+                    }
+
+                    switch (node.data.validationStatus) {
+                      case "valid":
+                        return "#34d399";
+                      case "warnings":
+                        return "#fbbf24";
+                      case "errors":
+                        return "#f87171";
+                      default:
+                        return "#38bdf8";
+                    }
+                  }
+                  return "#38bdf8";
+                }}
                 maskColor="rgba(15, 23, 42, 0.85)"
               />
               <Controls position="bottom-right" />
