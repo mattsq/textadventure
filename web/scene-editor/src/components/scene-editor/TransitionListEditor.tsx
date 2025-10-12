@@ -31,6 +31,8 @@ export interface TransitionListEditorProps {
   readonly disabled?: boolean;
   readonly onTargetChange: (choiceKey: string, value: string) => void;
   readonly onNarrationChange: (choiceKey: string, value: string) => void;
+  readonly highlightedChoiceKey?: string | null;
+  readonly getItemRef?: (choiceKey: string) => (element: HTMLLIElement | null) => void;
 }
 
 export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
@@ -42,6 +44,8 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
   disabled = false,
   onTargetChange,
   onNarrationChange,
+  highlightedChoiceKey = null,
+  getItemRef,
 }) => {
   return (
     <div className={classNames("flex flex-col gap-4", className)}>
@@ -61,11 +65,20 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
               const transition = transitions[choice.key];
               const fieldErrors = errors[choice.key] ?? {};
               const datalistId = `transition-targets-${choice.key}`;
+              const isHighlighted = highlightedChoiceKey === choice.key;
 
               return (
                 <li
                   key={choice.key}
-                  className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 shadow-inner shadow-slate-950/20"
+                  ref={getItemRef ? getItemRef(choice.key) : undefined}
+                  className={classNames(
+                    "rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 shadow-inner shadow-slate-950/20 transition",
+                    isHighlighted
+                      ? "border-indigo-400/80 shadow-indigo-500/30 ring-2 ring-indigo-400/60"
+                      : undefined,
+                  )}
+                  tabIndex={isHighlighted ? -1 : undefined}
+                  data-highlighted={isHighlighted || undefined}
                 >
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
