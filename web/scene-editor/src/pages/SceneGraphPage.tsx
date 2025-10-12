@@ -22,27 +22,14 @@ import {
 import { EditorPanel } from "../components/layout";
 import { Card } from "../components/display";
 import {
+  SceneGraphEdge,
+  type SceneGraphEdgeData,
+  type SceneGraphEdgeVariant,
   SceneGraphNode,
   type SceneGraphNodeData,
   type SceneGraphSceneType,
 } from "../components/graph";
 import type { AsyncStatus } from "../state";
-
-type SceneGraphEdgeVariant = "default" | "conditional" | "terminal";
-
-interface SceneGraphEdgeData {
-  readonly command: string;
-  readonly narration: string;
-  readonly isTerminal: boolean;
-  readonly item?: string | null;
-  readonly requires: readonly string[];
-  readonly consumes: readonly string[];
-  readonly records: readonly string[];
-  readonly failureNarration?: string | null;
-  readonly overrideCount: number;
-  readonly variant: SceneGraphEdgeVariant;
-  readonly hasRequirements: boolean;
-}
 
 interface EdgeStyleConfig {
   readonly stroke: string;
@@ -51,6 +38,7 @@ interface EdgeStyleConfig {
   readonly animated: boolean;
   readonly labelBgFill: string;
   readonly labelBgStroke: string;
+  readonly labelTextColor: string;
 }
 
 const EDGE_VARIANT_STYLES: Record<SceneGraphEdgeVariant, EdgeStyleConfig> = {
@@ -60,6 +48,7 @@ const EDGE_VARIANT_STYLES: Record<SceneGraphEdgeVariant, EdgeStyleConfig> = {
     animated: false,
     labelBgFill: "rgba(15, 23, 42, 0.8)",
     labelBgStroke: "rgba(148, 163, 184, 0.6)",
+    labelTextColor: "#e2e8f0",
   },
   conditional: {
     stroke: "#38bdf8",
@@ -68,6 +57,7 @@ const EDGE_VARIANT_STYLES: Record<SceneGraphEdgeVariant, EdgeStyleConfig> = {
     animated: false,
     labelBgFill: "rgba(12, 74, 110, 0.65)",
     labelBgStroke: "rgba(56, 189, 248, 0.7)",
+    labelTextColor: "#e0f2fe",
   },
   terminal: {
     stroke: "#fb7185",
@@ -75,6 +65,7 @@ const EDGE_VARIANT_STYLES: Record<SceneGraphEdgeVariant, EdgeStyleConfig> = {
     animated: true,
     labelBgFill: "rgba(76, 29, 49, 0.75)",
     labelBgStroke: "rgba(251, 113, 133, 0.6)",
+    labelTextColor: "#ffe4e6",
   },
 };
 
@@ -374,25 +365,12 @@ const buildGraphView = (
         : "default";
     const styleConfig = EDGE_VARIANT_STYLES[variant];
     const target = isTerminal ? terminalNodeId(edge.id) : edge.target!;
-    const labelText = `${edge.command}${variant === "conditional" ? " • requires" : ""}`;
 
     return {
       id: edge.id,
       source: edge.source,
       target,
-      type: "smoothstep",
-      label: labelText,
-      labelStyle: {
-        fill: "#e2e8f0",
-        fontSize: 12,
-        textTransform: "uppercase",
-      },
-      labelBgPadding: [6, 3],
-      labelBgBorderRadius: 12,
-      labelBgStyle: {
-        fill: styleConfig.labelBgFill,
-        stroke: styleConfig.labelBgStroke,
-      },
+      type: "sceneGraphEdge",
       style: {
         stroke: styleConfig.stroke,
         strokeWidth: 2,
@@ -417,6 +395,9 @@ const buildGraphView = (
         overrideCount: edge.override_count,
         variant,
         hasRequirements,
+        labelBackground: styleConfig.labelBgFill,
+        labelBorder: styleConfig.labelBgStroke,
+        labelTextColor: styleConfig.labelTextColor,
       },
     };
   });
@@ -671,6 +652,13 @@ export const SceneGraphPage: React.FC = () => {
     sceneGraphNode: SceneGraphNode,
   }), []);
 
+  const edgeTypes = React.useMemo(
+    () => ({
+      sceneGraphEdge: SceneGraphEdge,
+    }),
+    [],
+  );
+
   const isLoading = graphState.status === "loading";
   const hasError = graphState.status === "error";
   const hasData = graphState.data !== null;
@@ -788,6 +776,7 @@ export const SceneGraphPage: React.FC = () => {
               nodes={nodesWithHandlers}
               edges={graphState.data!.edges}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               fitView
               onInit={(instance) => {
                 reactFlowInstanceRef.current = instance;
@@ -795,9 +784,6 @@ export const SceneGraphPage: React.FC = () => {
               }}
               minZoom={0.2}
               maxZoom={1.8}
-              defaultEdgeOptions={{
-                type: "smoothstep",
-              }}
               elevateNodesOnSelect
               proOptions={{ hideAttribution: true }}
               className="!bg-gradient-to-b !from-slate-950 !to-slate-900"

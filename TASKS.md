@@ -212,7 +212,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Implement transition edge components:
       - [ ] Different styles for different transition types
       - [x] Conditional edges (requirements) shown differently *(Transitions that require inventory or history now render as dashed blue edges with "requires" labels and legend support.)*
-      - [ ] Edge labels showing command names
+      - [x] Edge labels showing command names *(Graph edges now display stylised command pills with variant indicators and requirements callouts.)*
       - [ ] Click to edit transition
     - [ ] Add graph interaction features:
       - [ ] Drag-and-drop scene positioning
