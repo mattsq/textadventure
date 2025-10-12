@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   createSceneEditorApiClient,
   SceneEditorApiError,
@@ -373,6 +373,7 @@ const buildStatusMessage = (
 const SceneDetailsPage: React.FC = () => {
   const params = useParams<{ sceneId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setNavigationLog = useSceneEditorStore((state) => state.setNavigationLog);
 
   const apiClient = React.useMemo(
@@ -417,6 +418,16 @@ const SceneDetailsPage: React.FC = () => {
     Readonly<Record<string, TransitionResource>>
   >({});
   const [targetSceneOptions, setTargetSceneOptions] = React.useState<readonly string[]>([]);
+
+  const highlightedTransitionCommand = React.useMemo(() => {
+    const rawCommand = searchParams.get("transition");
+    if (!rawCommand) {
+      return null;
+    }
+
+    const trimmed = rawCommand.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [searchParams]);
 
   React.useEffect(() => {
     if (!routeSceneId) {
@@ -1079,6 +1090,7 @@ const SceneDetailsPage: React.FC = () => {
               errors={transitionErrors}
               targetOptions={availableTargetOptions}
               disabled={isSaving}
+              focusedCommand={highlightedTransitionCommand}
               onTargetChange={handleTransitionTargetChange}
               onNarrationChange={handleTransitionNarrationChange}
             />
