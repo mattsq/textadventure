@@ -211,7 +211,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Click to open editor *(Graph nodes now navigate directly to the scene detail editor when activated, including keyboard support.)*
     - [ ] Implement transition edge components:
       - [ ] Different styles for different transition types
-      - [ ] Conditional edges (requirements) shown differently
+      - [x] Conditional edges (requirements) shown differently *(Transitions that require inventory or history now render as dashed blue edges with "requires" labels and legend support.)*
       - [ ] Edge labels showing command names
       - [ ] Click to edit transition
     - [ ] Add graph interaction features:
