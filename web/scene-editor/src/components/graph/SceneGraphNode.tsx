@@ -29,6 +29,7 @@ export interface SceneGraphSceneNodeData {
   readonly choiceCount: number;
   readonly transitionCount: number;
   readonly hasTerminalTransition: boolean;
+  readonly isReachable: boolean;
   readonly onOpen?: (sceneId: string) => void;
 }
 
@@ -53,6 +54,9 @@ const sceneValidationClasses: Record<ValidationState, string> = {
   errors:
     "border-rose-500/60 bg-slate-950/50 shadow-lg shadow-rose-500/20",
 };
+
+const unreachableSceneClasses =
+  "border-rose-500/70 bg-rose-500/10 shadow-lg shadow-rose-500/30";
 
 const terminalClasses =
   "border-rose-500/70 bg-rose-500/10 shadow-lg shadow-rose-500/20";
@@ -163,6 +167,11 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
               </div>
             ) : null}
           </dl>
+          {!data.isReachable ? (
+            <p className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[11px] font-medium text-rose-200">
+              This scene is currently unreachable from the configured start scene.
+            </p>
+          ) : null}
         </div>
       );
     }
@@ -194,6 +203,7 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
           : terminalClasses,
         isSceneNode && sceneTypeAccentBase,
         isSceneNode && sceneTypeAccentClasses[data.sceneType],
+        isSceneNode && !data.isReachable && unreachableSceneClasses,
         isSceneNode && data.onOpen ? "cursor-pointer" : undefined,
       )}
       tabIndex={0}
@@ -256,6 +266,11 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
               {data.hasTerminalTransition ? (
                 <Badge variant="warning" size="sm">
                   Has ending
+                </Badge>
+              ) : null}
+              {!data.isReachable ? (
+                <Badge variant="danger" size="sm">
+                  Unreachable
                 </Badge>
               ) : null}
             </div>
