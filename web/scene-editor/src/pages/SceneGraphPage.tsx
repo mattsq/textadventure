@@ -28,6 +28,8 @@ import {
 } from "../components/graph";
 import type { AsyncStatus } from "../state";
 
+type SceneGraphEdgeVariant = "default" | "conditional" | "terminal";
+
 interface SceneGraphEdgeData {
   readonly command: string;
   readonly narration: string;
@@ -38,7 +40,43 @@ interface SceneGraphEdgeData {
   readonly records: readonly string[];
   readonly failureNarration?: string | null;
   readonly overrideCount: number;
+  readonly variant: SceneGraphEdgeVariant;
+  readonly hasRequirements: boolean;
 }
+
+interface EdgeStyleConfig {
+  readonly stroke: string;
+  readonly marker: string;
+  readonly strokeDasharray?: string;
+  readonly animated: boolean;
+  readonly labelBgFill: string;
+  readonly labelBgStroke: string;
+}
+
+const EDGE_VARIANT_STYLES: Record<SceneGraphEdgeVariant, EdgeStyleConfig> = {
+  default: {
+    stroke: "#94a3b8",
+    marker: "#94a3b8",
+    animated: false,
+    labelBgFill: "rgba(15, 23, 42, 0.8)",
+    labelBgStroke: "rgba(148, 163, 184, 0.6)",
+  },
+  conditional: {
+    stroke: "#38bdf8",
+    marker: "#38bdf8",
+    strokeDasharray: "6 4",
+    animated: false,
+    labelBgFill: "rgba(12, 74, 110, 0.65)",
+    labelBgStroke: "rgba(56, 189, 248, 0.7)",
+  },
+  terminal: {
+    stroke: "#fb7185",
+    marker: "#fb7185",
+    animated: true,
+    labelBgFill: "rgba(76, 29, 49, 0.75)",
+    labelBgStroke: "rgba(251, 113, 133, 0.6)",
+  },
+};
 
 interface TerminalNodeInfo {
   readonly id: string;
@@ -328,13 +366,22 @@ const buildGraphView = (
 
   const edges: Edge<SceneGraphEdgeData>[] = response.edges.map((edge) => {
     const isTerminal = edge.target === null;
+    const hasRequirements = edge.requires.length > 0;
+    const variant: SceneGraphEdgeVariant = isTerminal
+      ? "terminal"
+      : hasRequirements
+        ? "conditional"
+        : "default";
+    const styleConfig = EDGE_VARIANT_STYLES[variant];
     const target = isTerminal ? terminalNodeId(edge.id) : edge.target!;
+    const labelText = `${edge.command}${variant === "conditional" ? " • requires" : ""}`;
+
     return {
       id: edge.id,
       source: edge.source,
       target,
       type: "smoothstep",
-      label: edge.command,
+      label: labelText,
       labelStyle: {
         fill: "#e2e8f0",
         fontSize: 12,
@@ -343,20 +390,21 @@ const buildGraphView = (
       labelBgPadding: [6, 3],
       labelBgBorderRadius: 12,
       labelBgStyle: {
-        fill: "rgba(15, 23, 42, 0.8)",
-        stroke: "rgba(148, 163, 184, 0.6)",
+        fill: styleConfig.labelBgFill,
+        stroke: styleConfig.labelBgStroke,
       },
       style: {
-        stroke: isTerminal ? "#fb7185" : "#94a3b8",
+        stroke: styleConfig.stroke,
         strokeWidth: 2,
+        strokeDasharray: styleConfig.strokeDasharray,
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: isTerminal ? "#fb7185" : "#94a3b8",
+        color: styleConfig.marker,
         width: 16,
         height: 16,
       },
-      animated: isTerminal,
+      animated: styleConfig.animated,
       data: {
         command: edge.command,
         narration: edge.narration,
@@ -367,6 +415,8 @@ const buildGraphView = (
         records: edge.records,
         failureNarration: edge.failure_narration ?? null,
         overrideCount: edge.override_count,
+        variant,
+        hasRequirements,
       },
     };
   });
@@ -452,6 +502,12 @@ const GraphLegend: React.FC = () => {
   ];
 
   const edgeLegendItems = [
+    {
+      id: "conditional-edge",
+      label: "Conditional transition",
+      description: "Requires specific inventory or history before it can fire.",
+      swatch: "bg-sky-500",
+    },
     {
       id: "terminal-edge",
       label: "Terminal transition",
