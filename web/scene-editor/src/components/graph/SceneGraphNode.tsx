@@ -30,6 +30,7 @@ export interface SceneGraphSceneNodeData {
   readonly transitionCount: number;
   readonly hasTerminalTransition: boolean;
   readonly isReachable: boolean;
+  readonly isHighlighted?: boolean;
   readonly onOpen?: (sceneId: string) => void;
 }
 
@@ -40,6 +41,7 @@ export interface SceneGraphTerminalNodeData {
   readonly command: string;
   readonly narration: string;
   readonly sourceScene: string;
+  readonly isHighlighted?: boolean;
 }
 
 export type SceneGraphNodeData =
@@ -216,6 +218,9 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
         isSceneNode && validationStatusAccentClasses[data.validationStatus],
         isSceneNode && !data.isReachable && unreachableSceneClasses,
         isSceneNode && data.onOpen ? "cursor-pointer" : undefined,
+        data.isHighlighted
+          ? "outline outline-2 outline-offset-4 outline-indigo-400"
+          : undefined,
       )}
       tabIndex={0}
       aria-describedby={tooltipId}

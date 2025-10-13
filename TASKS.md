@@ -220,7 +220,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Zoom and pan controls *(Introduced overlay controls for zooming, panning modes, and scroll zoom toggles.)*
       - [ ] Minimap for large graphs
       - [ ] Auto-layout algorithms
-      - [ ] Search and focus on specific scenes
+      - [x] Search and focus on specific scenes *(Graph overlay now includes a searchable scene selector that highlights and centers the chosen node, with clear/reset controls.)*
     - [ ] Implement dependency highlighting:
       - [ ] Highlight item flow chains
       - [x] Show unreachable scenes in red *(Scene graph nodes, tooltips, minimap, and legend now surface unreachable scenes with distinct red styling.)*

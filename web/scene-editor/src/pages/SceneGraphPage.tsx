@@ -613,6 +613,92 @@ export const SceneGraphPage: React.FC = () => {
   const [isLayoutEditing, setIsLayoutEditing] = React.useState(false);
   const [interactionMode, setInteractionMode] = React.useState<"pan" | "select">("pan");
   const [isScrollZoomEnabled, setIsScrollZoomEnabled] = React.useState(true);
+  const [sceneSearchTerm, setSceneSearchTerm] = React.useState("");
+  const [sceneSearchError, setSceneSearchError] = React.useState<string | null>(null);
+  const [focusedSceneId, setFocusedSceneId] = React.useState<string | null>(null);
+
+  const sceneIdOptions = React.useMemo(() => {
+    return nodes
+      .filter((node) => node.data.variant === "scene")
+      .map((node) => node.data.id)
+      .sort((a, b) => a.localeCompare(b));
+  }, [nodes]);
+
+  const handleSceneSearchInputChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSceneSearchTerm(event.target.value);
+      setSceneSearchError(null);
+    },
+    [],
+  );
+
+  const focusSceneById = React.useCallback(
+    (rawSceneId: string): string | null => {
+      const instance = reactFlowInstanceRef.current;
+      if (!instance) {
+        return null;
+      }
+
+      const normalised = rawSceneId.trim().toLowerCase();
+      const targetNode = nodes.find(
+        (node) =>
+          node.data.variant === "scene" &&
+          node.id.toLowerCase() === normalised,
+      );
+
+      if (!targetNode) {
+        return null;
+      }
+
+      setFocusedSceneId(targetNode.id);
+      instance.fitView({
+        nodes: [{ id: targetNode.id }],
+        padding: 0.6,
+        duration: 400,
+        includeHiddenNodes: true,
+      });
+
+      return targetNode.id;
+    },
+    [nodes],
+  );
+
+  const handleSceneSearchSubmit = React.useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const trimmed = sceneSearchTerm.trim();
+
+      if (trimmed.length === 0) {
+        setSceneSearchError("Enter a scene id to focus");
+        setFocusedSceneId(null);
+        return;
+      }
+
+      const matchedId = focusSceneById(trimmed);
+      if (!matchedId) {
+        setSceneSearchError("No scene found with that id");
+        return;
+      }
+
+      setSceneSearchError(null);
+      setSceneSearchTerm(matchedId);
+    },
+    [focusSceneById, sceneSearchTerm],
+  );
+
+  const handleClearSceneFocus = React.useCallback(() => {
+    setSceneSearchTerm("");
+    setSceneSearchError(null);
+    setFocusedSceneId(null);
+    const instance = reactFlowInstanceRef.current;
+    if (instance) {
+      instance.fitView({
+        padding: 0.25,
+        includeHiddenNodes: true,
+        duration: 400,
+      });
+    }
+  }, []);
 
   const handleSceneOpen = React.useCallback(
     (sceneId: string) => {
@@ -728,14 +814,26 @@ export const SceneGraphPage: React.FC = () => {
         const previousPosition = previousPositions.get(node.id);
         const position =
           overridePosition ?? previousPosition ?? { ...node.position };
-        const isSceneNode = node.data.variant === "scene";
+
+        if (node.data.variant === "scene") {
+          return {
+            ...node,
+            position,
+            data: {
+              ...node.data,
+              onOpen: handleSceneOpen,
+              isHighlighted: node.id === focusedSceneId,
+            },
+          };
+        }
 
         return {
           ...node,
           position,
-          data: isSceneNode
-            ? { ...node.data, onOpen: handleSceneOpen }
-            : node.data,
+          data: {
+            ...node.data,
+            isHighlighted: node.data.sourceScene === focusedSceneId,
+          },
         };
       });
     });
@@ -761,7 +859,14 @@ export const SceneGraphPage: React.FC = () => {
         };
       }),
     );
-  }, [graphState.data, handleSceneOpen, handleTransitionOpen, setEdges, setNodes]);
+  }, [
+    focusedSceneId,
+    graphState.data,
+    handleSceneOpen,
+    handleTransitionOpen,
+    setEdges,
+    setNodes,
+  ]);
 
   React.useEffect(() => {
     setNodes((currentNodes) =>
@@ -982,91 +1087,147 @@ export const SceneGraphPage: React.FC = () => {
           <div className="relative h-[620px] w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/60">
             <div className="pointer-events-none absolute left-4 top-4 z-10 flex flex-col gap-2">
               <div className="pointer-events-auto rounded-lg border border-slate-700/80 bg-slate-900/80 p-3 shadow-lg shadow-slate-950/40">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                    View controls
-                  </p>
-                  <span className="text-[10px] uppercase tracking-wide text-slate-500">
-                    {interactionMode === "pan" ? "Pan" : "Select"} mode
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleZoomIn}
-                    className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
+                <div className="space-y-4">
+                  <form
+                    className="space-y-2"
+                    onSubmit={handleSceneSearchSubmit}
                   >
-                    Zoom in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleZoomOut}
-                    className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
-                  >
-                    Zoom out
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleFitView}
-                    className="inline-flex items-center justify-center rounded-md border border-indigo-500/70 bg-indigo-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-100 transition hover:bg-indigo-500/30"
-                  >
-                    Fit view
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetLayout}
-                    className="inline-flex items-center justify-center rounded-md border border-emerald-500/70 bg-emerald-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/30"
-                  >
-                    Reset layout
-                  </button>
-                </div>
-                <div className="mt-3 space-y-2 text-[11px] text-slate-300">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="uppercase tracking-wide text-slate-400">Scroll zoom</span>
-                    <button
-                      type="button"
-                      onClick={toggleScrollZoom}
-                      className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90"
+                    <label
+                      htmlFor="scene-graph-scene-search"
+                      className="text-[11px] font-semibold uppercase tracking-wide text-slate-300"
                     >
-                      {isScrollZoomEnabled ? "On" : "Off"}
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="uppercase tracking-wide text-slate-400">Interaction</span>
-                    <div className="inline-flex rounded-full border border-slate-600/80 bg-slate-800/80 p-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100">
+                      Focus on scene
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        id="scene-graph-scene-search"
+                        list="scene-graph-scene-ids"
+                        type="text"
+                        value={sceneSearchTerm}
+                        onChange={handleSceneSearchInputChange}
+                        placeholder="Search by scene id"
+                        className="w-40 flex-1 rounded-md border border-slate-600/80 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400/60"
+                        autoComplete="off"
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex items-center justify-center rounded-md border border-indigo-500/70 bg-indigo-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-100 transition hover:bg-indigo-500/30"
+                      >
+                        Focus
+                      </button>
+                      {focusedSceneId ? (
+                        <button
+                          type="button"
+                          onClick={handleClearSceneFocus}
+                          className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                    </div>
+                    <datalist id="scene-graph-scene-ids">
+                      {sceneIdOptions.map((sceneId) => (
+                        <option key={sceneId} value={sceneId} />
+                      ))}
+                    </datalist>
+                    {sceneSearchError ? (
+                      <p className="text-[10px] font-medium text-rose-300">
+                        {sceneSearchError}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400">
+                        Start typing a scene id to highlight it in the graph.
+                      </p>
+                    )}
+                  </form>
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                        View controls
+                      </p>
+                      <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                        {interactionMode === "pan" ? "Pan" : "Select"} mode
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => handleSetInteractionMode("pan")}
-                        className={
-                          interactionMode === "pan"
-                            ? "rounded-full bg-slate-700/80 px-2 py-0.5"
-                            : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
-                        }
+                        onClick={handleZoomIn}
+                        className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
                       >
-                        Pan
+                        Zoom in
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleSetInteractionMode("select")}
-                        className={
-                          interactionMode === "select"
-                            ? "rounded-full bg-slate-700/80 px-2 py-0.5"
-                            : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
-                        }
+                        onClick={handleZoomOut}
+                        className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
                       >
-                        Select
+                        Zoom out
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFitView}
+                        className="inline-flex items-center justify-center rounded-md border border-indigo-500/70 bg-indigo-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-100 transition hover:bg-indigo-500/30"
+                      >
+                        Fit view
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetLayout}
+                        className="inline-flex items-center justify-center rounded-md border border-emerald-500/70 bg-emerald-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/30"
+                      >
+                        Reset layout
                       </button>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="uppercase tracking-wide text-slate-400">Layout editing</span>
-                    <button
-                      type="button"
-                      onClick={toggleLayoutEditing}
-                      className="inline-flex items-center justify-center rounded-full border border-emerald-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/20"
-                    >
-                      {isLayoutEditing ? "Enabled" : "Disabled"}
-                    </button>
+                    <div className="mt-3 space-y-2 text-[11px] text-slate-300">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide text-slate-400">Scroll zoom</span>
+                        <button
+                          type="button"
+                          onClick={toggleScrollZoom}
+                          className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90"
+                        >
+                          {isScrollZoomEnabled ? "On" : "Off"}
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide text-slate-400">Interaction</span>
+                        <div className="inline-flex rounded-full border border-slate-600/80 bg-slate-800/80 p-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => handleSetInteractionMode("pan")}
+                            className={
+                              interactionMode === "pan"
+                                ? "rounded-full bg-slate-700/80 px-2 py-0.5"
+                                : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
+                            }
+                          >
+                            Pan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSetInteractionMode("select")}
+                            className={
+                              interactionMode === "select"
+                                ? "rounded-full bg-slate-700/80 px-2 py-0.5"
+                                : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
+                            }
+                          >
+                            Select
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide text-slate-400">Layout editing</span>
+                        <button
+                          type="button"
+                          onClick={toggleLayoutEditing}
+                          className="inline-flex items-center justify-center rounded-full border border-emerald-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/20"
+                        >
+                          {isLayoutEditing ? "Enabled" : "Disabled"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
