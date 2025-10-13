@@ -224,7 +224,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Implement dependency highlighting:
       - [x] Highlight item flow chains *(Scene graph view now offers an item-focused highlight mode that emphasises transitions and scenes rewarding, requiring, or consuming the selected item while dimming unrelated nodes.)*
       - [x] Show unreachable scenes in red *(Scene graph nodes, tooltips, minimap, and legend now surface unreachable scenes with distinct red styling.)*
-      - [ ] Trace paths between scenes
+      - [x] Trace paths between scenes *(Scene graph overlay now supports selecting start/target scenes, highlights the shortest path, and dims unrelated nodes.)*
       - [ ] Critical path analysis
 
   - [ ] **Phase 5: Advanced Editing Features**
