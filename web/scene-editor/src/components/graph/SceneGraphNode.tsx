@@ -31,6 +31,7 @@ export interface SceneGraphSceneNodeData {
   readonly hasTerminalTransition: boolean;
   readonly isReachable: boolean;
   readonly isHighlighted?: boolean;
+  readonly isDimmed?: boolean;
   readonly onOpen?: (sceneId: string) => void;
 }
 
@@ -42,6 +43,7 @@ export interface SceneGraphTerminalNodeData {
   readonly narration: string;
   readonly sourceScene: string;
   readonly isHighlighted?: boolean;
+  readonly isDimmed?: boolean;
 }
 
 export type SceneGraphNodeData =
@@ -221,6 +223,7 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
         data.isHighlighted
           ? "outline outline-2 outline-offset-4 outline-indigo-400"
           : undefined,
+        data.isDimmed ? "opacity-40 saturate-75" : undefined,
       )}
       tabIndex={0}
       aria-describedby={tooltipId}

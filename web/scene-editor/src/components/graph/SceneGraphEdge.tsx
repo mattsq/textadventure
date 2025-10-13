@@ -40,6 +40,7 @@ export interface SceneGraphEdgeData {
   readonly labelTextColor: string;
   readonly sourceSceneId: string;
   readonly onOpen?: (context: SceneGraphEdgeActivateContext) => void;
+  readonly isDimmed?: boolean;
 }
 
 const variantAccentClasses: Record<SceneGraphEdgeVariant, string> = {
@@ -216,6 +217,7 @@ export const SceneGraphEdge: React.FC<EdgeProps<SceneGraphEdgeData>> = ({
                 ? "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300"
                 : undefined,
               selected ? "ring-2 ring-sky-400/70" : "ring-1 ring-slate-900/70",
+              data?.isDimmed ? "opacity-50 saturate-75" : undefined,
             )}
             style={{
               backgroundColor: data?.labelBackground,
