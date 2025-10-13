@@ -10,7 +10,12 @@ const classNames = (
   ...values: Array<string | false | null | undefined>
 ): string => values.filter(Boolean).join(" ");
 
-export type SceneGraphEdgeVariant = "default" | "conditional" | "terminal";
+export type SceneGraphEdgeVariant =
+  | "default"
+  | "conditional"
+  | "consumable"
+  | "reward"
+  | "terminal";
 
 export interface SceneGraphEdgeActivateContext {
   readonly edgeId: string;
@@ -40,13 +45,116 @@ export interface SceneGraphEdgeData {
 const variantAccentClasses: Record<SceneGraphEdgeVariant, string> = {
   default: "bg-slate-300/90",
   conditional: "bg-sky-400/90",
+  consumable: "bg-amber-400/90",
+  reward: "bg-emerald-400/90",
   terminal: "bg-rose-400/90",
 };
 
-const variantDescriptor: Record<SceneGraphEdgeVariant, string> = {
-  default: "Transition",
-  conditional: "Requires", // indicates requirement presence when paired with command label
-  terminal: "Ending",
+type SceneGraphEdgeBadgeTone =
+  | "info"
+  | "success"
+  | "warning"
+  | "danger"
+  | "muted";
+
+interface SceneGraphEdgeBadge {
+  readonly id: string;
+  readonly label: string;
+  readonly tone: SceneGraphEdgeBadgeTone;
+}
+
+const badgeToneClasses: Record<SceneGraphEdgeBadgeTone, string> = {
+  info: "border-sky-200/70 bg-sky-500/90 text-sky-50",
+  success: "border-emerald-200/70 bg-emerald-500/90 text-emerald-50",
+  warning: "border-amber-200/70 bg-amber-500/90 text-amber-50",
+  danger: "border-rose-200/70 bg-rose-500/90 text-rose-50",
+  muted: "border-slate-200/70 bg-slate-500/80 text-slate-50",
+};
+
+const variantBadges: Partial<Record<SceneGraphEdgeVariant, SceneGraphEdgeBadge>>
+  = {
+    conditional: {
+      id: "variant-conditional",
+      label: "Requires",
+      tone: "info",
+    },
+    consumable: {
+      id: "variant-consumable",
+      label: "Consumes items",
+      tone: "warning",
+    },
+    reward: {
+      id: "variant-reward",
+      label: "Rewards",
+      tone: "success",
+    },
+    terminal: {
+      id: "variant-terminal",
+      label: "Ending",
+      tone: "danger",
+    },
+  };
+
+const buildBadges = (data: SceneGraphEdgeData | undefined): SceneGraphEdgeBadge[] => {
+  if (!data) {
+    return [];
+  }
+
+  const badges: SceneGraphEdgeBadge[] = [];
+  const variantBadge = variantBadges[data.variant];
+  if (variantBadge) {
+    badges.push(variantBadge);
+  }
+
+  if (data.hasRequirements && data.variant !== "conditional") {
+    badges.push({
+      id: "requires",
+      label: "Requires",
+      tone: "info",
+    });
+  }
+
+  if (data.consumes.length > 0 && data.variant !== "consumable") {
+    badges.push({
+      id: "consumes",
+      label: "Consumes",
+      tone: "warning",
+    });
+  }
+
+  if (data.item) {
+    badges.push({
+      id: "rewards-item",
+      label: "Grants item",
+      tone: "success",
+    });
+  }
+
+  if (data.records.length > 0) {
+    badges.push({
+      id: "records",
+      label: "Records memory",
+      tone: "muted",
+    });
+  }
+
+  if (data.overrideCount > 0) {
+    badges.push({
+      id: "overrides",
+      label: `Overrides (${data.overrideCount})`,
+      tone: "muted",
+    });
+  }
+
+  if ((data.failureNarration ?? "").trim() !== "") {
+    badges.push({
+      id: "failure",
+      label: "Failure text",
+      tone: "danger",
+    });
+  }
+
+  return badges;
 };
 
 export const SceneGraphEdge: React.FC<EdgeProps<SceneGraphEdgeData>> = ({
@@ -72,6 +180,7 @@ export const SceneGraphEdge: React.FC<EdgeProps<SceneGraphEdgeData>> = ({
   });
 
   const isInteractive = typeof data?.onOpen === "function";
+  const badges = React.useMemo(() => buildBadges(data), [data]);
 
   const handleActivate = (
     event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>,
@@ -136,16 +245,17 @@ export const SceneGraphEdge: React.FC<EdgeProps<SceneGraphEdgeData>> = ({
               aria-hidden
             />
             <span className="max-w-[180px] truncate">{data?.command ?? ""}</span>
-            {data?.variant === "conditional" ? (
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-sky-100/90">
-                {variantDescriptor.conditional}
+            {badges.map((badge) => (
+              <span
+                key={badge.id}
+                className={classNames(
+                  "rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest",
+                  badgeToneClasses[badge.tone],
+                )}
+              >
+                {badge.label}
               </span>
-            ) : null}
-            {data?.variant === "terminal" ? (
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-rose-100/90">
-                {variantDescriptor.terminal}
-              </span>
-            ) : null}
+            ))}
           </div>
         </div>
       </EdgeLabelRenderer>

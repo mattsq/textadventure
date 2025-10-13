@@ -60,6 +60,23 @@ const EDGE_VARIANT_STYLES: Record<SceneGraphEdgeVariant, EdgeStyleConfig> = {
     labelBgStroke: "rgba(56, 189, 248, 0.7)",
     labelTextColor: "#e0f2fe",
   },
+  consumable: {
+    stroke: "#fbbf24",
+    marker: "#fbbf24",
+    strokeDasharray: "2 6",
+    animated: false,
+    labelBgFill: "rgba(120, 53, 15, 0.7)",
+    labelBgStroke: "rgba(251, 191, 36, 0.6)",
+    labelTextColor: "#fff7ed",
+  },
+  reward: {
+    stroke: "#34d399",
+    marker: "#34d399",
+    animated: false,
+    labelBgFill: "rgba(6, 47, 28, 0.7)",
+    labelBgStroke: "rgba(52, 211, 153, 0.6)",
+    labelTextColor: "#d1fae5",
+  },
   terminal: {
     stroke: "#fb7185",
     marker: "#fb7185",
@@ -359,11 +376,19 @@ const buildGraphView = (
   const edges: Edge<SceneGraphEdgeData>[] = response.edges.map((edge) => {
     const isTerminal = edge.target === null;
     const hasRequirements = edge.requires.length > 0;
-    const variant: SceneGraphEdgeVariant = isTerminal
-      ? "terminal"
-      : hasRequirements
-        ? "conditional"
-        : "default";
+    const consumesItems = edge.consumes.length > 0;
+    const grantsReward = Boolean(edge.item) || edge.records.length > 0;
+    const hasOverrides = edge.override_count > 0;
+    let variant: SceneGraphEdgeVariant = "default";
+    if (isTerminal) {
+      variant = "terminal";
+    } else if (consumesItems) {
+      variant = "consumable";
+    } else if (hasRequirements) {
+      variant = "conditional";
+    } else if (grantsReward || hasOverrides) {
+      variant = "reward";
+    }
     const styleConfig = EDGE_VARIANT_STYLES[variant];
     const target = isTerminal ? terminalNodeId(edge.id) : edge.target!;
 
@@ -486,10 +511,28 @@ const GraphLegend: React.FC = () => {
 
   const edgeLegendItems = [
     {
+      id: "default-edge",
+      label: "Standard transition",
+      description: "Moves between scenes without additional state effects.",
+      swatch: "bg-slate-400",
+    },
+    {
       id: "conditional-edge",
       label: "Conditional transition",
       description: "Requires specific inventory or history before it can fire.",
       swatch: "bg-sky-500",
+    },
+    {
+      id: "consumable-edge",
+      label: "Consumable transition",
+      description: "Consumes inventory items as part of the state change.",
+      swatch: "bg-amber-400",
+    },
+    {
+      id: "reward-edge",
+      label: "Rewarding transition",
+      description: "Grants items or records new memories when triggered.",
+      swatch: "bg-emerald-400",
     },
     {
       id: "terminal-edge",
