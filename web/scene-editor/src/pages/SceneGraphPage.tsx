@@ -120,6 +120,248 @@ interface GraphState {
 const HORIZONTAL_SPACING = 320;
 const VERTICAL_SPACING = 170;
 
+type PathHighlightRole = "start" | "end" | "intermediate";
+
+interface PathSelection {
+  readonly startId: string;
+  readonly targetId: string;
+}
+
+interface PathHighlightResult {
+  readonly sceneIds: ReadonlySet<string>;
+  readonly edgeIds: ReadonlySet<string>;
+  readonly roles: ReadonlyMap<string, PathHighlightRole>;
+  readonly isActive: boolean;
+  readonly found: boolean;
+  readonly length: number;
+  readonly startId: string | null;
+  readonly targetId: string | null;
+  readonly missingStart: boolean;
+  readonly missingTarget: boolean;
+}
+
+type PathStatusTone = "muted" | "info" | "warning" | "danger";
+
+interface PathStatusMessage {
+  readonly tone: PathStatusTone;
+  readonly message: string;
+}
+
+const PATH_STATUS_TONE_CLASSES: Record<PathStatusTone, string> = {
+  muted: "text-slate-400",
+  info: "text-sky-200",
+  warning: "text-amber-300",
+  danger: "text-rose-300",
+};
+
+const computeScenePathHighlight = (
+  graph: GraphViewModel | null,
+  selection: PathSelection | null,
+): PathHighlightResult => {
+  if (!selection) {
+    return {
+      sceneIds: new Set<string>(),
+      edgeIds: new Set<string>(),
+      roles: new Map<string, PathHighlightRole>(),
+      isActive: false,
+      found: false,
+      length: 0,
+      startId: null,
+      targetId: null,
+      missingStart: false,
+      missingTarget: false,
+    };
+  }
+
+  if (!graph) {
+    return {
+      sceneIds: new Set<string>(),
+      edgeIds: new Set<string>(),
+      roles: new Map<string, PathHighlightRole>(),
+      isActive: true,
+      found: false,
+      length: 0,
+      startId: selection.startId,
+      targetId: selection.targetId,
+      missingStart: false,
+      missingTarget: false,
+    };
+  }
+
+  const sceneIds = new Set(
+    graph.nodes
+      .filter((node) => node.data.variant === "scene")
+      .map((node) => node.id),
+  );
+
+  const missingStart = !sceneIds.has(selection.startId);
+  const missingTarget = !sceneIds.has(selection.targetId);
+
+  if (missingStart || missingTarget) {
+    const highlightedScenes = new Set<string>();
+    const roles = new Map<string, PathHighlightRole>();
+
+    if (!missingStart) {
+      highlightedScenes.add(selection.startId);
+      roles.set(selection.startId, "start");
+    }
+
+    if (!missingTarget) {
+      highlightedScenes.add(selection.targetId);
+      roles.set(selection.targetId, "end");
+    }
+
+    return {
+      sceneIds: highlightedScenes,
+      edgeIds: new Set<string>(),
+      roles,
+      isActive: true,
+      found: false,
+      length: 0,
+      startId: selection.startId,
+      targetId: selection.targetId,
+      missingStart,
+      missingTarget,
+    };
+  }
+
+  if (selection.startId === selection.targetId) {
+    const singleScene = new Set<string>([selection.startId]);
+    const roles = new Map<string, PathHighlightRole>([
+      [selection.startId, "start"],
+    ]);
+
+    return {
+      sceneIds: singleScene,
+      edgeIds: new Set<string>(),
+      roles,
+      isActive: true,
+      found: true,
+      length: 0,
+      startId: selection.startId,
+      targetId: selection.targetId,
+      missingStart: false,
+      missingTarget: false,
+    };
+  }
+
+  const adjacency = new Map<string, Array<{ edgeId: string; targetId: string }>>();
+
+  for (const edge of graph.edges) {
+    if (!edge.source || typeof edge.target !== "string") {
+      continue;
+    }
+
+    if (edge.data?.isTerminal) {
+      continue;
+    }
+
+    if (!sceneIds.has(edge.source) || !sceneIds.has(edge.target)) {
+      continue;
+    }
+
+    if (!adjacency.has(edge.source)) {
+      adjacency.set(edge.source, []);
+    }
+
+    adjacency.get(edge.source)!.push({ edgeId: edge.id, targetId: edge.target });
+  }
+
+  const visited = new Set<string>([selection.startId]);
+  const parent = new Map<string, { prev: string; viaEdgeId: string }>();
+  const queue: string[] = [selection.startId];
+  let found = false;
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === selection.targetId) {
+      found = true;
+      break;
+    }
+
+    const neighbors = adjacency.get(current) ?? [];
+    for (const { edgeId, targetId } of neighbors) {
+      if (visited.has(targetId)) {
+        continue;
+      }
+
+      visited.add(targetId);
+      parent.set(targetId, { prev: current, viaEdgeId: edgeId });
+
+      if (targetId === selection.targetId) {
+        found = true;
+        queue.length = 0;
+        break;
+      }
+
+      queue.push(targetId);
+    }
+  }
+
+  if (!found) {
+    return {
+      sceneIds: new Set<string>([selection.startId, selection.targetId]),
+      edgeIds: new Set<string>(),
+      roles: new Map<string, PathHighlightRole>([
+        [selection.startId, "start"],
+        [selection.targetId, "end"],
+      ]),
+      isActive: true,
+      found: false,
+      length: 0,
+      startId: selection.startId,
+      targetId: selection.targetId,
+      missingStart: false,
+      missingTarget: false,
+    };
+  }
+
+  const highlightedScenes = new Set<string>();
+  const highlightedEdges = new Set<string>();
+  let steps = 0;
+  let cursor = selection.targetId;
+
+  highlightedScenes.add(selection.targetId);
+
+  while (cursor !== selection.startId) {
+    const metadata = parent.get(cursor);
+    if (!metadata) {
+      break;
+    }
+
+    highlightedEdges.add(metadata.viaEdgeId);
+    steps += 1;
+    cursor = metadata.prev;
+    highlightedScenes.add(cursor);
+  }
+
+  highlightedScenes.add(selection.startId);
+
+  const roles = new Map<string, PathHighlightRole>();
+  roles.set(selection.startId, "start");
+  roles.set(selection.targetId, "end");
+
+  for (const sceneId of highlightedScenes) {
+    if (sceneId === selection.startId || sceneId === selection.targetId) {
+      continue;
+    }
+    roles.set(sceneId, "intermediate");
+  }
+
+  return {
+    sceneIds: highlightedScenes,
+    edgeIds: highlightedEdges,
+    roles,
+    isActive: true,
+    found: true,
+    length: steps,
+    startId: selection.startId,
+    targetId: selection.targetId,
+    missingStart: false,
+    missingTarget: false,
+  };
+};
+
 const terminalNodeId = (edgeId: string): string => `terminal:${edgeId}`;
 
 const toLevelEntries = (
@@ -617,6 +859,10 @@ export const SceneGraphPage: React.FC = () => {
   const [sceneSearchError, setSceneSearchError] = React.useState<string | null>(null);
   const [focusedSceneId, setFocusedSceneId] = React.useState<string | null>(null);
   const [highlightedItemId, setHighlightedItemId] = React.useState("");
+  const [pathStartSceneId, setPathStartSceneId] = React.useState("");
+  const [pathTargetSceneId, setPathTargetSceneId] = React.useState("");
+  const [pathSelection, setPathSelection] = React.useState<PathSelection | null>(null);
+  const [pathFormError, setPathFormError] = React.useState<string | null>(null);
 
   const sceneIdOptions = React.useMemo(() => {
     return nodes
@@ -717,6 +963,71 @@ export const SceneGraphPage: React.FC = () => {
     );
   }, [highlightedItemFlow]);
 
+  const pathHighlight = React.useMemo(
+    () => computeScenePathHighlight(graphState.data, pathSelection),
+    [graphState.data, pathSelection],
+  );
+
+  const pathStatus = React.useMemo<PathStatusMessage>(() => {
+    if (!pathSelection) {
+      return {
+        tone: "muted",
+        message:
+          "Select start and target scenes to highlight a traversal between them.",
+      };
+    }
+
+    if (!graphState.data) {
+      return {
+        tone: "muted",
+        message: "Load the scene graph to trace a path between scenes.",
+      };
+    }
+
+    if (pathHighlight.missingStart && pathHighlight.missingTarget) {
+      return {
+        tone: "danger",
+        message: `Scenes "${pathSelection.startId}" and "${pathSelection.targetId}" are not present in the current dataset.`,
+      };
+    }
+
+    if (pathHighlight.missingStart) {
+      return {
+        tone: "danger",
+        message: `Scene "${pathSelection.startId}" is not present in the current dataset.`,
+      };
+    }
+
+    if (pathHighlight.missingTarget) {
+      return {
+        tone: "danger",
+        message: `Scene "${pathSelection.targetId}" is not present in the current dataset.`,
+      };
+    }
+
+    if (!pathHighlight.found) {
+      return {
+        tone: "warning",
+        message: `No path found from "${pathSelection.startId}" to "${pathSelection.targetId}".`,
+      };
+    }
+
+    if (pathSelection.startId === pathSelection.targetId) {
+      return {
+        tone: "info",
+        message: `Start and target scenes match; highlighting "${pathSelection.startId}".`,
+      };
+    }
+
+    const transitionLabel =
+      pathHighlight.length === 1 ? "1 transition" : `${pathHighlight.length} transitions`;
+
+    return {
+      tone: "info",
+      message: `Path from "${pathSelection.startId}" to "${pathSelection.targetId}" contains ${transitionLabel}.`,
+    };
+  }, [graphState.data, pathHighlight, pathSelection]);
+
   const handleSceneSearchInputChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setSceneSearchTerm(event.target.value);
@@ -778,6 +1089,57 @@ export const SceneGraphPage: React.FC = () => {
     },
     [focusSceneById, sceneSearchTerm],
   );
+
+  const handlePathStartChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      setPathStartSceneId(event.target.value);
+      setPathFormError(null);
+    },
+    [],
+  );
+
+  const handlePathTargetChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      setPathTargetSceneId(event.target.value);
+      setPathFormError(null);
+    },
+    [],
+  );
+
+  const handleTracePathSubmit = React.useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (!graphState.data) {
+        setPathFormError("Load the scene graph before tracing a path.");
+        return;
+      }
+
+      if (pathStartSceneId.trim().length === 0 || pathTargetSceneId.trim().length === 0) {
+        setPathFormError("Select both start and target scenes.");
+        return;
+      }
+
+      if (
+        !sceneIdOptions.includes(pathStartSceneId) ||
+        !sceneIdOptions.includes(pathTargetSceneId)
+      ) {
+        setPathFormError("Selected scenes are not available in the current graph.");
+        return;
+      }
+
+      setPathFormError(null);
+      setPathSelection({ startId: pathStartSceneId, targetId: pathTargetSceneId });
+    },
+    [graphState.data, pathStartSceneId, pathTargetSceneId, sceneIdOptions],
+  );
+
+  const handleClearPath = React.useCallback(() => {
+    setPathSelection(null);
+    setPathStartSceneId("");
+    setPathTargetSceneId("");
+    setPathFormError(null);
+  }, []);
 
   const handleClearSceneFocus = React.useCallback(() => {
     setSceneSearchTerm("");
@@ -911,8 +1273,13 @@ export const SceneGraphPage: React.FC = () => {
     const highlightedSceneIds = highlightedItemFlow.sceneIds;
     const highlightedTerminalIds = highlightedItemFlow.terminalIds;
     const highlightedEdgeIds = highlightedItemFlow.edgeIds;
-    const shouldDimUnmatched =
+    const pathSceneIds = pathHighlight.sceneIds;
+    const pathEdgeIds = pathHighlight.edgeIds;
+    const pathRoles = pathHighlight.roles;
+    const shouldDimItem =
       normalisedHighlightedItem.length > 0 && hasItemHighlightMatches;
+    const shouldDimPath = pathHighlight.isActive && pathHighlight.found;
+    const shouldDimUnmatched = shouldDimItem || shouldDimPath;
 
     setNodes((previousNodes) => {
       const previousPositions = new Map(
@@ -926,8 +1293,11 @@ export const SceneGraphPage: React.FC = () => {
           overridePosition ?? previousPosition ?? { ...node.position };
 
         if (node.data.variant === "scene") {
+          const pathRole = pathRoles.get(node.id);
           const isSceneHighlighted =
-            node.id === focusedSceneId || highlightedSceneIds.has(node.id);
+            node.id === focusedSceneId ||
+            highlightedSceneIds.has(node.id) ||
+            pathSceneIds.has(node.id);
           return {
             ...node,
             position,
@@ -936,6 +1306,7 @@ export const SceneGraphPage: React.FC = () => {
               onOpen: handleSceneOpen,
               isHighlighted: isSceneHighlighted,
               isDimmed: shouldDimUnmatched && !isSceneHighlighted,
+              pathHighlightRole: pathRole,
             },
           };
         }
@@ -962,7 +1333,8 @@ export const SceneGraphPage: React.FC = () => {
           return edge;
         }
 
-        const isHighlightedEdge = highlightedEdgeIds.has(edge.id);
+        const isPathEdge = pathEdgeIds.has(edge.id);
+        const isHighlightedEdge = highlightedEdgeIds.has(edge.id) || isPathEdge;
         const isEdgeDimmed = shouldDimUnmatched && !isHighlightedEdge;
 
         return {
@@ -994,6 +1366,7 @@ export const SceneGraphPage: React.FC = () => {
     hasItemHighlightMatches,
     highlightedItemFlow,
     normalisedHighlightedItem,
+    pathHighlight,
     setEdges,
     setNodes,
   ]);
@@ -1267,6 +1640,81 @@ export const SceneGraphPage: React.FC = () => {
                     ) : (
                       <p className="text-[10px] text-slate-400">
                         Start typing a scene id to highlight it in the graph.
+                      </p>
+                    )}
+                  </form>
+                  <form className="space-y-2" onSubmit={handleTracePathSubmit}>
+                    <label
+                      htmlFor="scene-graph-path-start"
+                      className="text-[11px] font-semibold uppercase tracking-wide text-slate-300"
+                    >
+                      Trace path between scenes
+                    </label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                          From
+                        </span>
+                        <select
+                          id="scene-graph-path-start"
+                          value={pathStartSceneId}
+                          onChange={handlePathStartChange}
+                          className="w-full rounded-md border border-slate-600/80 bg-slate-950/70 px-2 py-1.5 text-[11px] text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400/60"
+                          disabled={!graphState.data}
+                        >
+                          <option value="">Select scene</option>
+                          {sceneIdOptions.map((sceneId) => (
+                            <option key={`path-start-${sceneId}`} value={sceneId}>
+                              {sceneId}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                          To
+                        </span>
+                        <select
+                          id="scene-graph-path-target"
+                          value={pathTargetSceneId}
+                          onChange={handlePathTargetChange}
+                          className="w-full rounded-md border border-slate-600/80 bg-slate-950/70 px-2 py-1.5 text-[11px] text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400/60"
+                          disabled={!graphState.data}
+                        >
+                          <option value="">Select scene</option>
+                          {sceneIdOptions.map((sceneId) => (
+                            <option key={`path-target-${sceneId}`} value={sceneId}>
+                              {sceneId}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center rounded-md border border-emerald-500/70 bg-emerald-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800/60 disabled:text-slate-400"
+                          disabled={!graphState.data}
+                        >
+                          Trace path
+                        </button>
+                        {pathSelection ? (
+                          <button
+                            type="button"
+                            onClick={handleClearPath}
+                            className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {pathFormError ? (
+                      <p className="text-[10px] font-medium text-rose-300">{pathFormError}</p>
+                    ) : (
+                      <p
+                        className={`text-[10px] ${PATH_STATUS_TONE_CLASSES[pathStatus.tone]}`}
+                      >
+                        {pathStatus.message}
                       </p>
                     )}
                   </form>
