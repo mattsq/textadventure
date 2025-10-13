@@ -23,6 +23,7 @@ import { EditorPanel } from "../components/layout";
 import { Card } from "../components/display";
 import {
   SceneGraphEdge,
+  type SceneGraphEdgeActivateContext,
   type SceneGraphEdgeData,
   type SceneGraphEdgeVariant,
   SceneGraphNode,
@@ -398,6 +399,7 @@ const buildGraphView = (
         labelBackground: styleConfig.labelBgFill,
         labelBorder: styleConfig.labelBgStroke,
         labelTextColor: styleConfig.labelTextColor,
+        sourceSceneId: edge.source,
       },
     };
   });
@@ -566,6 +568,27 @@ export const SceneGraphPage: React.FC = () => {
     [navigate],
   );
 
+  const handleTransitionOpen = React.useCallback(
+    ({ sceneId, command }: SceneGraphEdgeActivateContext) => {
+      if (!sceneId) {
+        return;
+      }
+
+      const params = new URLSearchParams();
+      const normalisedCommand = command.trim();
+      if (normalisedCommand.length > 0) {
+        params.set("transition", normalisedCommand);
+      }
+
+      const search = params.toString();
+      navigate({
+        pathname: `/scenes/${encodeURIComponent(sceneId)}`,
+        search: search ? `?${search}` : "",
+      });
+    },
+    [navigate],
+  );
+
   const nodesWithHandlers = React.useMemo<Node<SceneGraphNodeData>[]>(() => {
     if (!graphState.data) {
       return [];
@@ -585,6 +608,32 @@ export const SceneGraphPage: React.FC = () => {
       };
     });
   }, [graphState.data, handleSceneOpen]);
+
+  const edgesWithHandlers = React.useMemo<Edge<SceneGraphEdgeData>[]>(() => {
+    if (!graphState.data) {
+      return [];
+    }
+
+    return graphState.data.edges.map((edge) => {
+      if (!edge.data) {
+        return edge;
+      }
+
+      return {
+        ...edge,
+        data: {
+          ...edge.data,
+          onOpen: (context) => {
+            handleTransitionOpen({
+              edgeId: context.edgeId,
+              sceneId: edge.data?.sourceSceneId ?? edge.source,
+              command: edge.data?.command ?? "",
+            });
+          },
+        },
+      };
+    });
+  }, [graphState.data, handleTransitionOpen]);
 
   const loadGraph = React.useCallback(
     (params?: SceneGraphParams, signal?: AbortSignal) => {
@@ -657,6 +706,22 @@ export const SceneGraphPage: React.FC = () => {
       sceneGraphEdge: SceneGraphEdge,
     }),
     [],
+  );
+
+  const handleEdgeClick = React.useCallback(
+    (_event: React.MouseEvent, edge: Edge<SceneGraphEdgeData>) => {
+      const sceneId = edge.data?.sourceSceneId ?? edge.source ?? "";
+      if (!sceneId) {
+        return;
+      }
+
+      handleTransitionOpen({
+        edgeId: edge.id,
+        sceneId,
+        command: edge.data?.command ?? "",
+      });
+    },
+    [handleTransitionOpen],
   );
 
   const isLoading = graphState.status === "loading";
@@ -774,7 +839,7 @@ export const SceneGraphPage: React.FC = () => {
           <div className="h-[620px] w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/60">
             <ReactFlow
               nodes={nodesWithHandlers}
-              edges={graphState.data!.edges}
+              edges={edgesWithHandlers}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               fitView
@@ -786,6 +851,7 @@ export const SceneGraphPage: React.FC = () => {
               maxZoom={1.8}
               elevateNodesOnSelect
               proOptions={{ hideAttribution: true }}
+              onEdgeClick={handleEdgeClick}
               className="!bg-gradient-to-b !from-slate-950 !to-slate-900"
             >
               <Background color="#1f2937" gap={24} />

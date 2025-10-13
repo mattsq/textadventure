@@ -12,6 +12,12 @@ const classNames = (
 
 export type SceneGraphEdgeVariant = "default" | "conditional" | "terminal";
 
+export interface SceneGraphEdgeActivateContext {
+  readonly edgeId: string;
+  readonly sceneId: string;
+  readonly command: string;
+}
+
 export interface SceneGraphEdgeData {
   readonly command: string;
   readonly narration: string;
@@ -27,6 +33,8 @@ export interface SceneGraphEdgeData {
   readonly labelBackground: string;
   readonly labelBorder: string;
   readonly labelTextColor: string;
+  readonly sourceSceneId: string;
+  readonly onOpen?: (context: SceneGraphEdgeActivateContext) => void;
 }
 
 const variantAccentClasses: Record<SceneGraphEdgeVariant, string> = {
@@ -63,6 +71,25 @@ export const SceneGraphEdge: React.FC<EdgeProps<SceneGraphEdgeData>> = ({
     targetPosition,
   });
 
+  const isInteractive = typeof data?.onOpen === "function";
+
+  const handleActivate = (
+    event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    event.stopPropagation();
+    if (!data?.onOpen || !data.sourceSceneId) {
+      return;
+    }
+    data.onOpen({ edgeId: id, sceneId: data.sourceSceneId, command: data.command });
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleActivate(event);
+    }
+  };
+
   return (
     <>
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
@@ -76,6 +103,9 @@ export const SceneGraphEdge: React.FC<EdgeProps<SceneGraphEdgeData>> = ({
           <div
             className={classNames(
               "pointer-events-auto inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide shadow-lg shadow-slate-900/60 backdrop-blur",
+              isInteractive
+                ? "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300"
+                : undefined,
               selected ? "ring-2 ring-sky-400/70" : "ring-1 ring-slate-900/70",
             )}
             style={{
@@ -88,6 +118,15 @@ export const SceneGraphEdge: React.FC<EdgeProps<SceneGraphEdgeData>> = ({
                 ? `${data.command}\n${data.narration || ""}`.trim()
                 : undefined
             }
+            role={isInteractive ? "button" : undefined}
+            tabIndex={isInteractive ? 0 : undefined}
+            aria-label={
+              isInteractive
+                ? `Edit transition ${data?.command ?? ""}`.trim()
+                : undefined
+            }
+            onClick={isInteractive ? handleActivate : undefined}
+            onKeyDown={isInteractive ? handleKeyDown : undefined}
           >
             <span
               className={classNames(

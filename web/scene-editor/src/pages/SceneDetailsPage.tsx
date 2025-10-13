@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   createSceneEditorApiClient,
   SceneEditorApiError,
@@ -373,6 +373,7 @@ const buildStatusMessage = (
 const SceneDetailsPage: React.FC = () => {
   const params = useParams<{ sceneId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const setNavigationLog = useSceneEditorStore((state) => state.setNavigationLog);
 
   const apiClient = React.useMemo(
@@ -391,6 +392,16 @@ const SceneDetailsPage: React.FC = () => {
     () => (params.sceneId ? decodeURIComponent(params.sceneId) : null),
     [params.sceneId],
   );
+
+  const transitionFocusCommand = React.useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const value = searchParams.get("transition");
+    if (!value) {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [location.search]);
 
   const [loadStatus, setLoadStatus] = React.useState<"idle" | "loading" | "success" | "error">("idle");
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -417,6 +428,18 @@ const SceneDetailsPage: React.FC = () => {
     Readonly<Record<string, TransitionResource>>
   >({});
   const [targetSceneOptions, setTargetSceneOptions] = React.useState<readonly string[]>([]);
+  const transitionItemRefs = React.useRef(new Map<string, HTMLLIElement>());
+  const lastHighlightedChoiceKeyRef = React.useRef<string | null>(null);
+  const getTransitionItemRef = React.useCallback(
+    (choiceKey: string) => (element: HTMLLIElement | null) => {
+      if (element) {
+        transitionItemRefs.current.set(choiceKey, element);
+      } else {
+        transitionItemRefs.current.delete(choiceKey);
+      }
+    },
+    [],
+  );
 
   React.useEffect(() => {
     if (!routeSceneId) {
@@ -550,6 +573,17 @@ const SceneDetailsPage: React.FC = () => {
     [formState.choices],
   );
 
+  const highlightedChoiceKey = React.useMemo(() => {
+    if (!transitionFocusCommand) {
+      return null;
+    }
+
+    const match = trimmedChoices.find(
+      (choice) => choice.command === transitionFocusCommand,
+    );
+    return match?.key ?? null;
+  }, [transitionFocusCommand, trimmedChoices]);
+
   interface TrimmedTransitionItem {
     readonly key: string;
     readonly command: string;
@@ -596,6 +630,30 @@ const SceneDetailsPage: React.FC = () => {
   );
 
   const hasBlockingValidationErrors = validationSnapshot.hasErrors;
+
+  React.useEffect(() => {
+    if (!highlightedChoiceKey) {
+      lastHighlightedChoiceKeyRef.current = null;
+      return;
+    }
+
+    const element = transitionItemRefs.current.get(highlightedChoiceKey);
+    if (!element) {
+      return;
+    }
+    if (lastHighlightedChoiceKeyRef.current === highlightedChoiceKey) {
+      return;
+    }
+
+    const handle = window.requestAnimationFrame(() => {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    lastHighlightedChoiceKeyRef.current = highlightedChoiceKey;
+
+    return () => {
+      window.cancelAnimationFrame(handle);
+    };
+  }, [highlightedChoiceKey]);
 
   React.useEffect(() => {
     setFieldErrors((previous) =>
@@ -1081,6 +1139,8 @@ const SceneDetailsPage: React.FC = () => {
               disabled={isSaving}
               onTargetChange={handleTransitionTargetChange}
               onNarrationChange={handleTransitionNarrationChange}
+              highlightedChoiceKey={highlightedChoiceKey}
+              getItemRef={getTransitionItemRef}
             />
             <div className="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
