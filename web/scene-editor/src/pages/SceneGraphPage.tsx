@@ -1,4 +1,5 @@
 import React from "react";
+import dagre from "@dagrejs/dagre";
 import { useNavigate } from "react-router-dom";
 import ReactFlow, {
   Background,
@@ -88,6 +89,74 @@ const EDGE_VARIANT_STYLES: Record<SceneGraphEdgeVariant, EdgeStyleConfig> = {
     labelBgStroke: "rgba(251, 113, 133, 0.6)",
     labelTextColor: "#ffe4e6",
   },
+};
+
+const SCENE_NODE_DIMENSIONS = { width: 340, height: 220 } as const;
+const TERMINAL_NODE_DIMENSIONS = { width: 260, height: 160 } as const;
+const AUTO_LAYOUT_CONFIG = {
+  rankdir: "LR",
+  nodesep: 180,
+  ranksep: 240,
+  marginx: 120,
+  marginy: 80,
+} as const;
+
+const computeAutoLayoutPositions = (
+  currentNodes: readonly Node<SceneGraphNodeData>[],
+  currentEdges: readonly Edge<SceneGraphEdgeData>[],
+): Map<string, XYPosition> => {
+  const graph = new dagre.graphlib.Graph();
+  graph.setGraph({ ...AUTO_LAYOUT_CONFIG });
+  graph.setDefaultEdgeLabel(() => ({}));
+
+  const knownNodeIds = new Set<string>();
+
+  for (const node of currentNodes) {
+    const dimensions =
+      node.data.variant === "terminal"
+        ? TERMINAL_NODE_DIMENSIONS
+        : SCENE_NODE_DIMENSIONS;
+
+    graph.setNode(node.id, {
+      width: dimensions.width,
+      height: dimensions.height,
+    });
+    knownNodeIds.add(node.id);
+  }
+
+  for (const edge of currentEdges) {
+    if (!knownNodeIds.has(edge.source) || !knownNodeIds.has(edge.target)) {
+      continue;
+    }
+    graph.setEdge(edge.source, edge.target);
+  }
+
+  dagre.layout(graph);
+
+  const positions = new Map<string, XYPosition>();
+
+  for (const nodeId of graph.nodes()) {
+    const layoutNode = graph.node(nodeId);
+    if (!layoutNode) {
+      continue;
+    }
+
+    const width =
+      typeof layoutNode.width === "number"
+        ? layoutNode.width
+        : SCENE_NODE_DIMENSIONS.width;
+    const height =
+      typeof layoutNode.height === "number"
+        ? layoutNode.height
+        : SCENE_NODE_DIMENSIONS.height;
+
+    positions.set(nodeId, {
+      x: layoutNode.x - width / 2,
+      y: layoutNode.y - height / 2,
+    });
+  }
+
+  return positions;
 };
 
 interface TerminalNodeInfo {
@@ -1415,6 +1484,36 @@ export const SceneGraphPage: React.FC = () => {
     }
   }, [setNodes]);
 
+  const handleAutoLayout = React.useCallback(() => {
+    setNodes((currentNodes) => {
+      if (currentNodes.length === 0) {
+        return currentNodes;
+      }
+
+      const positions = computeAutoLayoutPositions(currentNodes, edges);
+      layoutOverridesRef.current = new Map(positions);
+
+      return currentNodes.map((node) => {
+        const position = positions.get(node.id);
+        if (!position) {
+          return node;
+        }
+
+        return {
+          ...node,
+          position: { ...position },
+        };
+      });
+    });
+
+    const instance = reactFlowInstanceRef.current;
+    if (instance) {
+      window.requestAnimationFrame(() => {
+        instance.fitView({ padding: 0.35, includeHiddenNodes: true, duration: 400 });
+      });
+    }
+  }, [edges, setNodes]);
+
   const handleZoomIn = React.useCallback(() => {
     const instance = reactFlowInstanceRef.current;
     if (instance) {
@@ -1756,55 +1855,66 @@ export const SceneGraphPage: React.FC = () => {
                       >
                         Reset layout
                       </button>
+                      <button
+                        type="button"
+                        onClick={handleAutoLayout}
+                        className="inline-flex items-center justify-center rounded-md border border-violet-500/70 bg-violet-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-100 transition hover:bg-violet-500/30"
+                      >
+                        Auto layout
+                      </button>
                     </div>
+                    <p className="mt-2 text-[10px] text-slate-400">
+                      Use auto layout to rebuild the graph with improved spacing and reduced edge
+                      crossings. Manual adjustments remain available afterwards.
+                    </p>
+                  </div>
                   <div className="mt-3 space-y-2 text-[11px] text-slate-300">
                     <div className="flex items-center justify-between gap-2">
                       <span className="uppercase tracking-wide text-slate-400">Scroll zoom</span>
                       <button
                         type="button"
-                          onClick={toggleScrollZoom}
-                          className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90"
-                        >
-                          {isScrollZoomEnabled ? "On" : "Off"}
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="uppercase tracking-wide text-slate-400">Interaction</span>
-                        <div className="inline-flex rounded-full border border-slate-600/80 bg-slate-800/80 p-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100">
-                          <button
-                            type="button"
-                            onClick={() => handleSetInteractionMode("pan")}
-                            className={
-                              interactionMode === "pan"
-                                ? "rounded-full bg-slate-700/80 px-2 py-0.5"
-                                : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
-                            }
-                          >
-                            Pan
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSetInteractionMode("select")}
-                            className={
-                              interactionMode === "select"
-                                ? "rounded-full bg-slate-700/80 px-2 py-0.5"
-                                : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
-                            }
-                          >
-                            Select
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="uppercase tracking-wide text-slate-400">Layout editing</span>
+                        onClick={toggleScrollZoom}
+                        className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90"
+                      >
+                        {isScrollZoomEnabled ? "On" : "Off"}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="uppercase tracking-wide text-slate-400">Interaction</span>
+                      <div className="inline-flex rounded-full border border-slate-600/80 bg-slate-800/80 p-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100">
                         <button
                           type="button"
-                          onClick={toggleLayoutEditing}
-                          className="inline-flex items-center justify-center rounded-full border border-emerald-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/20"
+                          onClick={() => handleSetInteractionMode("pan")}
+                          className={
+                            interactionMode === "pan"
+                              ? "rounded-full bg-slate-700/80 px-2 py-0.5"
+                              : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
+                          }
                         >
-                          {isLayoutEditing ? "Enabled" : "Disabled"}
+                          Pan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSetInteractionMode("select")}
+                          className={
+                            interactionMode === "select"
+                              ? "rounded-full bg-slate-700/80 px-2 py-0.5"
+                              : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
+                          }
+                        >
+                          Select
                         </button>
                       </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="uppercase tracking-wide text-slate-400">Layout editing</span>
+                      <button
+                        type="button"
+                        onClick={toggleLayoutEditing}
+                        className="inline-flex items-center justify-center rounded-full border border-emerald-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/20"
+                      >
+                        {isLayoutEditing ? "Enabled" : "Disabled"}
+                      </button>
                     </div>
                   </div>
                   <div>

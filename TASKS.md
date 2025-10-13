@@ -219,7 +219,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Drag-and-drop scene positioning *(Added layout editing mode with draggable scene nodes and resettable manual overrides.)*
       - [x] Zoom and pan controls *(Introduced overlay controls for zooming, panning modes, and scroll zoom toggles.)*
       - [ ] Minimap for large graphs
-      - [ ] Auto-layout algorithms
+      - [x] Auto-layout algorithms *(Added Dagre-powered auto layout controls that reposition the graph with improved spacing.)*
       - [x] Search and focus on specific scenes *(Graph overlay now includes a searchable scene selector that highlights and centers the chosen node, with clear/reset controls.)*
     - [ ] Implement dependency highlighting:
       - [x] Highlight item flow chains *(Scene graph view now offers an item-focused highlight mode that emphasises transitions and scenes rewarding, requiring, or consuming the selected item while dimming unrelated nodes.)*
