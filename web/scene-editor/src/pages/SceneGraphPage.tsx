@@ -8,6 +8,9 @@ import ReactFlow, {
   type Edge,
   type Node,
   type ReactFlowInstance,
+  type XYPosition,
+  useEdgesState,
+  useNodesState,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -603,6 +606,13 @@ export const SceneGraphPage: React.FC = () => {
     error: null,
   });
   const reactFlowInstanceRef = React.useRef<ReactFlowInstance | null>(null);
+  const initialLayoutRef = React.useRef<Map<string, XYPosition>>(new Map());
+  const layoutOverridesRef = React.useRef<Map<string, XYPosition>>(new Map());
+  const [nodes, setNodes, handleNodesChange] = useNodesState<SceneGraphNodeData>([]);
+  const [edges, setEdges, handleEdgesChange] = useEdgesState<SceneGraphEdgeData>([]);
+  const [isLayoutEditing, setIsLayoutEditing] = React.useState(false);
+  const [interactionMode, setInteractionMode] = React.useState<"pan" | "select">("pan");
+  const [isScrollZoomEnabled, setIsScrollZoomEnabled] = React.useState(true);
 
   const handleSceneOpen = React.useCallback(
     (sceneId: string) => {
@@ -632,52 +642,6 @@ export const SceneGraphPage: React.FC = () => {
     [navigate],
   );
 
-  const nodesWithHandlers = React.useMemo<Node<SceneGraphNodeData>[]>(() => {
-    if (!graphState.data) {
-      return [];
-    }
-
-    return graphState.data.nodes.map((node) => {
-      if (node.data.variant !== "scene") {
-        return node;
-      }
-
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          onOpen: handleSceneOpen,
-        },
-      };
-    });
-  }, [graphState.data, handleSceneOpen]);
-
-  const edgesWithHandlers = React.useMemo<Edge<SceneGraphEdgeData>[]>(() => {
-    if (!graphState.data) {
-      return [];
-    }
-
-    return graphState.data.edges.map((edge) => {
-      if (!edge.data) {
-        return edge;
-      }
-
-      return {
-        ...edge,
-        data: {
-          ...edge.data,
-          onOpen: (context) => {
-            handleTransitionOpen({
-              edgeId: context.edgeId,
-              sceneId: edge.data?.sourceSceneId ?? edge.source,
-              command: edge.data?.command ?? "",
-            });
-          },
-        },
-      };
-    });
-  }, [graphState.data, handleTransitionOpen]);
-
   const loadGraph = React.useCallback(
     (params?: SceneGraphParams, signal?: AbortSignal) => {
       setGraphState((previous) => ({
@@ -689,6 +653,7 @@ export const SceneGraphPage: React.FC = () => {
       void apiClient
         .getSceneGraph(params ?? {}, { signal })
         .then((response) => {
+          layoutOverridesRef.current = new Map();
           setGraphState({
             status: "success",
             data: buildGraphView(response),
@@ -739,6 +704,141 @@ export const SceneGraphPage: React.FC = () => {
       window.cancelAnimationFrame(handle);
     };
   }, [graphState.status]);
+
+  React.useEffect(() => {
+    if (!graphState.data) {
+      setNodes([]);
+      setEdges([]);
+      initialLayoutRef.current = new Map();
+      layoutOverridesRef.current = new Map();
+      return;
+    }
+
+    initialLayoutRef.current = new Map(
+      graphState.data.nodes.map((node) => [node.id, { ...node.position }]),
+    );
+
+    setNodes((previousNodes) => {
+      const previousPositions = new Map(
+        previousNodes.map((node) => [node.id, { ...node.position }]),
+      );
+
+      return graphState.data!.nodes.map((node) => {
+        const overridePosition = layoutOverridesRef.current.get(node.id);
+        const previousPosition = previousPositions.get(node.id);
+        const position =
+          overridePosition ?? previousPosition ?? { ...node.position };
+        const isSceneNode = node.data.variant === "scene";
+
+        return {
+          ...node,
+          position,
+          data: isSceneNode
+            ? { ...node.data, onOpen: handleSceneOpen }
+            : node.data,
+        };
+      });
+    });
+
+    setEdges(
+      graphState.data.edges.map((edge) => {
+        if (!edge.data) {
+          return edge;
+        }
+
+        return {
+          ...edge,
+          data: {
+            ...edge.data,
+            onOpen: (context) => {
+              handleTransitionOpen({
+                edgeId: context.edgeId,
+                sceneId: edge.data?.sourceSceneId ?? edge.source,
+                command: edge.data?.command ?? "",
+              });
+            },
+          },
+        };
+      }),
+    );
+  }, [graphState.data, handleSceneOpen, handleTransitionOpen, setEdges, setNodes]);
+
+  React.useEffect(() => {
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => {
+        if (node.data.variant !== "scene") {
+          return { ...node, draggable: false, selectable: false };
+        }
+
+        return {
+          ...node,
+          draggable: isLayoutEditing,
+          selectable: isLayoutEditing,
+        };
+      }),
+    );
+  }, [isLayoutEditing, setNodes]);
+
+  const handleNodeDragStop = React.useCallback(
+    (_event: React.MouseEvent, node: Node<SceneGraphNodeData>) => {
+      layoutOverridesRef.current.set(node.id, { ...node.position });
+    },
+    [],
+  );
+
+  const handleResetLayout = React.useCallback(() => {
+    layoutOverridesRef.current = new Map(initialLayoutRef.current);
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => {
+        const position = initialLayoutRef.current.get(node.id);
+        if (!position) {
+          return node;
+        }
+        return {
+          ...node,
+          position: { ...position },
+        };
+      }),
+    );
+
+    const instance = reactFlowInstanceRef.current;
+    if (instance) {
+      instance.fitView({ padding: 0.25, includeHiddenNodes: true, duration: 400 });
+    }
+  }, [setNodes]);
+
+  const handleZoomIn = React.useCallback(() => {
+    const instance = reactFlowInstanceRef.current;
+    if (instance) {
+      instance.zoomIn({ duration: 200 });
+    }
+  }, []);
+
+  const handleZoomOut = React.useCallback(() => {
+    const instance = reactFlowInstanceRef.current;
+    if (instance) {
+      instance.zoomOut({ duration: 200 });
+    }
+  }, []);
+
+  const handleFitView = React.useCallback(() => {
+    const instance = reactFlowInstanceRef.current;
+    if (instance) {
+      instance.fitView({ padding: 0.25, includeHiddenNodes: true, duration: 400 });
+    }
+  }, []);
+
+  const handleSetInteractionMode = React.useCallback((mode: "pan" | "select") => {
+    setInteractionMode(mode);
+  }, []);
+
+  const toggleScrollZoom = React.useCallback(() => {
+    setIsScrollZoomEnabled((previous) => !previous);
+  }, []);
+
+  const toggleLayoutEditing = React.useCallback(() => {
+    setIsLayoutEditing((previous) => !previous);
+  }, []);
 
   const nodeTypes = React.useMemo(() => ({
     sceneGraphNode: SceneGraphNode,
@@ -879,10 +979,101 @@ export const SceneGraphPage: React.FC = () => {
         ) : null}
 
         {hasData ? (
-          <div className="h-[620px] w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/60">
+          <div className="relative h-[620px] w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/60">
+            <div className="pointer-events-none absolute left-4 top-4 z-10 flex flex-col gap-2">
+              <div className="pointer-events-auto rounded-lg border border-slate-700/80 bg-slate-900/80 p-3 shadow-lg shadow-slate-950/40">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                    View controls
+                  </p>
+                  <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                    {interactionMode === "pan" ? "Pan" : "Select"} mode
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleZoomIn}
+                    className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
+                  >
+                    Zoom in
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleZoomOut}
+                    className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
+                  >
+                    Zoom out
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFitView}
+                    className="inline-flex items-center justify-center rounded-md border border-indigo-500/70 bg-indigo-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-100 transition hover:bg-indigo-500/30"
+                  >
+                    Fit view
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetLayout}
+                    className="inline-flex items-center justify-center rounded-md border border-emerald-500/70 bg-emerald-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/30"
+                  >
+                    Reset layout
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2 text-[11px] text-slate-300">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="uppercase tracking-wide text-slate-400">Scroll zoom</span>
+                    <button
+                      type="button"
+                      onClick={toggleScrollZoom}
+                      className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90"
+                    >
+                      {isScrollZoomEnabled ? "On" : "Off"}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="uppercase tracking-wide text-slate-400">Interaction</span>
+                    <div className="inline-flex rounded-full border border-slate-600/80 bg-slate-800/80 p-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => handleSetInteractionMode("pan")}
+                        className={
+                          interactionMode === "pan"
+                            ? "rounded-full bg-slate-700/80 px-2 py-0.5"
+                            : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
+                        }
+                      >
+                        Pan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetInteractionMode("select")}
+                        className={
+                          interactionMode === "select"
+                            ? "rounded-full bg-slate-700/80 px-2 py-0.5"
+                            : "rounded-full px-2 py-0.5 text-slate-400 hover:text-slate-100"
+                        }
+                      >
+                        Select
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="uppercase tracking-wide text-slate-400">Layout editing</span>
+                    <button
+                      type="button"
+                      onClick={toggleLayoutEditing}
+                      className="inline-flex items-center justify-center rounded-full border border-emerald-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/20"
+                    >
+                      {isLayoutEditing ? "Enabled" : "Disabled"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <ReactFlow
-              nodes={nodesWithHandlers}
-              edges={edgesWithHandlers}
+              nodes={nodes}
+              edges={edges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               fitView
@@ -895,6 +1086,14 @@ export const SceneGraphPage: React.FC = () => {
               elevateNodesOnSelect
               proOptions={{ hideAttribution: true }}
               onEdgeClick={handleEdgeClick}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={handleEdgesChange}
+              onNodeDragStop={handleNodeDragStop}
+              panOnDrag={interactionMode === "pan"}
+              panOnScroll={interactionMode === "pan"}
+              selectionOnDrag={interactionMode === "select"}
+              zoomOnScroll={isScrollZoomEnabled}
+              zoomOnPinch={isScrollZoomEnabled}
               className="!bg-gradient-to-b !from-slate-950 !to-slate-900"
             >
               <Background color="#1f2937" gap={24} />
