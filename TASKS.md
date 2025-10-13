@@ -216,8 +216,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Edge labels showing command names *(Graph edges now display stylised command pills with variant indicators and requirements callouts.)*
       - [x] Click to edit transition *(Graph edge labels now navigate to the source scene and focus the corresponding transition editor entry.)*
     - [ ] Add graph interaction features:
-      - [ ] Drag-and-drop scene positioning
-      - [ ] Zoom and pan controls
+      - [x] Drag-and-drop scene positioning *(Added layout editing mode with draggable scene nodes and resettable manual overrides.)*
+      - [x] Zoom and pan controls *(Introduced overlay controls for zooming, panning modes, and scroll zoom toggles.)*
       - [ ] Minimap for large graphs
       - [ ] Auto-layout algorithms
       - [ ] Search and focus on specific scenes
