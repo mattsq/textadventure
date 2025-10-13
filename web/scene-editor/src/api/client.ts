@@ -214,6 +214,50 @@ const DEFAULT_HEADERS: Readonly<Record<string, string>> = {
   Accept: "application/json",
 };
 
+const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//;
+
+/**
+ * Normalise a provided base URL so callers can supply either a full origin or a
+ * relative path. When the value omits an API prefix, default to `/api`.
+ */
+const normaliseBaseUrl = (baseUrl?: string): string => {
+  if (baseUrl === undefined) {
+    return "/api";
+  }
+
+  const trimmed = baseUrl.trim();
+  if (trimmed === "") {
+    return "/api";
+  }
+
+  const withoutTrailingSlash = trimmed.replace(/\/+$/, "");
+  if (withoutTrailingSlash === "") {
+    return "/api";
+  }
+
+  if (ABSOLUTE_URL_PATTERN.test(withoutTrailingSlash)) {
+    try {
+      const url = new URL(withoutTrailingSlash);
+      if (url.pathname === "" || url.pathname === "/") {
+        url.pathname = "/api";
+      }
+      return url.toString().replace(/\/+$/, "");
+    } catch {
+      // Fall through to relative handling when the absolute URL cannot be parsed.
+    }
+  }
+
+  if (!withoutTrailingSlash.startsWith("/")) {
+    return `/${withoutTrailingSlash}`;
+  }
+
+  if (withoutTrailingSlash === "/") {
+    return "/api";
+  }
+
+  return withoutTrailingSlash;
+};
+
 const toQueryString = (params: Record<string, unknown>): string => {
   const entries = Object.entries(params).filter(([, value]) =>
     value !== undefined && value !== null && value !== "",
@@ -252,7 +296,7 @@ export class SceneEditorApiClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: ApiClientOptions = {}) {
-    this.baseUrl = options.baseUrl?.replace(/\/$/, "") ?? "/api";
+    this.baseUrl = normaliseBaseUrl(options.baseUrl);
     this.fetchImpl = resolveFetchImpl(options.fetchImpl);
   }
 
