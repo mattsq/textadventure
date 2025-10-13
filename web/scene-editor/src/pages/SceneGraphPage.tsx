@@ -616,6 +616,7 @@ export const SceneGraphPage: React.FC = () => {
   const [sceneSearchTerm, setSceneSearchTerm] = React.useState("");
   const [sceneSearchError, setSceneSearchError] = React.useState<string | null>(null);
   const [focusedSceneId, setFocusedSceneId] = React.useState<string | null>(null);
+  const [highlightedItemId, setHighlightedItemId] = React.useState("");
 
   const sceneIdOptions = React.useMemo(() => {
     return nodes
@@ -623,6 +624,98 @@ export const SceneGraphPage: React.FC = () => {
       .map((node) => node.data.id)
       .sort((a, b) => a.localeCompare(b));
   }, [nodes]);
+
+  const availableItemOptions = React.useMemo(() => {
+    if (!graphState.data) {
+      return [] as string[];
+    }
+
+    const items = new Set<string>();
+    for (const edge of graphState.data.edges) {
+      const data = edge.data;
+      if (!data) {
+        continue;
+      }
+
+      if (data.item && data.item.trim() !== "") {
+        items.add(data.item);
+      }
+      for (const requirement of data.requires) {
+        if (requirement.trim() !== "") {
+          items.add(requirement);
+        }
+      }
+      for (const consumption of data.consumes) {
+        if (consumption.trim() !== "") {
+          items.add(consumption);
+        }
+      }
+    }
+
+    return Array.from(items).sort((a, b) => a.localeCompare(b));
+  }, [graphState.data]);
+
+  const normalisedHighlightedItem = React.useMemo(
+    () => highlightedItemId.trim().toLowerCase(),
+    [highlightedItemId],
+  );
+
+  const highlightedItemFlow = React.useMemo(() => {
+    if (!graphState.data || normalisedHighlightedItem.length === 0) {
+      return {
+        edgeIds: new Set<string>(),
+        sceneIds: new Set<string>(),
+        terminalIds: new Set<string>(),
+      };
+    }
+
+    const edgeIds = new Set<string>();
+    const sceneIds = new Set<string>();
+    const terminalIds = new Set<string>();
+
+    for (const edge of graphState.data.edges) {
+      const data = edge.data;
+      if (!data) {
+        continue;
+      }
+
+      const matchesItem =
+        (data.item?.toLowerCase() ?? "") === normalisedHighlightedItem ||
+        data.requires.some(
+          (requirement) => requirement.toLowerCase() === normalisedHighlightedItem,
+        ) ||
+        data.consumes.some(
+          (consumption) => consumption.toLowerCase() === normalisedHighlightedItem,
+        );
+
+      if (!matchesItem) {
+        continue;
+      }
+
+      edgeIds.add(edge.id);
+      if (edge.source) {
+        sceneIds.add(edge.source);
+      }
+
+      if (data.isTerminal) {
+        if (typeof edge.target === "string") {
+          terminalIds.add(edge.target);
+        }
+      } else if (typeof edge.target === "string") {
+        sceneIds.add(edge.target);
+      }
+    }
+
+    return { edgeIds, sceneIds, terminalIds };
+  }, [graphState.data, normalisedHighlightedItem]);
+
+  const hasItemHighlightMatches = React.useMemo(() => {
+    return (
+      highlightedItemFlow.edgeIds.size > 0 ||
+      highlightedItemFlow.sceneIds.size > 0 ||
+      highlightedItemFlow.terminalIds.size > 0
+    );
+  }, [highlightedItemFlow]);
 
   const handleSceneSearchInputChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -698,6 +791,17 @@ export const SceneGraphPage: React.FC = () => {
         duration: 400,
       });
     }
+  }, []);
+
+  const handleItemHighlightChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      setHighlightedItemId(event.target.value);
+    },
+    [],
+  );
+
+  const handleClearItemHighlight = React.useCallback(() => {
+    setHighlightedItemId("");
   }, []);
 
   const handleSceneOpen = React.useCallback(
@@ -804,6 +908,12 @@ export const SceneGraphPage: React.FC = () => {
       graphState.data.nodes.map((node) => [node.id, { ...node.position }]),
     );
 
+    const highlightedSceneIds = highlightedItemFlow.sceneIds;
+    const highlightedTerminalIds = highlightedItemFlow.terminalIds;
+    const highlightedEdgeIds = highlightedItemFlow.edgeIds;
+    const shouldDimUnmatched =
+      normalisedHighlightedItem.length > 0 && hasItemHighlightMatches;
+
     setNodes((previousNodes) => {
       const previousPositions = new Map(
         previousNodes.map((node) => [node.id, { ...node.position }]),
@@ -816,23 +926,31 @@ export const SceneGraphPage: React.FC = () => {
           overridePosition ?? previousPosition ?? { ...node.position };
 
         if (node.data.variant === "scene") {
+          const isSceneHighlighted =
+            node.id === focusedSceneId || highlightedSceneIds.has(node.id);
           return {
             ...node,
             position,
             data: {
               ...node.data,
               onOpen: handleSceneOpen,
-              isHighlighted: node.id === focusedSceneId,
+              isHighlighted: isSceneHighlighted,
+              isDimmed: shouldDimUnmatched && !isSceneHighlighted,
             },
           };
         }
+
+        const isTerminalHighlighted =
+          node.data.sourceScene === focusedSceneId ||
+          highlightedTerminalIds.has(node.id);
 
         return {
           ...node,
           position,
           data: {
             ...node.data,
-            isHighlighted: node.data.sourceScene === focusedSceneId,
+            isHighlighted: isTerminalHighlighted,
+            isDimmed: shouldDimUnmatched && !isTerminalHighlighted,
           },
         };
       });
@@ -844,10 +962,19 @@ export const SceneGraphPage: React.FC = () => {
           return edge;
         }
 
+        const isHighlightedEdge = highlightedEdgeIds.has(edge.id);
+        const isEdgeDimmed = shouldDimUnmatched && !isHighlightedEdge;
+
         return {
           ...edge,
+          selected: isHighlightedEdge,
+          style: {
+            ...edge.style,
+            opacity: isEdgeDimmed ? 0.35 : 1,
+          },
           data: {
             ...edge.data,
+            isDimmed: isEdgeDimmed,
             onOpen: (context) => {
               handleTransitionOpen({
                 edgeId: context.edgeId,
@@ -864,6 +991,9 @@ export const SceneGraphPage: React.FC = () => {
     graphState.data,
     handleSceneOpen,
     handleTransitionOpen,
+    hasItemHighlightMatches,
+    highlightedItemFlow,
+    normalisedHighlightedItem,
     setEdges,
     setNodes,
   ]);
@@ -1179,11 +1309,11 @@ export const SceneGraphPage: React.FC = () => {
                         Reset layout
                       </button>
                     </div>
-                    <div className="mt-3 space-y-2 text-[11px] text-slate-300">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="uppercase tracking-wide text-slate-400">Scroll zoom</span>
-                        <button
-                          type="button"
+                  <div className="mt-3 space-y-2 text-[11px] text-slate-300">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="uppercase tracking-wide text-slate-400">Scroll zoom</span>
+                      <button
+                        type="button"
                           onClick={toggleScrollZoom}
                           className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90"
                         >
@@ -1227,6 +1357,53 @@ export const SceneGraphPage: React.FC = () => {
                           {isLayoutEditing ? "Enabled" : "Disabled"}
                         </button>
                       </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                        Item flow highlight
+                      </p>
+                      {normalisedHighlightedItem.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={handleClearItemHighlight}
+                          className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <select
+                        value={highlightedItemId}
+                        onChange={handleItemHighlightChange}
+                        className="w-full rounded-md border border-slate-600/80 bg-slate-950/70 px-2 py-1.5 text-[11px] text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400/60 disabled:cursor-not-allowed disabled:text-slate-500"
+                        disabled={availableItemOptions.length === 0}
+                      >
+                        <option value="">No highlight</option>
+                        {availableItemOptions.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                      {availableItemOptions.length === 0 ? (
+                        <p className="text-[10px] text-slate-500">
+                          Item metadata will appear once transitions grant, consume, or
+                          require inventory entries.
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-slate-400">
+                          Highlight transitions and scenes that require, consume, or
+                          grant the selected item.
+                        </p>
+                      )}
+                      {normalisedHighlightedItem.length > 0 && !hasItemHighlightMatches ? (
+                        <p className="text-[10px] font-medium text-amber-300">
+                          No transitions currently reference this item.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
