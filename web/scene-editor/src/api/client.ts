@@ -434,9 +434,11 @@ export class SceneEditorApiClient {
     params: SceneGraphParams = {},
     options: RequestOptions = {},
   ): Promise<SceneGraphResponse> {
-    const query = toQueryString({ start_scene: params.startScene });
-    const path = query ? `/scenes/graph?${query}` : "/scenes/graph";
-    return this.request<SceneGraphResponse>(path, { signal: options.signal });
+    return this.request<SceneGraphResponse>(
+      "/scenes/graph",
+      { signal: options.signal },
+      { start_scene: params.startScene },
+    );
   }
 }
 
