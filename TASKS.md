@@ -229,7 +229,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
 
   - [ ] **Phase 5: Advanced Editing Features**
     - [ ] Create comprehensive transition editor:
-      - [ ] Target scene dropdown with autocomplete
+      - [x] Target scene dropdown with autocomplete
       - [ ] Rich text editor for narration
         - [ ] Evaluate rich text frameworks that output Markdown-compatible content
         - [x] Document requirements and integration plan *(see `docs/rich_text_editor_plan.md`)*
