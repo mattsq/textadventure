@@ -91,10 +91,13 @@ const mapTransitionsToDrafts = (
     const transition = transitions[choice.command];
     if (transition) {
       const { target, narration, ...extras } = transition;
+      const extrasDraft = {
+        ...(extras as TransitionExtras),
+      } as TransitionExtras;
       drafts[choice.key] = {
         target: target ?? null,
         narration: narration ?? "",
-        extras: (extras as TransitionExtras) ?? ({} as TransitionExtras),
+        extras: extrasDraft,
       };
       assignedCommands.add(choice.command);
     } else {
@@ -332,7 +335,13 @@ const areTransitionErrorMapsEqual = (
 const hasTransitionFieldError = (
   errors: TransitionEditorFieldErrors,
 ): boolean =>
-  Boolean(errors.target || errors.narration || errors.requires || errors.consumes);
+  Boolean(
+    errors.target ||
+      errors.narration ||
+      errors.requires ||
+      errors.consumes ||
+      errors.failureNarration,
+  );
 
 const buildValidationSnapshot = (
   sceneId: string,
@@ -654,20 +663,30 @@ const SceneDetailsPage: React.FC = () => {
             : null
           : rawTarget;
 
+      const rawExtras = transitionState.extras ?? ({} as TransitionExtras);
+      const trimmedExtras: Partial<TransitionExtras> = {
+        ...rawExtras,
+        requires: normaliseStringList(rawExtras.requires),
+        consumes: normaliseStringList(rawExtras.consumes),
+      };
+
+      const failureValue = rawExtras.failure_narration;
+      if (typeof failureValue === "string") {
+        const trimmedFailure = failureValue.trim();
+        trimmedExtras.failure_narration =
+          trimmedFailure.length > 0 ? trimmedFailure : null;
+      } else if (failureValue === null) {
+        trimmedExtras.failure_narration = null;
+      } else {
+        delete trimmedExtras.failure_narration;
+      }
+
       return {
         key: choice.key,
         command: trimmedChoice.command,
         target: normalisedTarget,
         narration: transitionState.narration.trim(),
-        extras: {
-          ...(transitionState.extras ?? ({} as TransitionExtras)),
-          requires: normaliseStringList(
-            transitionState.extras?.requires,
-          ),
-          consumes: normaliseStringList(
-            transitionState.extras?.consumes,
-          ),
-        } as TransitionExtras,
+        extras: trimmedExtras as TransitionExtras,
       };
     });
   }, [formState.choices, formState.transitions, trimmedChoices]);
@@ -1131,6 +1150,62 @@ const SceneDetailsPage: React.FC = () => {
     setStatusNotice(null);
   };
 
+  const handleTransitionFailureNarrationChange = (
+    choiceKey: string,
+    value: string,
+  ) => {
+    const trimmed = value.trim();
+
+    setFormState((previous) => {
+      const previousTransition =
+        previous.transitions[choiceKey] ?? createEmptyTransition();
+      const previousExtras =
+        previousTransition.extras ?? ({} as TransitionExtras);
+
+      const nextExtras: Partial<TransitionExtras> = {
+        ...(previousExtras as TransitionExtras),
+      };
+
+      if (trimmed.length === 0) {
+        nextExtras.failure_narration = null;
+      } else {
+        nextExtras.failure_narration = value;
+      }
+
+      return {
+        ...previous,
+        transitions: {
+          ...previous.transitions,
+          [choiceKey]: {
+            ...previousTransition,
+            extras: nextExtras as TransitionExtras,
+          },
+        },
+      };
+    });
+
+    setTransitionErrors((previous) => {
+      const existing = previous[choiceKey];
+      if (!existing?.failureNarration) {
+        return previous;
+      }
+
+      const updated: TransitionEditorFieldErrors = {
+        ...existing,
+        failureNarration: undefined,
+      };
+
+      if (!hasTransitionFieldError(updated)) {
+        const { [choiceKey]: _removed, ...rest } = previous;
+        return rest;
+      }
+
+      return { ...previous, [choiceKey]: updated };
+    });
+
+    setStatusNotice(null);
+  };
+
   const handleTransitionRequiresChange = (
     choiceKey: string,
     values: readonly string[],
@@ -1344,6 +1419,7 @@ const SceneDetailsPage: React.FC = () => {
               disabled={isSaving}
               onTargetChange={handleTransitionTargetChange}
               onNarrationChange={handleTransitionNarrationChange}
+              onFailureNarrationChange={handleTransitionFailureNarrationChange}
               onRequiresChange={handleTransitionRequiresChange}
               onConsumesChange={handleTransitionConsumesChange}
               highlightedChoiceKey={highlightedChoiceKey}
