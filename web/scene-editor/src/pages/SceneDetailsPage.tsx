@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { EditorPanel } from "../components/layout";
 import { Badge, Card } from "../components/display";
+import { CollaboratorPresenceIndicator } from "../components/collaboration";
 import { TextAreaField, TextField } from "../components/forms";
 import {
   ChoiceListEditor,
@@ -1375,11 +1376,11 @@ const SceneDetailsPage: React.FC = () => {
             Return to scene library
           </button>
         </div>
-      ) : null}
+          ) : null}
 
-      {loadStatus === "success" && scene ? (
-        <div className="flex flex-col gap-6">
-          <form className="grid gap-6 md:grid-cols-2" onSubmit={handleSubmit}>
+          {loadStatus === "success" && scene ? (
+            <div className="flex flex-col gap-6">
+              <form className="grid gap-6 md:grid-cols-2" onSubmit={handleSubmit}>
             <TextField
               className="md:col-span-1"
               label="Scene ID"
@@ -1472,6 +1473,14 @@ const SceneDetailsPage: React.FC = () => {
               {statusNotice.message}
             </div>
           ) : null}
+
+          <Card
+            variant="subtle"
+            title="Active collaborators"
+            description="See who is currently working in the editor and where their focus is."
+          >
+            <CollaboratorPresenceIndicator sceneId={scene.id} />
+          </Card>
 
           <Card
             variant="subtle"
