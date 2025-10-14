@@ -6970,6 +6970,12 @@ def create_app(
         response_model=SceneGraphResponse,
         tags=["Scenes"],
     )
+    @app.get(
+        "/scenes/graph",
+        response_model=SceneGraphResponse,
+        tags=["Scenes"],
+        include_in_schema=False,
+    )
     def get_scene_graph(
         start_scene: str | None = Query(
             None,
