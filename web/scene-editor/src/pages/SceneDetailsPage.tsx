@@ -22,6 +22,10 @@ import {
 } from "../components/scene-editor";
 import { useSceneEditorStore } from "../state";
 
+type TransitionExtrasDraft = {
+  -readonly [Key in keyof TransitionExtras]: TransitionExtras[Key];
+};
+
 const formatTimestamp = (value: string): string => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -664,7 +668,7 @@ const SceneDetailsPage: React.FC = () => {
           : rawTarget;
 
       const rawExtras = transitionState.extras ?? ({} as TransitionExtras);
-      const trimmedExtras: Partial<TransitionExtras> = {
+      const trimmedExtras: Partial<TransitionExtrasDraft> = {
         ...rawExtras,
         requires: normaliseStringList(rawExtras.requires),
         consumes: normaliseStringList(rawExtras.consumes),
@@ -1162,7 +1166,7 @@ const SceneDetailsPage: React.FC = () => {
       const previousExtras =
         previousTransition.extras ?? ({} as TransitionExtras);
 
-      const nextExtras: Partial<TransitionExtras> = {
+      const nextExtras: Partial<TransitionExtrasDraft> = {
         ...(previousExtras as TransitionExtras),
       };
 
