@@ -21,6 +21,7 @@ export interface TransitionEditorFieldErrors {
   target?: string;
   narration?: string;
   requires?: string;
+  consumes?: string;
 }
 
 export interface TransitionListEditorProps {
@@ -34,6 +35,10 @@ export interface TransitionListEditorProps {
   readonly onTargetChange: (choiceKey: string, value: string) => void;
   readonly onNarrationChange: (choiceKey: string, value: string) => void;
   readonly onRequiresChange: (
+    choiceKey: string,
+    values: readonly string[],
+  ) => void;
+  readonly onConsumesChange: (
     choiceKey: string,
     values: readonly string[],
   ) => void;
@@ -52,6 +57,7 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
   onTargetChange,
   onNarrationChange,
   onRequiresChange,
+  onConsumesChange,
   highlightedChoiceKey = null,
   getItemRef,
 }) => {
@@ -75,6 +81,7 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
               const datalistId = `transition-targets-${choice.key}`;
               const isHighlighted = highlightedChoiceKey === choice.key;
               const requiresValues = transition?.extras?.requires ?? [];
+              const consumesValues = transition?.extras?.consumes ?? [];
 
               return (
                 <li
@@ -141,6 +148,19 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                         placeholder="Add required items"
                         disabled={disabled}
                         error={fieldErrors.requires}
+                      />
+                      <MultiSelectField
+                        className="md:col-span-2"
+                        label="Consumed items"
+                        description="List the items that are removed from the player's inventory when this transition fires. Type to add a new consumption rule or pick from existing items."
+                        values={consumesValues}
+                        onChange={(nextValues: readonly string[]) =>
+                          onConsumesChange(choice.key, nextValues)
+                        }
+                        options={itemOptions}
+                        placeholder="Add consumed items"
+                        disabled={disabled}
+                        error={fieldErrors.consumes}
                       />
                     </div>
                   </div>

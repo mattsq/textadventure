@@ -329,6 +329,11 @@ const areTransitionErrorMapsEqual = (
   });
 };
 
+const hasTransitionFieldError = (
+  errors: TransitionEditorFieldErrors,
+): boolean =>
+  Boolean(errors.target || errors.narration || errors.requires || errors.consumes);
+
 const buildValidationSnapshot = (
   sceneId: string,
   description: string,
@@ -658,6 +663,9 @@ const SceneDetailsPage: React.FC = () => {
           ...(transitionState.extras ?? ({} as TransitionExtras)),
           requires: normaliseStringList(
             transitionState.extras?.requires,
+          ),
+          consumes: normaliseStringList(
+            transitionState.extras?.consumes,
           ),
         } as TransitionExtras,
       };
@@ -1075,7 +1083,7 @@ const SceneDetailsPage: React.FC = () => {
         target: undefined,
       };
 
-      if (!updated.target && !updated.narration && !updated.requires) {
+      if (!hasTransitionFieldError(updated)) {
         const { [choiceKey]: _removed, ...rest } = previous;
         return rest;
       }
@@ -1112,7 +1120,7 @@ const SceneDetailsPage: React.FC = () => {
         narration: undefined,
       };
 
-      if (!updated.target && !updated.narration && !updated.requires) {
+      if (!hasTransitionFieldError(updated)) {
         const { [choiceKey]: _removed, ...rest } = previous;
         return rest;
       }
@@ -1163,7 +1171,58 @@ const SceneDetailsPage: React.FC = () => {
         requires: undefined,
       };
 
-      if (!updated.target && !updated.narration && !updated.requires) {
+      if (!hasTransitionFieldError(updated)) {
+        const { [choiceKey]: _removed, ...rest } = previous;
+        return rest;
+      }
+
+      return { ...previous, [choiceKey]: updated };
+    });
+
+    setStatusNotice(null);
+  };
+
+  const handleTransitionConsumesChange = (
+    choiceKey: string,
+    values: readonly string[],
+  ) => {
+    const normalised = normaliseStringList(values);
+
+    setFormState((previous) => {
+      const previousTransition =
+        previous.transitions[choiceKey] ?? createEmptyTransition();
+      const previousExtras =
+        previousTransition.extras ?? ({} as TransitionExtras);
+
+      const nextExtras: TransitionExtras = {
+        ...previousExtras,
+        consumes: normalised,
+      };
+
+      return {
+        ...previous,
+        transitions: {
+          ...previous.transitions,
+          [choiceKey]: {
+            ...previousTransition,
+            extras: nextExtras,
+          },
+        },
+      };
+    });
+
+    setTransitionErrors((previous) => {
+      const existing = previous[choiceKey];
+      if (!existing?.consumes) {
+        return previous;
+      }
+
+      const updated: TransitionEditorFieldErrors = {
+        ...existing,
+        consumes: undefined,
+      };
+
+      if (!hasTransitionFieldError(updated)) {
         const { [choiceKey]: _removed, ...rest } = previous;
         return rest;
       }
@@ -1286,6 +1345,7 @@ const SceneDetailsPage: React.FC = () => {
               onTargetChange={handleTransitionTargetChange}
               onNarrationChange={handleTransitionNarrationChange}
               onRequiresChange={handleTransitionRequiresChange}
+              onConsumesChange={handleTransitionConsumesChange}
               highlightedChoiceKey={highlightedChoiceKey}
               getItemRef={getTransitionItemRef}
             />
