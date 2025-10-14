@@ -1,4 +1,8 @@
 import React, { forwardRef, useId } from "react";
+import MDEditor, { type ICommand } from "@uiw/react-md-editor";
+import remarkGfm from "remark-gfm";
+import "@uiw/react-md-editor/markdown-editor.css";
+import "@uiw/react-markdown-preview/markdown.css";
 
 type ClassValue = string | false | null | undefined;
 
@@ -71,6 +75,13 @@ const buildControlClassName = (
     hasError ? errorControlClasses : defaultControlClasses,
     inputClassName,
   );
+
+const baseEditorContainerClasses =
+  "w-full overflow-hidden rounded-lg border text-sm shadow-inner shadow-slate-950/30 transition focus-within:ring-2";
+const defaultEditorContainerClasses =
+  "border-slate-700/80 bg-slate-900/60 focus-within:border-indigo-400 focus-within:ring-indigo-500/40";
+const errorEditorContainerClasses =
+  "border-red-500/80 bg-slate-900/60 focus-within:border-red-400 focus-within:ring-red-500/40";
 
 export interface TextFieldProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size" | "className">,
@@ -863,12 +874,120 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
 
 TextAreaField.displayName = "TextAreaField";
 
+export interface MarkdownEditorFieldProps extends BaseFieldProps {
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly placeholder?: string;
+  readonly disabled?: boolean;
+  readonly previewMode?: "edit" | "preview" | "live";
+  readonly minHeight?: number;
+  readonly hideToolbar?: boolean;
+  readonly required?: boolean;
+  readonly id?: string;
+}
+
+export const MarkdownEditorField: React.FC<MarkdownEditorFieldProps> = ({
+  label,
+  description,
+  error,
+  required,
+  className,
+  inputClassName,
+  id,
+  value,
+  onChange,
+  placeholder,
+  disabled = false,
+  previewMode = "live",
+  minHeight = 240,
+  hideToolbar = false,
+}) => {
+  const fallbackId = useId();
+  const fieldId = id ?? fallbackId;
+  const descriptionId = description ? `${fieldId}-description` : undefined;
+  const errorId = error ? `${fieldId}-error` : undefined;
+  const describedBy =
+    [descriptionId, errorId].filter(Boolean).join(" ") || undefined;
+
+  const handleChange = React.useCallback(
+    (nextValue?: string) => {
+      if (disabled) {
+        return;
+      }
+
+      onChange(nextValue ?? "");
+    },
+    [disabled, onChange],
+  );
+
+  const commandsFilter = React.useCallback(
+    (command: ICommand, _isExtra: boolean) => {
+      if (disabled) {
+        return false;
+      }
+
+      return command;
+    },
+    [disabled],
+  );
+
+  return (
+    <FieldWrapper
+      id={fieldId}
+      label={label}
+      description={description}
+      descriptionId={descriptionId}
+      error={error}
+      errorId={errorId}
+      required={required}
+      className={className}
+    >
+      <div
+        className={classNames(
+          "markdown-editor-container",
+          baseEditorContainerClasses,
+          error ? errorEditorContainerClasses : defaultEditorContainerClasses,
+          disabled ? "opacity-60" : "hover:border-indigo-400/50",
+          inputClassName,
+        )}
+      >
+        <MDEditor
+          value={value}
+          onChange={handleChange}
+          preview={previewMode}
+          height={minHeight}
+          hideToolbar={hideToolbar || disabled}
+          visibleDragbar={false}
+          enableScroll
+          data-color-mode="dark"
+          className="w-full border-0 bg-transparent text-slate-100"
+          commandsFilter={commandsFilter}
+          textareaProps={{
+            id: fieldId,
+            placeholder,
+            required,
+            disabled,
+            "aria-describedby": describedBy,
+            "aria-invalid": error ? true : undefined,
+          }}
+          previewOptions={{
+            remarkPlugins: [remarkGfm],
+          }}
+        />
+      </div>
+    </FieldWrapper>
+  );
+};
+
+MarkdownEditorField.displayName = "MarkdownEditorField";
+
 export type FormFieldComponents = {
   TextField: typeof TextField;
   AutocompleteField: typeof AutocompleteField;
   MultiSelectField: typeof MultiSelectField;
   SelectField: typeof SelectField;
   TextAreaField: typeof TextAreaField;
+  MarkdownEditorField: typeof MarkdownEditorField;
 };
 
 export const FormField: FormFieldComponents = {
@@ -877,6 +996,7 @@ export const FormField: FormFieldComponents = {
   MultiSelectField,
   SelectField,
   TextAreaField,
+  MarkdownEditorField,
 };
 
 export default FormField;

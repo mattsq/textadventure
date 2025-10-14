@@ -234,7 +234,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [ ] Evaluate rich text frameworks that output Markdown-compatible content
         - [x] Document requirements and integration plan *(see `docs/rich_text_editor_plan.md`)*
         - [x] Prototype Markdown rendering in the CLI runtime *(Added ANSI Markdown renderer and wired it into the CLI formatting flow.)*
-        - [ ] Integrate the editor into the scene authoring UI shell
+        - [x] Integrate the editor into the scene authoring UI shell *(Wired a Markdown-powered narration editor with live preview, toolbar theming, and validation integration inside the scene detail form.)*
         - [ ] Add collaborative enhancements (presence indicators, inline comments)
       - [x] Item requirements multi-select *(Added tag-style multi-select controls in the transition editor so authors can manage required inventory items.)*
       - [x] Item consumption configuration *(Transition editor now includes multi-select controls for configuring consumed inventory items with inline validation feedback.)*
