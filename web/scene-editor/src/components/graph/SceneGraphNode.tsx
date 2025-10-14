@@ -34,6 +34,7 @@ export interface SceneGraphSceneNodeData {
   readonly isDimmed?: boolean;
   readonly onOpen?: (sceneId: string) => void;
   readonly pathHighlightRole?: "start" | "end" | "intermediate";
+  readonly criticalPathRole?: "start" | "end" | "intermediate";
 }
 
 export interface SceneGraphTerminalNodeData {
@@ -306,6 +307,21 @@ export const SceneGraphNode: React.FC<NodeProps<SceneGraphNodeData>> = ({
               {data.pathHighlightRole === "intermediate" ? (
                 <Badge variant="neutral" size="sm">
                   On path
+                </Badge>
+              ) : null}
+              {data.criticalPathRole === "start" ? (
+                <Badge variant="success" size="sm">
+                  Critical start
+                </Badge>
+              ) : null}
+              {data.criticalPathRole === "end" ? (
+                <Badge variant="danger" size="sm">
+                  Critical end
+                </Badge>
+              ) : null}
+              {data.criticalPathRole === "intermediate" ? (
+                <Badge variant="info" size="sm">
+                  Critical path
                 </Badge>
               ) : null}
             </div>
