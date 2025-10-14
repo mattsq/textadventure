@@ -209,6 +209,20 @@ interface PathHighlightResult {
   readonly missingTarget: boolean;
 }
 
+interface CriticalPathHighlightResult {
+  readonly sceneIds: ReadonlySet<string>;
+  readonly terminalIds: ReadonlySet<string>;
+  readonly edgeIds: ReadonlySet<string>;
+  readonly roles: ReadonlyMap<string, PathHighlightRole>;
+  readonly isActive: boolean;
+  readonly found: boolean;
+  readonly length: number;
+  readonly startId: string | null;
+  readonly endSceneId: string | null;
+  readonly endTerminalId: string | null;
+  readonly missingStart: boolean;
+}
+
 type PathStatusTone = "muted" | "info" | "warning" | "danger";
 
 interface PathStatusMessage {
@@ -428,6 +442,288 @@ const computeScenePathHighlight = (
     targetId: selection.targetId,
     missingStart: false,
     missingTarget: false,
+  };
+};
+
+const computeCriticalPathHighlight = (
+  graph: GraphViewModel | null,
+  isActive: boolean,
+): CriticalPathHighlightResult => {
+  if (!isActive) {
+    return {
+      sceneIds: new Set<string>(),
+      terminalIds: new Set<string>(),
+      edgeIds: new Set<string>(),
+      roles: new Map<string, PathHighlightRole>(),
+      isActive: false,
+      found: false,
+      length: 0,
+      startId: null,
+      endSceneId: null,
+      endTerminalId: null,
+      missingStart: false,
+    };
+  }
+
+  if (!graph) {
+    return {
+      sceneIds: new Set<string>(),
+      terminalIds: new Set<string>(),
+      edgeIds: new Set<string>(),
+      roles: new Map<string, PathHighlightRole>(),
+      isActive: true,
+      found: false,
+      length: 0,
+      startId: null,
+      endSceneId: null,
+      endTerminalId: null,
+      missingStart: false,
+    };
+  }
+
+  const sceneNodes = graph.nodes.filter((node) => node.data.variant === "scene");
+  const sceneIds = new Set(sceneNodes.map((node) => node.id));
+  const startId = graph.startScene;
+  const missingStart = !sceneIds.has(startId);
+
+  if (missingStart) {
+    return {
+      sceneIds: new Set<string>(),
+      terminalIds: new Set<string>(),
+      edgeIds: new Set<string>(),
+      roles: new Map<string, PathHighlightRole>(),
+      isActive: true,
+      found: false,
+      length: 0,
+      startId,
+      endSceneId: null,
+      endTerminalId: null,
+      missingStart: true,
+    };
+  }
+
+  interface TransitionEdge {
+    readonly edgeId: string;
+    readonly targetSceneId: string | null;
+    readonly terminalId: string | null;
+  }
+
+  const adjacency = new Map<string, TransitionEdge[]>();
+
+  for (const edge of graph.edges) {
+    if (!edge.source || typeof edge.target !== "string") {
+      continue;
+    }
+
+    if (!sceneIds.has(edge.source)) {
+      continue;
+    }
+
+    const data = edge.data;
+    if (!data) {
+      continue;
+    }
+
+    let targetSceneId: string | null = null;
+    let terminalId: string | null = null;
+
+    if (data.isTerminal) {
+      terminalId = edge.target;
+    } else if (sceneIds.has(edge.target)) {
+      targetSceneId = edge.target;
+    } else {
+      continue;
+    }
+
+    if (!adjacency.has(edge.source)) {
+      adjacency.set(edge.source, []);
+    }
+
+    adjacency.get(edge.source)!.push({ edgeId: edge.id, targetSceneId, terminalId });
+  }
+
+  interface PathCandidate {
+    readonly sceneIds: readonly string[];
+    readonly edgeIds: readonly string[];
+    readonly terminalIds: readonly string[];
+    readonly endSceneId: string | null;
+    readonly endTerminalId: string | null;
+  }
+
+  const compareSequences = (
+    a: readonly string[],
+    b: readonly string[],
+  ): number => {
+    const length = Math.min(a.length, b.length);
+    for (let index = 0; index < length; index += 1) {
+      const difference = a[index].localeCompare(b[index]);
+      if (difference !== 0) {
+        return difference;
+      }
+    }
+    return a.length - b.length;
+  };
+
+  let bestCandidate: PathCandidate | null = null;
+
+  const commitCandidate = (candidate: PathCandidate) => {
+    if (!bestCandidate) {
+      bestCandidate = candidate;
+      return;
+    }
+
+    const currentLength = candidate.edgeIds.length;
+    const bestLength = bestCandidate.edgeIds.length;
+
+    if (currentLength > bestLength) {
+      bestCandidate = candidate;
+      return;
+    }
+
+    if (currentLength < bestLength) {
+      return;
+    }
+
+    const sceneComparison = compareSequences(candidate.sceneIds, bestCandidate.sceneIds);
+    if (sceneComparison < 0) {
+      bestCandidate = candidate;
+      return;
+    }
+    if (sceneComparison > 0) {
+      return;
+    }
+
+    const edgeComparison = compareSequences(candidate.edgeIds, bestCandidate.edgeIds);
+    if (edgeComparison < 0) {
+      bestCandidate = candidate;
+      return;
+    }
+    if (edgeComparison > 0) {
+      return;
+    }
+
+    const terminalComparison = compareSequences(
+      candidate.terminalIds,
+      bestCandidate.terminalIds,
+    );
+    if (terminalComparison < 0) {
+      bestCandidate = candidate;
+    }
+  };
+
+  const explore = (
+    currentSceneId: string,
+    scenePath: string[],
+    edgePath: string[],
+    terminalPath: string[],
+    visited: Set<string>,
+  ) => {
+    const transitions = adjacency.get(currentSceneId) ?? [];
+    let progressed = false;
+
+    for (const transition of transitions) {
+      if (transition.targetSceneId) {
+        if (visited.has(transition.targetSceneId)) {
+          continue;
+        }
+
+        progressed = true;
+        edgePath.push(transition.edgeId);
+        scenePath.push(transition.targetSceneId);
+        visited.add(transition.targetSceneId);
+        explore(transition.targetSceneId, scenePath, edgePath, terminalPath, visited);
+        visited.delete(transition.targetSceneId);
+        scenePath.pop();
+        edgePath.pop();
+        continue;
+      }
+
+      if (transition.terminalId) {
+        progressed = true;
+        edgePath.push(transition.edgeId);
+        terminalPath.push(transition.terminalId);
+        commitCandidate({
+          sceneIds: [...scenePath],
+          edgeIds: [...edgePath],
+          terminalIds: [...terminalPath],
+          endSceneId: scenePath[scenePath.length - 1] ?? null,
+          endTerminalId: transition.terminalId,
+        });
+        terminalPath.pop();
+        edgePath.pop();
+      }
+    }
+
+    if (!progressed) {
+      commitCandidate({
+        sceneIds: [...scenePath],
+        edgeIds: [...edgePath],
+        terminalIds: [...terminalPath],
+        endSceneId: scenePath[scenePath.length - 1] ?? null,
+        endTerminalId: terminalPath[terminalPath.length - 1] ?? null,
+      });
+    }
+  };
+
+  const initialScenes = [startId];
+  const visited = new Set<string>([startId]);
+  explore(startId, initialScenes, [], [], visited);
+
+  if (!bestCandidate) {
+    const fallbackRoles = new Map<string, PathHighlightRole>();
+    fallbackRoles.set(startId, "start");
+    return {
+      sceneIds: new Set<string>([startId]),
+      terminalIds: new Set<string>(),
+      edgeIds: new Set<string>(),
+      roles: fallbackRoles,
+      isActive: true,
+      found: false,
+      length: 0,
+      startId,
+      endSceneId: startId,
+      endTerminalId: null,
+      missingStart: false,
+    };
+  }
+
+  const finalCandidate = bestCandidate as PathCandidate;
+
+  const sceneSet = new Set<string>(finalCandidate.sceneIds);
+  sceneSet.add(startId);
+  const terminalSet = new Set<string>(finalCandidate.terminalIds);
+  const edgeSet = new Set<string>(finalCandidate.edgeIds);
+
+  const roles = new Map<string, PathHighlightRole>();
+  const firstScene = finalCandidate.sceneIds[0] ?? startId;
+  if (firstScene) {
+    roles.set(firstScene, "start");
+  }
+
+  const lastScene =
+    finalCandidate.sceneIds[finalCandidate.sceneIds.length - 1] ?? firstScene;
+  if (lastScene && lastScene !== firstScene && finalCandidate.edgeIds.length > 0) {
+    roles.set(lastScene, "end");
+  }
+
+  for (const sceneId of finalCandidate.sceneIds.slice(1, -1)) {
+    if (!roles.has(sceneId)) {
+      roles.set(sceneId, "intermediate");
+    }
+  }
+
+  return {
+    sceneIds: sceneSet,
+    terminalIds: terminalSet,
+    edgeIds: edgeSet,
+    roles,
+    isActive: true,
+    found: true,
+    length: finalCandidate.edgeIds.length,
+    startId,
+    endSceneId: finalCandidate.endSceneId,
+    endTerminalId: finalCandidate.endTerminalId,
+    missingStart: false,
   };
 };
 
@@ -932,6 +1228,7 @@ export const SceneGraphPage: React.FC = () => {
   const [pathTargetSceneId, setPathTargetSceneId] = React.useState("");
   const [pathSelection, setPathSelection] = React.useState<PathSelection | null>(null);
   const [pathFormError, setPathFormError] = React.useState<string | null>(null);
+  const [isCriticalPathActive, setIsCriticalPathActive] = React.useState(false);
   const [isMiniMapVisible, setIsMiniMapVisible] = React.useState(true);
   const [isMiniMapExpanded, setIsMiniMapExpanded] = React.useState(false);
 
@@ -1039,6 +1336,11 @@ export const SceneGraphPage: React.FC = () => {
     [graphState.data, pathSelection],
   );
 
+  const criticalPathHighlight = React.useMemo(
+    () => computeCriticalPathHighlight(graphState.data, isCriticalPathActive),
+    [graphState.data, isCriticalPathActive],
+  );
+
   const pathStatus = React.useMemo<PathStatusMessage>(() => {
     if (!pathSelection) {
       return {
@@ -1098,6 +1400,72 @@ export const SceneGraphPage: React.FC = () => {
       message: `Path from "${pathSelection.startId}" to "${pathSelection.targetId}" contains ${transitionLabel}.`,
     };
   }, [graphState.data, pathHighlight, pathSelection]);
+
+  const criticalPathStatus = React.useMemo<PathStatusMessage>(() => {
+    if (!isCriticalPathActive) {
+      return {
+        tone: "muted",
+        message:
+          "Enable the highlight to reveal the longest transition chain from the configured start scene.",
+      };
+    }
+
+    if (!graphState.data) {
+      return {
+        tone: "info",
+        message: "Load the scene graph to analyse the critical path.",
+      };
+    }
+
+    if (criticalPathHighlight.missingStart) {
+      return {
+        tone: "danger",
+        message: `Start scene "${graphState.data.startScene}" is not present in the current dataset.`,
+      };
+    }
+
+    if (!criticalPathHighlight.found) {
+      return {
+        tone: "warning",
+        message: `Unable to determine a path starting from "${graphState.data.startScene}".`,
+      };
+    }
+
+    const startLabel =
+      criticalPathHighlight.startId ?? graphState.data.startScene;
+
+    if (criticalPathHighlight.length === 0) {
+      return {
+        tone: "warning",
+        message: `Start scene "${startLabel}" has no outgoing transitions; highlighting it as the sole critical node.`,
+      };
+    }
+
+    const transitionLabel =
+      criticalPathHighlight.length === 1
+        ? "1 transition"
+        : `${criticalPathHighlight.length} transitions`;
+
+    let destinationDescription = "";
+    if (criticalPathHighlight.endTerminalId) {
+      const terminalNode = graphState.data.nodes.find(
+        (node) => node.id === criticalPathHighlight.endTerminalId,
+      );
+      if (terminalNode?.data.variant === "terminal") {
+        destinationDescription = `ending "${terminalNode.data.command}"`;
+      }
+    } else if (criticalPathHighlight.endSceneId) {
+      destinationDescription = `scene "${criticalPathHighlight.endSceneId}"`;
+    }
+
+    const destinationSuffix =
+      destinationDescription.length > 0 ? ` ending at ${destinationDescription}` : "";
+
+    return {
+      tone: "info",
+      message: `Longest path from "${startLabel}" spans ${transitionLabel}${destinationSuffix}.`,
+    };
+  }, [criticalPathHighlight, graphState.data, isCriticalPathActive]);
 
   const handleSceneSearchInputChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1237,6 +1605,14 @@ export const SceneGraphPage: React.FC = () => {
     setHighlightedItemId("");
   }, []);
 
+  const handleToggleCriticalPath = React.useCallback(() => {
+    setIsCriticalPathActive((previous) => !previous);
+  }, []);
+
+  const handleClearCriticalPath = React.useCallback(() => {
+    setIsCriticalPathActive(false);
+  }, []);
+
   const handleSceneOpen = React.useCallback(
     (sceneId: string) => {
       navigate(`/scenes/${encodeURIComponent(sceneId)}`);
@@ -1347,10 +1723,19 @@ export const SceneGraphPage: React.FC = () => {
     const pathSceneIds = pathHighlight.sceneIds;
     const pathEdgeIds = pathHighlight.edgeIds;
     const pathRoles = pathHighlight.roles;
+    const criticalSceneIds = criticalPathHighlight.sceneIds;
+    const criticalTerminalIds = criticalPathHighlight.terminalIds;
+    const criticalEdgeIds = criticalPathHighlight.edgeIds;
+    const criticalRoles = criticalPathHighlight.roles;
     const shouldDimItem =
       normalisedHighlightedItem.length > 0 && hasItemHighlightMatches;
     const shouldDimPath = pathHighlight.isActive && pathHighlight.found;
-    const shouldDimUnmatched = shouldDimItem || shouldDimPath;
+    const shouldDimCriticalPath =
+      criticalPathHighlight.isActive &&
+      criticalPathHighlight.found &&
+      criticalPathHighlight.length > 0;
+    const shouldDimUnmatched =
+      shouldDimItem || shouldDimPath || shouldDimCriticalPath;
 
     setNodes((previousNodes) => {
       const previousPositions = new Map(
@@ -1365,10 +1750,12 @@ export const SceneGraphPage: React.FC = () => {
 
         if (node.data.variant === "scene") {
           const pathRole = pathRoles.get(node.id);
+          const criticalRole = criticalRoles.get(node.id);
           const isSceneHighlighted =
             node.id === focusedSceneId ||
             highlightedSceneIds.has(node.id) ||
-            pathSceneIds.has(node.id);
+            pathSceneIds.has(node.id) ||
+            criticalSceneIds.has(node.id);
           return {
             ...node,
             position,
@@ -1378,13 +1765,15 @@ export const SceneGraphPage: React.FC = () => {
               isHighlighted: isSceneHighlighted,
               isDimmed: shouldDimUnmatched && !isSceneHighlighted,
               pathHighlightRole: pathRole,
+              criticalPathRole: criticalRole,
             },
           };
         }
 
         const isTerminalHighlighted =
           node.data.sourceScene === focusedSceneId ||
-          highlightedTerminalIds.has(node.id);
+          highlightedTerminalIds.has(node.id) ||
+          criticalTerminalIds.has(node.id);
 
         return {
           ...node,
@@ -1405,7 +1794,9 @@ export const SceneGraphPage: React.FC = () => {
         }
 
         const isPathEdge = pathEdgeIds.has(edge.id);
-        const isHighlightedEdge = highlightedEdgeIds.has(edge.id) || isPathEdge;
+        const isCriticalEdge = criticalEdgeIds.has(edge.id);
+        const isHighlightedEdge =
+          highlightedEdgeIds.has(edge.id) || isPathEdge || isCriticalEdge;
         const isEdgeDimmed = shouldDimUnmatched && !isHighlightedEdge;
 
         return {
@@ -1438,6 +1829,7 @@ export const SceneGraphPage: React.FC = () => {
     highlightedItemFlow,
     normalisedHighlightedItem,
     pathHighlight,
+    criticalPathHighlight,
     setEdges,
     setNodes,
   ]);
@@ -2020,6 +2412,40 @@ export const SceneGraphPage: React.FC = () => {
                           No transitions currently reference this item.
                         </p>
                       ) : null}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                        Critical path
+                      </p>
+                      {isCriticalPathActive ? (
+                        <button
+                          type="button"
+                          onClick={handleClearCriticalPath}
+                          className="inline-flex items-center justify-center rounded-md border border-slate-600/80 bg-slate-800/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-700/80"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <button
+                        type="button"
+                        onClick={handleToggleCriticalPath}
+                        className={
+                          isCriticalPathActive
+                            ? "inline-flex w-full items-center justify-center rounded-md border border-emerald-500/70 bg-emerald-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-100 transition hover:bg-emerald-500/30"
+                            : "inline-flex w-full items-center justify-center rounded-md border border-indigo-500/70 bg-indigo-500/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-100 transition hover:bg-indigo-500/30"
+                        }
+                      >
+                        {isCriticalPathActive ? "Hide critical path" : "Highlight critical path"}
+                      </button>
+                      <p
+                        className={`text-[10px] ${PATH_STATUS_TONE_CLASSES[criticalPathStatus.tone]}`}
+                      >
+                        {criticalPathStatus.message}
+                      </p>
                     </div>
                   </div>
                 </div>
