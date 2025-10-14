@@ -409,6 +409,18 @@ def test_get_scene_graph_supports_custom_start_scene() -> None:
     assert invalid.status_code == 400
 
 
+def test_get_scene_graph_legacy_alias_without_api_prefix() -> None:
+    client = _client()
+
+    response = client.get("/scenes/graph")
+    assert response.status_code == 200
+
+    aliased = client.get("/api/scenes/graph")
+    assert aliased.status_code == 200
+
+    assert response.json() == aliased.json()
+
+
 def test_search_endpoint_returns_matches() -> None:
     client = _client()
 
