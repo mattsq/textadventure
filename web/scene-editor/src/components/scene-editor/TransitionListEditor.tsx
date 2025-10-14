@@ -1,7 +1,7 @@
 import React from "react";
 import type { TransitionResource } from "../../api";
 import { Card } from "../display";
-import { TextAreaField, TextField } from "../forms";
+import { AutocompleteField, TextAreaField } from "../forms";
 import type { ChoiceEditorItem } from "./ChoiceListEditor";
 
 type ClassValue = string | false | null | undefined;
@@ -93,25 +93,19 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="flex flex-col gap-2 md:col-span-1">
-                        <TextField
+                        <AutocompleteField
                           label="Target scene"
                           value={transition?.target ?? ""}
-                          onChange={(event) =>
-                            onTargetChange(choice.key, event.target.value)
+                          onValueChange={(nextValue) =>
+                            onTargetChange(choice.key, nextValue)
                           }
-                          placeholder="next-scene-id"
-                          description="Suggestions include known scene IDs. Leave empty to end the scene."
+                          placeholder="Search for a destination scene"
+                          description="Start typing to filter known scene IDs. Leave empty to end the scene."
                           disabled={disabled}
-                          list={targetOptions.length > 0 ? datalistId : undefined}
+                          options={targetOptions}
                           error={fieldErrors.target}
+                          id={datalistId}
                         />
-                        {targetOptions.length > 0 ? (
-                          <datalist id={datalistId}>
-                            {targetOptions.map((sceneId) => (
-                              <option key={sceneId} value={sceneId} />
-                            ))}
-                          </datalist>
-                        ) : null}
                       </div>
                       <TextAreaField
                         className="md:col-span-1"
