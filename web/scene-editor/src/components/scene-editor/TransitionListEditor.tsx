@@ -1,7 +1,7 @@
 import React from "react";
 import type { TransitionResource } from "../../api";
 import { Card } from "../display";
-import { AutocompleteField, TextAreaField } from "../forms";
+import { AutocompleteField, MultiSelectField, TextAreaField } from "../forms";
 import type { ChoiceEditorItem } from "./ChoiceListEditor";
 
 type ClassValue = string | false | null | undefined;
@@ -20,6 +20,7 @@ export interface TransitionEditorValues {
 export interface TransitionEditorFieldErrors {
   target?: string;
   narration?: string;
+  requires?: string;
 }
 
 export interface TransitionListEditorProps {
@@ -28,9 +29,14 @@ export interface TransitionListEditorProps {
   readonly transitions: Readonly<Record<string, TransitionEditorValues>>;
   readonly errors: Readonly<Record<string, TransitionEditorFieldErrors>>;
   readonly targetOptions: readonly string[];
+  readonly itemOptions: readonly string[];
   readonly disabled?: boolean;
   readonly onTargetChange: (choiceKey: string, value: string) => void;
   readonly onNarrationChange: (choiceKey: string, value: string) => void;
+  readonly onRequiresChange: (
+    choiceKey: string,
+    values: readonly string[],
+  ) => void;
   readonly highlightedChoiceKey?: string | null;
   readonly getItemRef?: (choiceKey: string) => (element: HTMLLIElement | null) => void;
 }
@@ -41,9 +47,11 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
   transitions,
   errors,
   targetOptions,
+  itemOptions,
   disabled = false,
   onTargetChange,
   onNarrationChange,
+  onRequiresChange,
   highlightedChoiceKey = null,
   getItemRef,
 }) => {
@@ -66,6 +74,7 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
               const fieldErrors = errors[choice.key] ?? {};
               const datalistId = `transition-targets-${choice.key}`;
               const isHighlighted = highlightedChoiceKey === choice.key;
+              const requiresValues = transition?.extras?.requires ?? [];
 
               return (
                 <li
@@ -119,6 +128,19 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                         required
                         disabled={disabled}
                         error={fieldErrors.narration}
+                      />
+                      <MultiSelectField
+                        className="md:col-span-2"
+                        label="Required items"
+                        description="List the inventory items a player must carry to trigger this transition. Type to add a new requirement or pick from existing items."
+                        values={requiresValues}
+                        onChange={(nextValues: readonly string[]) =>
+                          onRequiresChange(choice.key, nextValues)
+                        }
+                        options={itemOptions}
+                        placeholder="Add required items"
+                        disabled={disabled}
+                        error={fieldErrors.requires}
                       />
                     </div>
                   </div>

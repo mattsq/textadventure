@@ -236,7 +236,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Prototype Markdown rendering in the CLI runtime *(Added ANSI Markdown renderer and wired it into the CLI formatting flow.)*
         - [ ] Integrate the editor into the scene authoring UI shell
         - [ ] Add collaborative enhancements (presence indicators, inline comments)
-      - [ ] Item requirements multi-select
+      - [x] Item requirements multi-select *(Added tag-style multi-select controls in the transition editor so authors can manage required inventory items.)*
       - [ ] Item consumption configuration
       - [ ] Failure narration editor
       - [ ] Conditional logic builder
