@@ -238,7 +238,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [ ] Add collaborative enhancements (presence indicators, inline comments)
       - [x] Item requirements multi-select *(Added tag-style multi-select controls in the transition editor so authors can manage required inventory items.)*
       - [x] Item consumption configuration *(Transition editor now includes multi-select controls for configuring consumed inventory items with inline validation feedback.)*
-      - [ ] Failure narration editor
+      - [x] Failure narration editor
       - [ ] Conditional logic builder
     - [ ] Implement choice matrix editor:
       - [ ] Grid view of all choices across scenes

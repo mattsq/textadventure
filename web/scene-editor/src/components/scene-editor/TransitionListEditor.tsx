@@ -26,6 +26,7 @@ export interface TransitionEditorFieldErrors {
   narration?: string;
   requires?: string;
   consumes?: string;
+  failureNarration?: string;
 }
 
 export interface TransitionListEditorProps {
@@ -38,6 +39,10 @@ export interface TransitionListEditorProps {
   readonly disabled?: boolean;
   readonly onTargetChange: (choiceKey: string, value: string) => void;
   readonly onNarrationChange: (choiceKey: string, value: string) => void;
+  readonly onFailureNarrationChange: (
+    choiceKey: string,
+    value: string,
+  ) => void;
   readonly onRequiresChange: (
     choiceKey: string,
     values: readonly string[],
@@ -60,6 +65,7 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
   disabled = false,
   onTargetChange,
   onNarrationChange,
+  onFailureNarrationChange,
   onRequiresChange,
   onConsumesChange,
   highlightedChoiceKey = null,
@@ -86,6 +92,8 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
               const isHighlighted = highlightedChoiceKey === choice.key;
               const requiresValues = transition?.extras?.requires ?? [];
               const consumesValues = transition?.extras?.consumes ?? [];
+              const failureNarration =
+                transition?.extras?.failure_narration ?? "";
 
               return (
                 <li
@@ -140,6 +148,20 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                         error={fieldErrors.narration}
                         previewMode="live"
                         minHeight={220}
+                      />
+                      <MarkdownEditorField
+                        className="md:col-span-2"
+                        label="Failure narration"
+                        description="Shown when the player lacks the requirements needed to trigger this transition."
+                        value={failureNarration}
+                        onChange={(nextValue) =>
+                          onFailureNarrationChange(choice.key, nextValue)
+                        }
+                        placeholder="Explain what happens when requirements are not met so players know what's missing."
+                        disabled={disabled}
+                        error={fieldErrors.failureNarration}
+                        previewMode="live"
+                        minHeight={200}
                       />
                       <MultiSelectField
                         className="md:col-span-2"
