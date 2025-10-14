@@ -932,6 +932,8 @@ export const SceneGraphPage: React.FC = () => {
   const [pathTargetSceneId, setPathTargetSceneId] = React.useState("");
   const [pathSelection, setPathSelection] = React.useState<PathSelection | null>(null);
   const [pathFormError, setPathFormError] = React.useState<string | null>(null);
+  const [isMiniMapVisible, setIsMiniMapVisible] = React.useState(true);
+  const [isMiniMapExpanded, setIsMiniMapExpanded] = React.useState(false);
 
   const sceneIdOptions = React.useMemo(() => {
     return nodes
@@ -1456,6 +1458,12 @@ export const SceneGraphPage: React.FC = () => {
     );
   }, [isLayoutEditing, setNodes]);
 
+  React.useEffect(() => {
+    if (!isMiniMapVisible) {
+      setIsMiniMapExpanded(false);
+    }
+  }, [isMiniMapVisible]);
+
   const handleNodeDragStop = React.useCallback(
     (_event: React.MouseEvent, node: Node<SceneGraphNodeData>) => {
       layoutOverridesRef.current.set(node.id, { ...node.position });
@@ -1547,6 +1555,14 @@ export const SceneGraphPage: React.FC = () => {
     setIsLayoutEditing((previous) => !previous);
   }, []);
 
+  const toggleMiniMapVisibility = React.useCallback(() => {
+    setIsMiniMapVisible((previous) => !previous);
+  }, []);
+
+  const toggleMiniMapSize = React.useCallback(() => {
+    setIsMiniMapExpanded((previous) => !previous);
+  }, []);
+
   const nodeTypes = React.useMemo(() => ({
     sceneGraphNode: SceneGraphNode,
   }), []);
@@ -1556,6 +1572,19 @@ export const SceneGraphPage: React.FC = () => {
       sceneGraphEdge: SceneGraphEdge,
     }),
     [],
+  );
+
+  const miniMapStyle = React.useMemo(
+    (): React.CSSProperties => ({
+      width: isMiniMapExpanded ? 240 : 170,
+      height: isMiniMapExpanded ? 180 : 130,
+      borderRadius: 12,
+      border: "1px solid rgba(148, 163, 184, 0.35)",
+      boxShadow: "0 18px 40px rgba(15, 23, 42, 0.45)",
+      backgroundColor: "rgba(15, 23, 42, 0.92)",
+      transition: "width 150ms ease, height 150ms ease",
+    }),
+    [isMiniMapExpanded],
   );
 
   const handleEdgeClick = React.useCallback(
@@ -1869,6 +1898,35 @@ export const SceneGraphPage: React.FC = () => {
                     </p>
                   </div>
                   <div className="mt-3 space-y-2 text-[11px] text-slate-300">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide text-slate-400">Minimap</span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={toggleMiniMapVisibility}
+                            className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90"
+                          >
+                            {isMiniMapVisible ? "Hide" : "Show"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={toggleMiniMapSize}
+                            disabled={!isMiniMapVisible}
+                            className="inline-flex items-center justify-center rounded-full border border-slate-500/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-100 transition hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                          >
+                            {isMiniMapExpanded ? "Compact" : "Expand"}
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        {isMiniMapVisible
+                          ? isMiniMapExpanded
+                            ? "Expanded minimap view helps navigate sprawling graphs."
+                            : "Use the minimap to stay oriented while exploring large scene graphs."
+                          : "Enable the minimap for a quick overview of the current scene layout."}
+                      </p>
+                    </div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="uppercase tracking-wide text-slate-400">Scroll zoom</span>
                       <button
@@ -1993,33 +2051,43 @@ export const SceneGraphPage: React.FC = () => {
               className="!bg-gradient-to-b !from-slate-950 !to-slate-900"
             >
               <Background color="#1f2937" gap={24} />
-              <MiniMap
-                pannable
-                zoomable
-                nodeColor={(node) => {
-                  if (node?.data?.variant === "terminal") {
-                    return "#fb7185";
-                  }
-                  if (node?.data?.variant === "scene") {
-                    if (!node.data.isReachable) {
-                      return "#ef4444";
+              {isMiniMapVisible ? (
+                <MiniMap
+                  pannable
+                  zoomable
+                  position="bottom-left"
+                  style={miniMapStyle}
+                  aria-label="Scene overview minimap"
+                  nodeColor={(node) => {
+                    if (node?.data?.variant === "terminal") {
+                      return "#fb7185";
                     }
+                    if (node?.data?.variant === "scene") {
+                      if (!node.data.isReachable) {
+                        return "#ef4444";
+                      }
 
-                    switch (node.data.validationStatus) {
-                      case "valid":
-                        return "#34d399";
-                      case "warnings":
-                        return "#fbbf24";
-                      case "errors":
-                        return "#f87171";
-                      default:
-                        return "#38bdf8";
+                      switch (node.data.validationStatus) {
+                        case "valid":
+                          return "#34d399";
+                        case "warnings":
+                          return "#fbbf24";
+                        case "errors":
+                          return "#f87171";
+                        default:
+                          return "#38bdf8";
+                      }
                     }
+                    return "#38bdf8";
+                  }}
+                  nodeStrokeColor={(node) =>
+                    node?.data?.variant === "scene"
+                      ? "rgba(148, 163, 184, 0.75)"
+                      : "rgba(148, 163, 184, 0.45)"
                   }
-                  return "#38bdf8";
-                }}
-                maskColor="rgba(15, 23, 42, 0.85)"
-              />
+                  maskColor="rgba(15, 23, 42, 0.85)"
+                />
+              ) : null}
               <Controls position="bottom-right" />
             </ReactFlow>
           </div>
