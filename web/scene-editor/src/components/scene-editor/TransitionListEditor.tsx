@@ -1,7 +1,11 @@
 import React from "react";
 import type { TransitionResource } from "../../api";
 import { Card } from "../display";
-import { AutocompleteField, MultiSelectField, TextAreaField } from "../forms";
+import {
+  AutocompleteField,
+  MarkdownEditorField,
+  MultiSelectField,
+} from "../forms";
 import type { ChoiceEditorItem } from "./ChoiceListEditor";
 
 type ClassValue = string | false | null | undefined;
@@ -123,18 +127,19 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                           id={datalistId}
                         />
                       </div>
-                      <TextAreaField
+                      <MarkdownEditorField
                         className="md:col-span-1"
                         label="Transition narration"
                         value={transition?.narration ?? ""}
-                        onChange={(event) =>
-                          onNarrationChange(choice.key, event.target.value)
+                        onChange={(nextValue) =>
+                          onNarrationChange(choice.key, nextValue)
                         }
                         placeholder="Describe what happens after the player selects this choice."
-                        rows={4}
                         required
                         disabled={disabled}
                         error={fieldErrors.narration}
+                        previewMode="live"
+                        minHeight={220}
                       />
                       <MultiSelectField
                         className="md:col-span-2"

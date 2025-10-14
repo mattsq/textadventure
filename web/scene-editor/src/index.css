@@ -13,3 +13,67 @@ body {
 a {
   @apply text-editor-accent hover:text-sky-300;
 }
+
+.markdown-editor-container .w-md-editor {
+  @apply border-0 bg-transparent text-slate-100 shadow-none;
+}
+
+.markdown-editor-container .w-md-editor-toolbar {
+  @apply border-b border-slate-800/70 bg-slate-950/40;
+}
+
+.markdown-editor-container .w-md-editor-toolbar button {
+  @apply rounded-md text-xs font-semibold text-slate-300 transition;
+}
+
+.markdown-editor-container .w-md-editor-toolbar button:hover {
+  @apply bg-indigo-500/20 text-indigo-100;
+}
+
+.markdown-editor-container .w-md-editor-toolbar button:focus-visible {
+  @apply outline-none ring-2 ring-indigo-500/50;
+}
+
+.markdown-editor-container .w-md-editor-toolbar ul,
+.markdown-editor-container .w-md-editor-toolbar li {
+  @apply m-0 list-none p-0;
+}
+
+.markdown-editor-container .w-md-editor-content {
+  @apply bg-transparent;
+}
+
+.markdown-editor-container .w-md-editor-text-pre,
+.markdown-editor-container .w-md-editor-text-input {
+  @apply text-slate-100;
+}
+
+.markdown-editor-container .w-md-editor-text-input::placeholder {
+  @apply text-slate-500;
+}
+
+.markdown-editor-container .w-md-editor-preview {
+  @apply bg-slate-950/40 text-slate-200;
+}
+
+.markdown-editor-container .w-md-editor-preview p {
+  @apply my-2;
+}
+
+.markdown-editor-container .w-md-editor-preview h1,
+.markdown-editor-container .w-md-editor-preview h2,
+.markdown-editor-container .w-md-editor-preview h3,
+.markdown-editor-container .w-md-editor-preview h4,
+.markdown-editor-container .w-md-editor-preview h5,
+.markdown-editor-container .w-md-editor-preview h6 {
+  @apply mt-4 font-semibold text-slate-100;
+}
+
+.markdown-editor-container .w-md-editor-preview ul,
+.markdown-editor-container .w-md-editor-preview ol {
+  @apply my-3 ml-6 list-disc text-slate-200;
+}
+
+.markdown-editor-container .w-md-editor-preview a {
+  @apply text-editor-accent underline hover:text-sky-300;
+}
