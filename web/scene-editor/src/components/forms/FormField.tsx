@@ -384,6 +384,375 @@ export const AutocompleteField = forwardRef<HTMLInputElement, AutocompleteFieldP
 
 AutocompleteField.displayName = "AutocompleteField";
 
+export interface MultiSelectFieldProps extends BaseFieldProps {
+  readonly values: readonly string[];
+  readonly onChange: (values: readonly string[]) => void;
+  readonly options?: readonly string[];
+  readonly placeholder?: string;
+  readonly disabled?: boolean;
+  readonly emptyMessage?: React.ReactNode;
+  readonly id?: string;
+  readonly required?: boolean;
+}
+
+const multiSelectContainerBaseClasses =
+  "flex min-h-[2.5rem] flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-inner shadow-slate-950/30 transition focus-within:ring-2";
+const multiSelectContainerDefaultClasses =
+  "border-slate-700/80 bg-slate-900/60 text-slate-100 focus-within:border-indigo-400 focus-within:ring-indigo-500/40";
+const multiSelectContainerErrorClasses =
+  "border-red-500/80 bg-slate-900/60 text-slate-100 focus-within:border-red-400 focus-within:ring-red-500/40";
+const multiSelectContainerDisabledClasses =
+  "cursor-not-allowed border-slate-800/70 bg-slate-900/40 text-slate-500";
+
+export const MultiSelectField: React.FC<MultiSelectFieldProps> = ({
+  label,
+  description,
+  error,
+  required,
+  className,
+  inputClassName,
+  id,
+  values,
+  onChange,
+  options = [],
+  placeholder = "Type to add an item",
+  disabled = false,
+  emptyMessage = "No matching items.",
+}) => {
+  const fallbackId = useId();
+  const fieldId = id ?? fallbackId;
+  const descriptionId = description ? `${fieldId}-description` : undefined;
+  const errorId = error ? `${fieldId}-error` : undefined;
+  const listboxId = `${fieldId}-listbox`;
+
+  const [inputValue, setInputValue] = React.useState("");
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [highlightedIndex, setHighlightedIndex] = React.useState<number | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const filteredOptions = React.useMemo(() => {
+    const selectedLookup = new Set(values.map((value) => value.toLowerCase()));
+    const seen = new Set<string>();
+    const query = inputValue.trim().toLowerCase();
+    const result: string[] = [];
+
+    for (const option of options) {
+      const normalised = option.toLowerCase();
+      if (selectedLookup.has(normalised) || seen.has(normalised)) {
+        continue;
+      }
+      if (query && !normalised.includes(query)) {
+        continue;
+      }
+      result.push(option);
+      seen.add(normalised);
+    }
+
+    result.sort((a, b) => a.localeCompare(b));
+    return result;
+  }, [inputValue, options, values]);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setHighlightedIndex(null);
+      return;
+    }
+
+    if (filteredOptions.length === 0) {
+      setHighlightedIndex(null);
+      return;
+    }
+
+    setHighlightedIndex((previous) => {
+      if (previous === null || previous >= filteredOptions.length) {
+        return 0;
+      }
+      return previous;
+    });
+  }, [filteredOptions, isOpen]);
+
+  const commitValue = React.useCallback(
+    (rawValue: string) => {
+      if (disabled) {
+        return;
+      }
+
+      const trimmed = rawValue.trim();
+      if (!trimmed) {
+        setInputValue("");
+        return;
+      }
+
+      const lower = trimmed.toLowerCase();
+      if (values.some((value) => value.toLowerCase() === lower)) {
+        setInputValue("");
+        return;
+      }
+
+      onChange([...values, trimmed]);
+      setInputValue("");
+      setIsOpen(true);
+      setHighlightedIndex(null);
+    },
+    [disabled, onChange, values],
+  );
+
+  const handleRemoveValue = React.useCallback(
+    (value: string) => {
+      if (disabled) {
+        return;
+      }
+
+      const lower = value.toLowerCase();
+      const nextValues = values.filter(
+        (item) => item.toLowerCase() !== lower,
+      );
+      onChange(nextValues);
+    },
+    [disabled, onChange, values],
+  );
+
+  const handleInputChange: React.ChangeEventHandler<HTMLInputElement> = (
+    event,
+  ) => {
+    if (disabled) {
+      return;
+    }
+
+    setInputValue(event.target.value);
+    setIsOpen(true);
+  };
+
+  const handleFocus: React.FocusEventHandler<HTMLInputElement> = () => {
+    if (!disabled) {
+      setIsOpen(true);
+    }
+  };
+
+  const handleBlur: React.FocusEventHandler<HTMLInputElement> = () => {
+    window.setTimeout(() => {
+      setIsOpen(false);
+      setHighlightedIndex(null);
+    }, 100);
+  };
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+    event,
+  ) => {
+    if (disabled) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+      }
+      if (filteredOptions.length === 0) {
+        return;
+      }
+      setHighlightedIndex((previous) => {
+        if (previous === null) {
+          return 0;
+        }
+        return Math.min(previous + 1, filteredOptions.length - 1);
+      });
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (filteredOptions.length === 0) {
+        return;
+      }
+      setHighlightedIndex((previous) => {
+        if (previous === null) {
+          return filteredOptions.length - 1;
+        }
+        return Math.max(previous - 1, 0);
+      });
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (
+        highlightedIndex !== null &&
+        filteredOptions[highlightedIndex] !== undefined
+      ) {
+        commitValue(filteredOptions[highlightedIndex]);
+      } else {
+        commitValue(inputValue);
+      }
+      return;
+    }
+
+    if (event.key === "Tab") {
+      if (
+        highlightedIndex !== null &&
+        filteredOptions[highlightedIndex] !== undefined
+      ) {
+        commitValue(filteredOptions[highlightedIndex]);
+      } else if (inputValue.trim() !== "") {
+        commitValue(inputValue);
+      }
+      return;
+    }
+
+    if (event.key === "Backspace" && inputValue === "") {
+      if (values.length > 0) {
+        event.preventDefault();
+        onChange(values.slice(0, -1));
+      }
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setIsOpen(false);
+      setHighlightedIndex(null);
+      return;
+    }
+  };
+
+  const handleOptionMouseDown: React.MouseEventHandler<HTMLLIElement> = (
+    event,
+  ) => {
+    event.preventDefault();
+  };
+
+  const handleOptionClick = (option: string) => {
+    commitValue(option);
+  };
+
+  const activeDescendant =
+    highlightedIndex !== null && filteredOptions[highlightedIndex]
+      ? `${listboxId}-${highlightedIndex}`
+      : undefined;
+
+  const containerClasses = classNames(
+    multiSelectContainerBaseClasses,
+    error ? multiSelectContainerErrorClasses : multiSelectContainerDefaultClasses,
+    disabled ? multiSelectContainerDisabledClasses : undefined,
+  );
+
+  const describedBy = [descriptionId, errorId]
+    .filter(Boolean)
+    .join(" ") || undefined;
+
+  return (
+    <FieldWrapper
+      id={fieldId}
+      label={label}
+      description={description}
+      descriptionId={descriptionId}
+      error={error}
+      errorId={errorId}
+      required={required}
+      className={className}
+    >
+      <div className="relative">
+        <div
+          className={containerClasses}
+          onClick={() => {
+            if (!disabled) {
+              inputRef.current?.focus();
+              setIsOpen(true);
+            }
+          }}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {values.map((value) => (
+              <span
+                key={value}
+                className="inline-flex items-center gap-1 rounded-md border border-indigo-500/60 bg-indigo-500/20 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-100"
+              >
+                <span>{value}</span>
+                {disabled ? null : (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveValue(value)}
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-indigo-400/70 bg-indigo-600/40 text-[10px] font-bold leading-none text-indigo-50 transition hover:bg-indigo-600/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                    aria-label={`Remove ${value}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+          <input
+            ref={inputRef}
+            id={`${fieldId}-input`}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            aria-describedby={describedBy}
+            aria-expanded={isOpen}
+            aria-controls={listboxId}
+            aria-activedescendant={activeDescendant}
+            aria-invalid={error ? true : undefined}
+            aria-required={required || undefined}
+            role="combobox"
+            autoComplete="off"
+            placeholder={values.length === 0 ? placeholder : ""}
+            className={classNames(
+              "flex-1 min-w-[6rem] bg-transparent text-sm text-slate-100 outline-none", // base
+              disabled ? "cursor-not-allowed text-slate-500" : undefined,
+              inputClassName,
+            )}
+          />
+        </div>
+        {isOpen ? (
+          <ul
+            id={listboxId}
+            role="listbox"
+            className="absolute left-0 right-0 z-10 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-700/70 bg-slate-900/95 shadow-lg shadow-black/40"
+          >
+            {filteredOptions.length === 0 ? (
+              <li
+                role="presentation"
+                className="px-3 py-2 text-xs text-slate-400"
+              >
+                {emptyMessage}
+              </li>
+            ) : (
+              filteredOptions.map((option, index) => {
+                const optionId = `${listboxId}-${index}`;
+                const isActive = index === highlightedIndex;
+                return (
+                  <li
+                    key={option}
+                    id={optionId}
+                    role="option"
+                    aria-selected={isActive}
+                    className={classNames(
+                      "cursor-pointer px-3 py-2 text-sm text-slate-100 transition",
+                      isActive
+                        ? "bg-indigo-500/80 text-white"
+                        : "hover:bg-slate-800/70",
+                    )}
+                    onMouseDown={handleOptionMouseDown}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    onClick={() => handleOptionClick(option)}
+                  >
+                    {option}
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        ) : null}
+      </div>
+    </FieldWrapper>
+  );
+};
+
+MultiSelectField.displayName = "MultiSelectField";
+
 export interface SelectFieldProps
   extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "className">,
     BaseFieldProps {}
@@ -497,6 +866,7 @@ TextAreaField.displayName = "TextAreaField";
 export type FormFieldComponents = {
   TextField: typeof TextField;
   AutocompleteField: typeof AutocompleteField;
+  MultiSelectField: typeof MultiSelectField;
   SelectField: typeof SelectField;
   TextAreaField: typeof TextAreaField;
 };
@@ -504,6 +874,7 @@ export type FormFieldComponents = {
 export const FormField: FormFieldComponents = {
   TextField,
   AutocompleteField,
+  MultiSelectField,
   SelectField,
   TextAreaField,
 };

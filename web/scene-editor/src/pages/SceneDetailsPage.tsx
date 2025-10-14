@@ -122,6 +122,12 @@ const createEmptyTransition = (): TransitionEditorValues => ({
   extras: {} as TransitionExtras,
 });
 
+const ORDER_INSENSITIVE_EXTRA_KEYS = new Set([
+  "requires",
+  "consumes",
+  "records",
+]);
+
 const serializeTransition = (transition: TransitionResource): string => {
   const { target, narration, ...extras } = transition;
   const filteredExtras = Object.entries(extras).filter(
@@ -130,7 +136,19 @@ const serializeTransition = (transition: TransitionResource): string => {
   filteredExtras.sort(([a], [b]) => a.localeCompare(b));
   const normalisedExtras: Record<string, unknown> = {};
   for (const [key, value] of filteredExtras) {
-    normalisedExtras[key] = value;
+    if (
+      Array.isArray(value) &&
+      ORDER_INSENSITIVE_EXTRA_KEYS.has(key) &&
+      value.every((item) => typeof item === "string")
+    ) {
+      const sorted = [...value]
+        .map((item) => (typeof item === "string" ? item.trim() : String(item)))
+        .filter((item) => item.length > 0)
+        .sort((a, b) => a.localeCompare(b));
+      normalisedExtras[key] = sorted;
+    } else {
+      normalisedExtras[key] = value;
+    }
   }
 
   return JSON.stringify({
@@ -138,6 +156,32 @@ const serializeTransition = (transition: TransitionResource): string => {
     narration: (narration ?? "").trim(),
     extras: normalisedExtras,
   });
+};
+
+const normaliseStringList = (
+  values?: readonly string[],
+): readonly string[] | undefined => {
+  if (!values) {
+    return undefined;
+  }
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(trimmed);
+  }
+
+  return result.length > 0 ? result : undefined;
 };
 
 const areTransitionsEqual = (
@@ -610,7 +654,12 @@ const SceneDetailsPage: React.FC = () => {
         command: trimmedChoice.command,
         target: normalisedTarget,
         narration: transitionState.narration.trim(),
-        extras: transitionState.extras ?? ({} as TransitionExtras),
+        extras: {
+          ...(transitionState.extras ?? ({} as TransitionExtras)),
+          requires: normaliseStringList(
+            transitionState.extras?.requires,
+          ),
+        } as TransitionExtras,
       };
     });
   }, [formState.choices, formState.transitions, trimmedChoices]);
@@ -622,6 +671,51 @@ const SceneDetailsPage: React.FC = () => {
     }
     return Array.from(unique).sort((a, b) => a.localeCompare(b));
   }, [targetSceneOptions, trimmedSceneId]);
+
+  const availableItemOptions = React.useMemo(() => {
+    const items = new Set<string>();
+
+    const addItem = (value?: string | null) => {
+      if (typeof value !== "string") {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+      items.add(trimmed);
+    };
+
+    const addItems = (values?: readonly string[]) => {
+      if (!values) {
+        return;
+      }
+      for (const value of values) {
+        addItem(value);
+      }
+    };
+
+    for (const transition of Object.values(formState.transitions)) {
+      if (!transition) {
+        continue;
+      }
+      const extras = transition.extras;
+      if (!extras) {
+        continue;
+      }
+      addItem((extras as TransitionExtras).item ?? null);
+      addItems(extras.requires);
+      addItems(extras.consumes);
+    }
+
+    for (const transition of Object.values(unmanagedTransitions)) {
+      addItem(transition.item ?? null);
+      addItems(transition.requires);
+      addItems(transition.consumes);
+    }
+
+    return Array.from(items).sort((a, b) => a.localeCompare(b));
+  }, [formState.transitions, unmanagedTransitions]);
 
   const validationSnapshot = React.useMemo(
     () =>
@@ -981,7 +1075,7 @@ const SceneDetailsPage: React.FC = () => {
         target: undefined,
       };
 
-      if (!updated.target && !updated.narration) {
+      if (!updated.target && !updated.narration && !updated.requires) {
         const { [choiceKey]: _removed, ...rest } = previous;
         return rest;
       }
@@ -1018,7 +1112,58 @@ const SceneDetailsPage: React.FC = () => {
         narration: undefined,
       };
 
-      if (!updated.target && !updated.narration) {
+      if (!updated.target && !updated.narration && !updated.requires) {
+        const { [choiceKey]: _removed, ...rest } = previous;
+        return rest;
+      }
+
+      return { ...previous, [choiceKey]: updated };
+    });
+
+    setStatusNotice(null);
+  };
+
+  const handleTransitionRequiresChange = (
+    choiceKey: string,
+    values: readonly string[],
+  ) => {
+    const normalised = normaliseStringList(values);
+
+    setFormState((previous) => {
+      const previousTransition =
+        previous.transitions[choiceKey] ?? createEmptyTransition();
+      const previousExtras =
+        previousTransition.extras ?? ({} as TransitionExtras);
+
+      const nextExtras: TransitionExtras = {
+        ...previousExtras,
+        requires: normalised,
+      };
+
+      return {
+        ...previous,
+        transitions: {
+          ...previous.transitions,
+          [choiceKey]: {
+            ...previousTransition,
+            extras: nextExtras,
+          },
+        },
+      };
+    });
+
+    setTransitionErrors((previous) => {
+      const existing = previous[choiceKey];
+      if (!existing?.requires) {
+        return previous;
+      }
+
+      const updated: TransitionEditorFieldErrors = {
+        ...existing,
+        requires: undefined,
+      };
+
+      if (!updated.target && !updated.narration && !updated.requires) {
         const { [choiceKey]: _removed, ...rest } = previous;
         return rest;
       }
@@ -1136,9 +1281,11 @@ const SceneDetailsPage: React.FC = () => {
               transitions={formState.transitions}
               errors={transitionErrors}
               targetOptions={availableTargetOptions}
+              itemOptions={availableItemOptions}
               disabled={isSaving}
               onTargetChange={handleTransitionTargetChange}
               onNarrationChange={handleTransitionNarrationChange}
+              onRequiresChange={handleTransitionRequiresChange}
               highlightedChoiceKey={highlightedChoiceKey}
               getItemRef={getTransitionItemRef}
             />
