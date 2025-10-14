@@ -12,7 +12,8 @@
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["react", "react-dom", "vite/client"]
   },
   "include": ["src"],
   "references": [
