@@ -41,6 +41,11 @@ with the file format.
 - **Timestamps** – Scene resources surface `created_at` and `updated_at` values
   in ISO 8601 UTC to support future auditing, even though the current JSON store
   does not persist them yet.
+- **Dataset metadata** – Responses wrap scene data in a `meta.dataset` object
+  exposing the current `version_id`, `generated_at`, `checksum`, and
+  `schema_version`. Clients echo `meta.dataset.version_id` back as
+  `base_version_id` when performing destructive operations to enable optimistic
+  concurrency.
 
 ## Shared Data Structures
 
@@ -52,6 +57,7 @@ with the file format.
 | `Transition` | Full transition payload mirroring the JSON schema. |
 | `NarrationOverride` | Conditional narration entry evaluated before the base narration. |
 | `ValidationIssue` | `{ "severity": "error", "code": "missing_target", "message": "…", "path": "…" }` |
+| `DatasetMetadata` | `{ "version_id": "…", "checksum": "…", "generated_at": "…", "schema_version": 2 }` |
 
 Detailed schemas are provided below using TypeScript notation for readability.
 
@@ -111,6 +117,13 @@ type ValidationIssue = {
   message: string;
   path: string;
 };
+
+type DatasetMetadata = {
+  version_id: string;
+  checksum: string;
+  generated_at: string;
+  schema_version: number;
+};
 ```
 
 ## Endpoints
@@ -118,6 +131,9 @@ type ValidationIssue = {
 ### `GET /scenes`
 
 List scenes for overview tables and navigation.
+
+The response embeds dataset metadata under `meta.dataset` so that navigation
+components can detect when their cached data is stale.
 
 **Query parameters**
 
@@ -148,6 +164,14 @@ List scenes for overview tables and navigation.
     "page_size": 50,
     "total_items": 120,
     "total_pages": 3
+  },
+  "meta": {
+    "dataset": {
+      "version_id": "20240705T080000Z-1a2b3c4d",
+      "generated_at": "2024-07-05T08:00:00Z",
+      "checksum": "f3a8…",
+      "schema_version": 2
+    }
   }
 }
 ```
@@ -155,6 +179,10 @@ List scenes for overview tables and navigation.
 ### `GET /scenes/{scene_id}`
 
 Fetch the canonical definition for a single scene.
+
+As with list responses, the payload includes `meta.dataset` describing the
+server's current dataset version. Editors copy this value into
+`base_version_id` when performing subsequent writes.
 
 **Path parameters**
 
@@ -187,6 +215,14 @@ Fetch the canonical definition for a single scene.
   },
   "validation": {
     "issues": []
+  },
+  "meta": {
+    "dataset": {
+      "version_id": "20240705T080000Z-1a2b3c4d",
+      "generated_at": "2024-07-05T08:00:00Z",
+      "checksum": "f3a8…",
+      "schema_version": 2
+    }
   }
 }
 ```
@@ -764,6 +800,14 @@ which are server-generated.
     },
     "links": {
       "self": "/api/scenes/abandoned-hut"
+    },
+    "meta": {
+      "dataset": {
+        "version_id": "20240320T080000Z-9a1b2c3d",
+        "generated_at": "2024-03-20T08:00:00Z",
+        "checksum": "0a1b…",
+        "schema_version": 2
+      }
     }
   }
   ```
@@ -796,6 +840,14 @@ needed).
       "id": "abandoned-hut",
       "created_at": "2024-03-20T08:00:00Z",
       "updated_at": "2024-03-21T15:30:00Z"
+    },
+    "meta": {
+      "dataset": {
+        "version_id": "20240321T153000Z-7c8d9e0f",
+        "generated_at": "2024-03-21T15:30:00Z",
+        "checksum": "1b2c…",
+        "schema_version": 2
+      }
     }
   }
   ```
@@ -826,6 +878,14 @@ request a dry-run impact report before committing the deletion.
       "deleted": true,
       "dependents": ["forest-edge"],
       "items_referenced": ["mysterious-map"]
+    },
+    "meta": {
+      "dataset": {
+        "version_id": "20240322T101500Z-11223344",
+        "generated_at": "2024-03-22T10:15:00Z",
+        "checksum": "2c3d…",
+        "schema_version": 2
+      }
     }
   }
   ```
@@ -1039,3 +1099,13 @@ Binary response body containing the file contents.
 - Extend `SceneSummary` with author attribution once authentication is added.
 - Consider embedding derived analytics (reachability, item flow) behind an
   `include=` query flag to avoid redundant requests in the editor shell.
+
+## Changelog
+
+- **2024-07-05 – Draft v0.3.** Documented the `meta.dataset` envelope shared by
+  list, detail, and write responses; aligned examples with the schema version 2
+  dataset wrapper; and expanded cross-references to the schema changelog.
+- **2024-05-01 – Draft v0.2.** Added branch planning, diff, rollback, and
+  project management endpoints plus validation metadata and backup guidance.
+- **2024-03-12 – Draft v0.1.** Established the initial scene CRUD surface and
+  error handling conventions for the web editor prototype.
