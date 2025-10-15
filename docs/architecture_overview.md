@@ -82,6 +82,60 @@ the system for new adventures or agent behaviours.
 - **Editor integrations** – The `docs/web_editor_*` files and API endpoints
   lay groundwork for richer authoring experiences beyond the CLI.
 
+## Frontend Stack Rationale
+
+The React-based scene editor extends the runtime architecture with a modern
+web toolchain tuned for rapid authoring. The stack choices optimise developer
+experience and runtime characteristics:
+
+- **Vite** – Provides instant local feedback through lightning-fast hot module
+  replacement, typed environment variable support, and production builds that
+  mirror the module graph expected by our static hosting targets. Vite's plugin
+  ecosystem also unlocks Markdown-driven documentation previews and API client
+  codegen without heavyweight bundler configuration.
+- **React** – Aligns with the component model documented in
+  `docs/frontend_component_catalog.md`, enabling composable UI primitives that
+  map directly to backend resources (projects, scenes, collaboration sessions).
+  React's declarative state model pairs with React Query and Zustand to isolate
+  server mutations from UI chrome, keeping the authoring experience predictable
+  even during realtime collaboration.
+- **Tailwind CSS** – Reinforces a utility-first design language that keeps the
+  component library consistent with accessibility guidance noted in
+  `web/scene-editor/AGENTS.md`. Tailwind's design tokens mirror the CLI's
+  colour and typography scale, simplifying shared branding across
+  documentation, the editor, and generated transcripts.
+
+These choices deliberately minimise bespoke configuration so that backend and
+tooling contributors can reason about the frontend without deep web-specific
+expertise. They also align with CI expectations (Node 18+, lint/typecheck
+commands) captured in the repository's contributor guides.
+
+## Shared Terminology
+
+Cross-team collaboration relies on a consistent vocabulary spanning the CLI and
+scene editor surfaces. The following terms are used across documentation,
+runtime code, and web tooling:
+
+- **Scene graph** – Directed network of nodes representing narrative beats and
+  conditional transitions. Stored according to `docs/web_editor_schema.md` and
+  visualised in the editor's graph canvas.
+- **Node** – A single playable moment containing narration, triggers, and
+  outcomes. Nodes render as cards in the detail side panel and as events within
+  CLI transcripts via `StoryEngine.format_event`.
+- **Transition** – Edge connecting nodes, potentially gated by conditions or
+  player inventory checks. Transitions inform both runtime validation utilities
+  and the editor's pathfinding helpers.
+- **Project** – Collection of scenes, assets, and collaboration metadata. The
+  backend's session catalogue API exposes projects; the editor dashboard lists
+  them as entry points for authors.
+- **Collaboration session** – Realtime editing context that tracks presence,
+  comments, and change history. Powered by websocket events described in
+  `docs/web_editor_api_spec.md` and surfaced through the collaboration hub UI.
+
+Maintaining shared definitions ensures that documentation, runtime logs, and
+feature roadmaps communicate intent without ambiguity as new contributors join
+the project.
+
 Refer to the automated tests in `tests/` for executable usage examples; the
 suite covers CLI flows, scene validation, analytics, coordinator behaviour, and
 LLM prompting.

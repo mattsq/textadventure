@@ -26,7 +26,7 @@ This file tracks progress on the documentation improvements required for the Rea
 ## Phase 4 – Create Maintenance Processes
 - [x] Define documentation ownership in `docs/best_practices.md` and add PR checklist updates.
   - Added a "Keep Documentation Healthy" section outlining doc steward duties, review cadence tracking, and a doc-aware PR checklist.
-- [ ] Evaluate automation options (CI checks for scoped `AGENTS.md`, docs spell-checker/link checker).
+- [x] Evaluate automation options (CI checks for scoped `AGENTS.md`, docs spell-checker/link checker).
   - [x] Research available tooling for scoped `AGENTS.md` enforcement in CI.
     - Findings documented in `docs/documentation_automation_options.md`.
   - [x] Compare documentation spell-check and link-check solutions suitable for this repo.
@@ -42,7 +42,11 @@ This file tracks progress on the documentation improvements required for the Rea
 
 ## Phase 5 – Knowledge Sharing & Examples
 - [ ] Produce tutorial-style guides under `docs/tutorials/` covering end-to-end scene editing workflows.
-- [ ] Expand `docs/architecture_overview.md` with rationale for the Vite + React + Tailwind stack and shared terminology definitions.
+  - [ ] Outline the multi-part tutorial structure and required screenshots.
+  - [ ] Draft "Author your first branching scene" walkthrough in `docs/tutorials/branching_scene.md`.
+  - [ ] Capture review checklist for tutorial updates in `docs/tutorials/README.md`.
+- [x] Expand `docs/architecture_overview.md` with rationale for the Vite + React + Tailwind stack and shared terminology definitions.
+  - Added "Frontend Stack Rationale" and "Shared Terminology" sections covering stack motivations and key vocabulary alignment.
 - [ ] Introduce PR narrative templates in `docs/contributing.md` for frontend-heavy work (screenshots, accessibility notes, state changes).
 
 ## Phase 6 – Continuous Feedback Loop
