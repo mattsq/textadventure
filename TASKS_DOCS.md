@@ -16,7 +16,7 @@ This file tracks progress on the documentation improvements required for the Rea
   - Added scoped guides for `forms`, `display`, `layout`, `graph`, `scene-editor`, `navigation`, and `collaboration` component domains.
 
 ## Phase 3 – Expand Formal Documentation
-- [ ] Draft `docs/react_scene_editor_overview.md` describing product vision, page structure, and backend interactions.
+- [x] Draft `docs/react_scene_editor_overview.md` describing product vision, page structure, and backend interactions. (Completed in v1 overview draft.)
 - [ ] Author `docs/frontend_component_catalog.md` detailing reusable components, props, and styling patterns.
 - [ ] Refresh API/schema references (`docs/web_editor_api_spec.md`, `docs/web_editor_schema.md`) and introduce changelog sections.
 - [ ] Update onboarding docs (`docs/getting_started.md`, `docs/contributing.md`) with unified Python + frontend setup instructions.
