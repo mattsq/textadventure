@@ -13,13 +13,20 @@ checklist you can follow before opening a pull request.
    python -m venv .venv
    source .venv/bin/activate  # Windows: .venv\Scripts\activate
    ```
-3. **Install dependencies** required for development and testing:
+3. **Install Python dependencies** required for development and testing:
    ```bash
    pip install -r requirements.txt
    ```
-4. **Run the existing test suite** once to confirm your environment is configured correctly:
+4. **Install frontend tooling** (Node.js 18+ and npm must be available):
+   ```bash
+   cd web/scene-editor
+   npm install
+   cd ../..
+   ```
+5. **Run the existing test suites once** to confirm your environment is configured correctly:
    ```bash
    pytest -q
+   cd web/scene-editor && npm run lint && npm run typecheck && npm run build && cd ../..
    ```
 
 ## Workflow Expectations
@@ -42,11 +49,12 @@ pytest -q
 mypy src
 ruff check src tests
 black --check src tests
+cd web/scene-editor && npm run lint && npm run typecheck && npm run build && cd ../..
 ```
 
 If you modify files outside `src/` or `tests/`, extend the commands accordingly (for example, run
-`ruff` or `black` on additional directories). Fix warnings and style violations rather than
-suppressing them.
+`ruff` or `black` on additional directories, or add `npm run test` for React component coverage). Fix
+warnings and style violations rather than suppressing them.
 
 ## Testing Guidelines
 
