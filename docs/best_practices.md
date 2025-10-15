@@ -100,5 +100,23 @@ they expose, and the transitions that connect them before opening your editor.
   ideas, record them in `TASKS.md` so future contributors can continue to level
   up the tooling.
 
+## Keep Documentation Healthy
+
+- **Assign a documentation steward.** Each major adventure or tooling stream
+  should name a primary maintainer responsible for keeping docs accurate. They
+  own quarterly reviews, field questions routed through the feedback channel,
+  and partner with PR authors when narrative or UX changes demand updates.
+- **Track review cadence.** Capture the last review date and steward in the
+  front matter of README-style guides so teammates can quickly see whether a
+  page is current or due for refresh.
+- **Follow the doc-aware PR checklist.** When opening a pull request:
+  - Confirm impacted guides, `AGENTS.md`, and schema references are updated.
+  - Call out any screenshots or transcripts that need regeneration.
+  - Mention the documentation steward in the PR description if the change
+    alters workflows or long-lived conventions.
+- **Record outcomes.** After merging, note significant documentation decisions
+  in the changelog or `TASKS.md` follow-ups to keep institutional knowledge from
+  hiding in review threads.
+
 By following these guidelines you will keep adventures approachable for players,
 maintainable for developers, and ready for richer agent-driven storytelling.

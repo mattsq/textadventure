@@ -24,7 +24,8 @@ This file tracks progress on the documentation improvements required for the Rea
   - Added Node.js prerequisites, npm install steps, and combined quality-gate commands covering the React scene editor.
 
 ## Phase 4 – Create Maintenance Processes
-- [ ] Define documentation ownership in `docs/best_practices.md` and add PR checklist updates.
+- [x] Define documentation ownership in `docs/best_practices.md` and add PR checklist updates.
+  - Added a "Keep Documentation Healthy" section outlining doc steward duties, review cadence tracking, and a doc-aware PR checklist.
 - [ ] Evaluate automation options (CI checks for scoped `AGENTS.md`, docs spell-checker/link checker).
 - [ ] Schedule recurring documentation audits and capture follow-up items in `TASKS.md` or future planning tools.
 
