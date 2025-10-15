@@ -131,3 +131,109 @@ relationships from the scene definitions:
 Understanding these relationships will help the web editor surface impact
 analysis (e.g., "deleting this scene breaks 3 transitions" or "this item is
 consumed but never awarded") and mirror the runtime's validation guarantees.
+
+## Dataset Envelope and Version Metadata
+
+While the runtime continues to load a flat `{ scene_id: SceneResource }`
+mapping, the editor-oriented API wraps those definitions in an envelope that
+adds bookkeeping information for backups, collaboration, and optimistic
+concurrency. Exports and import previews share the following structure:
+
+```json
+{
+  "generated_at": "2024-07-05T08:00:00Z",
+  "schema_version": 2,
+  "start_scene": "village-square",
+  "version_id": "20240705T080000Z-1a2b3c4d",
+  "checksum": "f3a8…",
+  "scenes": { /* Mapping of scene ids to SceneResource definitions */ }
+}
+```
+
+- **`generated_at`** – ISO 8601 timestamp describing when the dataset was
+  produced. UIs display it in confirmation prompts and audit logs.
+- **`schema_version`** – Positive integer describing the structural revision of
+  the payload. The API migrates older versions forward before diffing or
+  validating them.
+- **`start_scene`** – Optional canonical entry scene for reachability analysis.
+- **`version_id`** – Server-generated identifier used for optimistic concurrency
+  checks (`base_version_id` in write requests) and for naming exported archives.
+- **`checksum`** – SHA-256 digest of the canonical scene ordering so that
+  clients can detect accidental corruption or reordering.
+- **`scenes`** – The authoritative scene definitions described earlier in this
+  document.
+
+The same envelope appears inside branch planning, rollback previews, and project
+exports. When tooling stores local drafts it should persist these metadata
+fields alongside the scene definitions so that re-synchronisation with the API
+remains reliable.
+
+## Validation Report Shape
+
+Validation responses bundle multiple analyses so that editors can render rich
+feedback without issuing additional requests. The TypeScript-style definition
+below captures the composite structure emitted by import previews, validation
+endpoints, and write responses:
+
+```ts
+type ReachabilityReport = {
+  start_scene: string;
+  reachable_count: number;
+  unreachable: string[];
+};
+
+type ItemFlowReport = {
+  items: {
+    id: string;
+    awarded_by: string[];
+    required_by: string[];
+    consumed_by: string[];
+  }[];
+};
+
+type QualityReport = {
+  issues: ValidationIssue[];
+  summary: {
+    error_count: number;
+    warning_count: number;
+  };
+};
+
+type ValidationReport = {
+  generated_at: string;
+  reachability: ReachabilityReport;
+  item_flow: ItemFlowReport;
+  quality: QualityReport;
+};
+```
+
+When a scene passes validation the `issues` array may still include warnings for
+lint-style checks (unused items, unreachable narration overrides, etc.). Editors
+should block destructive actions only when `quality.summary.error_count > 0` but
+are encouraged to surface warnings prominently.
+
+## Schema Evolution and Compatibility
+
+Schema version `1` mirrored the raw runtime JSON and assumed the consumer would
+inject any metadata it required. Version `2`—the current draft used by the web
+editor—introduces the dataset envelope, start-scene hint, validation reports,
+and the `version_id`/`checksum` pair for synchronisation. Payloads declare their
+version through the `schema_version` field; when omitted the API assumes the
+latest revision and populates it during export so future imports retain the
+information.
+
+The backend maintains explicit migration helpers so that legacy datasets stay
+compatible. If a payload declares a newer schema version than the server
+understands, the API responds with a validation error listing the unsupported
+version and inviting the operator to upgrade. Future revisions should extend the
+changelog below with a short description and migration expectations.
+
+## Changelog
+
+- **2024-07-05 – Schema version 2 draft.** Added dataset envelope metadata
+  (`generated_at`, `schema_version`, `start_scene`, `version_id`, `checksum`),
+  formalised validation report shapes, and documented migration expectations for
+  optimistic concurrency.
+- **2024-03-15 – Initial extraction.** Captured the core relationships between
+  scenes, choices, transitions, inventory, and history for the web editor
+  planning effort.
