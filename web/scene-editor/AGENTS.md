@@ -26,7 +26,7 @@ These rules apply to every file under `web/scene-editor/`.
 ## API Usage
 - Instantiate API clients through `createSceneEditorApiClient` and centralise fetch logic in hooks or store actions rather than components.
 - Catch `SceneEditorApiError` and surface actionable feedback (status codes, messages) to the UI; fall back to generic copy only when the error type is unknown.
-- Ensure request payloads and responses stay aligned with the typed contracts defined in `src/api/client.ts`. Update both the types and any dependant selectors when the backend schema evolves.
+- Ensure request payloads and responses stay aligned with the typed contracts defined in `src/api/client.ts`. Update both the types and any dependent selectors when the backend schema evolves.
 
 ## File Organisation
 - Place page-level screens under `src/pages/` and wire them through `src/routes/`. Shared UI primitives belong in the appropriate domain-specific folder under `src/components/`.

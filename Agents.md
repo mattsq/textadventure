@@ -111,6 +111,12 @@ must:
   black src tests
   ruff check src tests
   ```
+- Enforce documentation guardrails before committing:
+  ```bash
+  python -m scripts.check_agents_guidance --diff-only
+  codespell --toml docs/codespell.toml docs web README.md
+  lychee --config docs/lychee.toml docs web README.md
+  ```
 
 All new or modified Python modules should include test coverage under `tests/`.
 
