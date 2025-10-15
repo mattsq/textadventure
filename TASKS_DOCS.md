@@ -27,6 +27,10 @@ This file tracks progress on the documentation improvements required for the Rea
 - [x] Define documentation ownership in `docs/best_practices.md` and add PR checklist updates.
   - Added a "Keep Documentation Healthy" section outlining doc steward duties, review cadence tracking, and a doc-aware PR checklist.
 - [ ] Evaluate automation options (CI checks for scoped `AGENTS.md`, docs spell-checker/link checker).
+  - [x] Research available tooling for scoped `AGENTS.md` enforcement in CI.
+    - Findings documented in `docs/documentation_automation_options.md`.
+  - [ ] Compare documentation spell-check and link-check solutions suitable for this repo.
+  - [ ] Propose initial automation recommendations and capture them in a new reference doc.
 - [ ] Schedule recurring documentation audits and capture follow-up items in `TASKS.md` or future planning tools.
 
 ## Phase 5 – Knowledge Sharing & Examples
