@@ -5,6 +5,7 @@ This guide walks through installing the project, launching the bundled demo adve
 ## 1. Prerequisites
 
 - **Python**: Version 3.9 or newer is required.
+- **Node.js**: Install Node.js 18 or later. The React-based scene editor uses Vite and Tailwind CSS, and the tooling expects an up-to-date Node runtime. The maintainers recommend using [`nvm`](https://github.com/nvm-sh/nvm) (macOS/Linux) or [`nvm-windows`](https://github.com/coreybutler/nvm-windows) to switch versions easily.
 - **Operating system**: The project is routinely tested on macOS, Linux, and Windows. All commands shown below work in a POSIX shell; Windows users can run them from PowerShell with minor adjustments noted inline.
 - **Optional dependencies**: Some features (such as LLM provider integrations) require third-party SDKs. These are declared in `requirements.txt` and can be installed as needed.
 
@@ -39,7 +40,26 @@ pip install -r requirements.txt
 
 The requirements file tracks the packages used by the CLI demo, the LLM provider adapters, and the automated test suite. If you only need the CLI experience you can skip optional extras like provider SDKs by installing the specific subset you require.
 
-## 5. Run the Demo Adventure
+## 5. Prepare the Frontend Tooling
+
+The web-based scene editor lives under `web/scene-editor/` and shares the same repository as the Python runtime. From the project root:
+
+```bash
+cd web/scene-editor
+npm install
+```
+
+This installs the Vite development server, React dependencies, Tailwind CSS, and the shared component library. Run these scripts during day-to-day work:
+
+- `npm run dev` – Start the Vite dev server on <http://localhost:5173>.
+- `npm run typecheck` – Execute TypeScript validation.
+- `npm run lint` – Run the ESLint configuration (mirrors the CI check).
+- `npm run build` – Produce a production bundle to sanity check optimisations.
+- `npm run preview` – Preview the production build locally.
+
+When you finish preparing the frontend workspace, return to the repository root with `cd ../..` or open a second shell dedicated to frontend commands.
+
+## 6. Run the Demo Adventure
 
 Launch the scripted text adventure from the repository root:
 
@@ -119,7 +139,7 @@ python src/main.py \
 
 You can supply repeated `--llm-option key=value` pairs to configure the selected provider. Values are parsed as JSON when possible, so booleans and numbers do not need to be quoted. Alternatively, store the configuration in a JSON file and load it with `--llm-config path/to/config.json`.
 
-## 6. Run Quality Gates
+## 7. Run Quality Gates
 
 Before contributing code changes, run the same checks enforced by the continuous integration pipeline:
 
@@ -128,18 +148,19 @@ pytest -q
 mypy src
 ruff check src tests
 black --check src tests
+cd web/scene-editor && npm run lint && npm run typecheck && npm run build && cd ../..
 ```
 
-Running these commands locally ensures unit tests, type checks, linting, and formatting all pass before you open a pull request.
+Running these commands locally ensures unit tests, type checks, linting, formatting, and frontend build steps all pass before you open a pull request. If you rarely touch the React editor you can defer the frontend scripts until a change affects `web/scene-editor/`, but run them at least once to confirm the tooling works in your environment.
 
-## 7. Explore Advanced Tools
+## 8. Explore Advanced Tools
 
 - Review `docs/data_driven_scenes.md` to author new adventures using the JSON scene format.
 - Consult `docs/llm_capabilities.md` for details on the provider capability schema and how to register new adapters.
 - Read `docs/best_practices.md` for narrative design guidance and analytics tips.
 - Dive into `docs/multi_agent_orchestration.md` to understand how multi-agent storytelling works inside the coordinator.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 If you encounter issues:
 
@@ -148,7 +169,7 @@ If you encounter issues:
 - Check `docs/troubleshooting.md` for solutions to common problems with provider configuration, persistence, or the CLI.
 - Search the issue tracker (or open a new issue) with details about your environment and steps to reproduce the problem.
 
-## 9. Next Steps
+## 10. Next Steps
 
 Once you are comfortable with the demo, experiment with:
 

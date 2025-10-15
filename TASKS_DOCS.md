@@ -20,7 +20,8 @@ This file tracks progress on the documentation improvements required for the Rea
 - [x] Author `docs/frontend_component_catalog.md` detailing reusable components, props, and styling patterns. (Added sectioned catalog covering layout, display, forms, navigation, graph, scene workflows, and collaboration primitives.)
 - [x] Refresh API/schema references (`docs/web_editor_api_spec.md`, `docs/web_editor_schema.md`) and introduce changelog sections.
   - Added dataset metadata envelopes, validation report breakdowns, and explicit changelog entries to align with schema version 2 plans.
-- [ ] Update onboarding docs (`docs/getting_started.md`, `docs/contributing.md`) with unified Python + frontend setup instructions.
+- [x] Update onboarding docs (`docs/getting_started.md`, `docs/contributing.md`) with unified Python + frontend setup instructions.
+  - Added Node.js prerequisites, npm install steps, and combined quality-gate commands covering the React scene editor.
 
 ## Phase 4 – Create Maintenance Processes
 - [ ] Define documentation ownership in `docs/best_practices.md` and add PR checklist updates.
