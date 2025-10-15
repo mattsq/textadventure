@@ -10,7 +10,7 @@ This file tracks progress on the documentation improvements required for the Rea
   - Notes captured alongside the structural summary in `docs/react_scene_editor_structure.md`.
 
 ## Phase 2 – Update Agent-Facing Guides
-- [ ] Revise the root `Agents.md` with frontend workflow expectations (npm scripts, testing, screenshot policy).
+- [x] Revise the root `Agents.md` with frontend workflow expectations (npm scripts, testing, screenshot policy).
 - [ ] Create scoped guidance for the web editor in `web/scene-editor/AGENTS.md` (code style, state management, API usage).
 - [ ] Add nested `AGENTS.md` files for complex component directories to capture domain-specific rules.
 

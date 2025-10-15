@@ -64,6 +64,33 @@ suite resides under `tests/`.
    Use `python src/main.py --help` for persistence-related options like
    `--session-dir`, `--session-id`, and the `--log-file` transcript flag.
 
+## Frontend Workflow Expectations
+
+The scene editor lives under `web/scene-editor/` and relies on the Vite + React
+toolchain with Tailwind CSS for styling. Contributors working on the frontend
+must:
+
+1. Install Node.js 18+ (to match the CI environment) and project dependencies:
+   ```bash
+   cd web/scene-editor
+   npm install
+   ```
+2. Use the provided npm scripts during development and validation:
+   - `npm run dev` – Launch the Vite dev server for local iteration.
+   - `npm run build` – Produce a production build (run before committing
+     significant UI changes).
+   - `npm run preview` – Smoke-test the production bundle locally.
+   - `npm run typecheck` – Run TypeScript checks and keep them passing.
+3. Follow the Tailwind-first styling approach described in
+   `web/scene-editor/README.md`. Avoid introducing ad-hoc CSS files unless the
+   design system truly requires it.
+4. Capture updated screenshots whenever a change affects rendered UI. Use the
+   repository's screenshot workflow (via the provided browser tooling) and link
+   the artifact in your PR description.
+5. Coordinate cross-cutting changes with the Python backend when adjusting
+   shared contracts (API schemas, persistence formats, etc.), updating the
+   relevant docs and tests in both stacks.
+
 ## Testing & Quality Gates
 
 > **Absolute rule:** before committing *any* change you **must** run every
