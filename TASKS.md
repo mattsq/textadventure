@@ -236,6 +236,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Prototype Markdown rendering in the CLI runtime *(Added ANSI Markdown renderer and wired it into the CLI formatting flow.)*
         - [x] Integrate the editor into the scene authoring UI shell *(Wired a Markdown-powered narration editor with live preview, toolbar theming, and validation integration inside the scene detail form.)*
         - [ ] Add collaborative enhancements (presence indicators, inline comments)
+          - [x] Surface live collaborator presence in the scene editor using the collaboration session API.
+          - [ ] Introduce inline comment threads for narration fields.
       - [x] Item requirements multi-select *(Added tag-style multi-select controls in the transition editor so authors can manage required inventory items.)*
       - [x] Item consumption configuration *(Transition editor now includes multi-select controls for configuring consumed inventory items with inline validation feedback.)*
       - [x] Failure narration editor

@@ -47,6 +47,24 @@ export interface SceneSummary {
   readonly updated_at: string;
 }
 
+export type CollaboratorRole = "owner" | "editor" | "viewer";
+
+export interface AdventureProjectResource {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly scene_count: number;
+  readonly collaborator_count: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly version_id: string;
+  readonly checksum: string;
+}
+
+export interface AdventureProjectListResponse {
+  readonly data: readonly AdventureProjectResource[];
+}
+
 export interface PaginationMetadata {
   readonly page: number;
   readonly page_size: number;
@@ -159,6 +177,22 @@ export interface SceneReferenceResource {
 export interface SceneReferenceListResponse {
   readonly scene_id: string;
   readonly data: readonly SceneReferenceResource[];
+}
+
+export interface ProjectCollaborationSessionResource {
+  readonly session_id: string;
+  readonly user_id: string;
+  readonly role: CollaboratorRole;
+  readonly display_name: string | null;
+  readonly scene_id: string | null;
+  readonly started_at: string;
+  readonly last_heartbeat: string;
+  readonly expires_at: string;
+}
+
+export interface ProjectCollaborationSessionListResponse {
+  readonly project_id: string;
+  readonly sessions: readonly ProjectCollaborationSessionResource[];
 }
 
 export interface SceneGraphNodeResource {
@@ -482,6 +516,25 @@ export class SceneEditorApiClient {
       "/scenes/graph",
       { signal: options.signal },
       { start_scene: params.startScene },
+    );
+  }
+
+  async listProjects(
+    options: RequestOptions = {},
+  ): Promise<AdventureProjectListResponse> {
+    return this.request<AdventureProjectListResponse>(
+      "/projects",
+      { signal: options.signal },
+    );
+  }
+
+  async listProjectCollaborationSessions(
+    projectId: string,
+    options: RequestOptions = {},
+  ): Promise<ProjectCollaborationSessionListResponse> {
+    return this.request<ProjectCollaborationSessionListResponse>(
+      `/projects/${encodeURIComponent(projectId)}/collaboration/sessions`,
+      { signal: options.signal },
     );
   }
 }
