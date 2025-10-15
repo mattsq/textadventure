@@ -12,7 +12,8 @@ This file tracks progress on the documentation improvements required for the Rea
 ## Phase 2 – Update Agent-Facing Guides
 - [x] Revise the root `Agents.md` with frontend workflow expectations (npm scripts, testing, screenshot policy).
 - [x] Create scoped guidance for the web editor in `web/scene-editor/AGENTS.md` (code style, state management, API usage).
-- [ ] Add nested `AGENTS.md` files for complex component directories to capture domain-specific rules.
+- [x] Add nested `AGENTS.md` files for complex component directories to capture domain-specific rules.
+  - Added scoped guides for `forms`, `display`, `layout`, `graph`, `scene-editor`, `navigation`, and `collaboration` component domains.
 
 ## Phase 3 – Expand Formal Documentation
 - [ ] Draft `docs/react_scene_editor_overview.md` describing product vision, page structure, and backend interactions.
