@@ -3,10 +3,10 @@
 This plan outlines a comprehensive sequence of tasks to modernize repository guidance so future agents can ramp up quickly on the new Vite + React scene editor and its integration points with the Python runtime.
 
 ## Phase 1 – Audit & Information Gathering
-1. **Inventory existing instructions.**
-   - Review the root-level `Agents.md` for overarching workflow expectations.
-   - Catalogue all documentation under `docs/` (architecture, API specs, best practices) and assess coverage gaps for the React editor and shared frontend patterns.
-   - Identify areas where the web editor diverges from the documented backend API (`docs/web_editor_api_spec.md`) and schema (`docs/web_editor_schema.md`).
+1. **Inventory existing instructions.** ✅ (See `docs/react_editor_docs_audit.md`.)
+   - Reviewed the root-level `Agents.md` and confirmed it lacks frontend-specific workflows.
+   - Catalogued current `docs/` coverage, noting the absence of React/Vite guidance and component documentation.
+   - Documented divergences between the frontend API client and the existing REST/schema references, including missing endpoints and version metadata in the published specs.
 2. **Map the frontend code structure.**
    - Document the routing hierarchy defined in `web/scene-editor/src/App.tsx` and `routes/SceneEditorLayout.tsx`, noting placeholder views and shared layout primitives.
    - Summarize available component groups in `web/scene-editor/src/components/` (layout, navigation, display, forms, graph, scene-editor) including their intended usage and styling conventions.
