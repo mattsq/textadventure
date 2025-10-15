@@ -31,8 +31,11 @@ This file tracks progress on the documentation improvements required for the Rea
     - Findings documented in `docs/documentation_automation_options.md`.
   - [x] Compare documentation spell-check and link-check solutions suitable for this repo.
     - Detailed comparison captured in `docs/documentation_quality_tool_comparison.md` with recommended tooling.
-  - [ ] Propose initial automation recommendations and capture them in a new reference doc.
-- [ ] Schedule recurring documentation audits and capture follow-up items in `TASKS.md` or future planning tools.
+  - [x] Propose initial automation recommendations and capture them in a new reference doc.
+    - See `docs/documentation_automation_recommendations.md` for the implementation roadmap and CI plan.
+- [x] Schedule recurring documentation audits and capture follow-up items in `TASKS.md` or future planning tools.
+  - Established cadence documented in `docs/documentation_review_schedule.md` with workflow templates.
+- [ ] Implement the documentation guardrails (AGENTS checker, `codespell`, `lychee`) and wire them into CI.
 
 ## Phase 5 – Knowledge Sharing & Examples
 - [ ] Produce tutorial-style guides under `docs/tutorials/` covering end-to-end scene editing workflows.
