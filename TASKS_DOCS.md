@@ -29,7 +29,8 @@ This file tracks progress on the documentation improvements required for the Rea
 - [ ] Evaluate automation options (CI checks for scoped `AGENTS.md`, docs spell-checker/link checker).
   - [x] Research available tooling for scoped `AGENTS.md` enforcement in CI.
     - Findings documented in `docs/documentation_automation_options.md`.
-  - [ ] Compare documentation spell-check and link-check solutions suitable for this repo.
+  - [x] Compare documentation spell-check and link-check solutions suitable for this repo.
+    - Detailed comparison captured in `docs/documentation_quality_tool_comparison.md` with recommended tooling.
   - [ ] Propose initial automation recommendations and capture them in a new reference doc.
 - [ ] Schedule recurring documentation audits and capture follow-up items in `TASKS.md` or future planning tools.
 
