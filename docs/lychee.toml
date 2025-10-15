@@ -1,0 +1,17 @@
+no_progress = true
+max_retries = 2
+retry_wait_time = 2
+max_concurrency = 8
+timeout = 20
+scheme = ["http", "https"]
+accept = ["200", "206", "429"]
+exclude = [
+    "^https?://localhost",
+    "^https?://127\\.0\\.0\\.1",
+    "^https?://0\\.0\\.0\\.0",
+    "^https?://10\\.",
+]
+exclude_path = [
+    "\\.json$",
+    "\\.ya?ml$",
+]

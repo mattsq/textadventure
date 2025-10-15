@@ -11,7 +11,7 @@ This guide turns the research in `docs/documentation_automation_options.md` and 
 2. **Spelling guardrail with `codespell`**
    - Add `codespell` to `requirements.txt` or a new `requirements-dev.txt` entry and pin the version for deterministic CI.
    - Store project-specific jargon in `docs/codespell-ignore-words.txt` and reference it from a minimal `codespell.toml`.
-   - Default command: `codespell --config docs/codespell.toml docs web README.md`.
+   - Default command: `codespell --toml docs/codespell.toml docs web README.md`.
 3. **Link validation with `lychee`**
    - Vendor a `docs/lychee.toml` that defines retry counts, per-domain rate limits, and ignore lists for localhost or deliberately unreachable URLs.
    - Download the prebuilt binary in CI and cache it using the GitHub Actions tool cache to avoid repeated installs.
@@ -29,7 +29,7 @@ This guide turns the research in `docs/documentation_automation_options.md` and 
      - name: Validate documentation guardrails
        run: |
          python -m scripts.check_agents_guidance --diff-only
-         codespell --config docs/codespell.toml docs web README.md
+         codespell --toml docs/codespell.toml docs web README.md
          lychee --config docs/lychee.toml docs web README.md
      ```
    - Promote `--diff-only` to `--all-files` once initial cleanup completes.

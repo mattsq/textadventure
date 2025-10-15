@@ -49,8 +49,15 @@ pytest -q
 mypy src
 ruff check src tests
 black --check src tests
+python -m scripts.check_agents_guidance --diff-only
+codespell --toml docs/codespell.toml docs web README.md
+lychee --config docs/lychee.toml docs web README.md
 cd web/scene-editor && npm run lint && npm run typecheck && npm run build && cd ../..
 ```
+
+The documentation guardrails (`check_agents_guidance`, `codespell`, and `lychee`) catch missing
+`AGENTS.md` scopes, spelling regressions, and broken links respectively. Run them from the
+repository root so configuration files resolve correctly.
 
 If you modify files outside `src/` or `tests/`, extend the commands accordingly (for example, run
 `ruff` or `black` on additional directories, or add `npm run test` for React component coverage). Fix

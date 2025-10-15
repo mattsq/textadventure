@@ -1,0 +1,4 @@
+[tool.codespell]
+ignore-words-list = "docs/codespell-ignore-words.txt"
+skip = "*.lock,*.svg,*.png,*.json"
+quiet-level = 3

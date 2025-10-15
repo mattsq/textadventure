@@ -35,7 +35,10 @@ This file tracks progress on the documentation improvements required for the Rea
     - See `docs/documentation_automation_recommendations.md` for the implementation roadmap and CI plan.
 - [x] Schedule recurring documentation audits and capture follow-up items in `TASKS.md` or future planning tools.
   - Established cadence documented in `docs/documentation_review_schedule.md` with workflow templates.
-- [ ] Implement the documentation guardrails (AGENTS checker, `codespell`, `lychee`) and wire them into CI.
+- [x] Implement the documentation guardrails (AGENTS checker, `codespell`, `lychee`) and wire them into CI.
+  - [x] Build the `scripts/check_agents_guidance.py` CLI with `--diff-only` support and regression tests.
+  - [x] Add a `codespell` configuration/ignore list and run it in CI alongside existing linters.
+  - [x] Add a `lychee` configuration and execute the link checker in CI (with binary installation cached).
 
 ## Phase 5 – Knowledge Sharing & Examples
 - [ ] Produce tutorial-style guides under `docs/tutorials/` covering end-to-end scene editing workflows.

@@ -148,10 +148,13 @@ pytest -q
 mypy src
 ruff check src tests
 black --check src tests
+python -m scripts.check_agents_guidance --diff-only
+codespell --toml docs/codespell.toml docs web README.md
+lychee --config docs/lychee.toml docs web README.md
 cd web/scene-editor && npm run lint && npm run typecheck && npm run build && cd ../..
 ```
 
-Running these commands locally ensures unit tests, type checks, linting, formatting, and frontend build steps all pass before you open a pull request. If you rarely touch the React editor you can defer the frontend scripts until a change affects `web/scene-editor/`, but run them at least once to confirm the tooling works in your environment.
+Running these commands locally ensures unit tests, type checks, linting, documentation guardrails, formatting, and frontend build steps all pass before you open a pull request. If you rarely touch the React editor you can defer the frontend scripts until a change affects `web/scene-editor/`, but run them at least once to confirm the tooling works in your environment.
 
 ## 8. Explore Advanced Tools
 

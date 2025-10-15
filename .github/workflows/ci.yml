@@ -28,6 +28,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Cache lychee binary
+        id: cache-lychee
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/lychee
+          key: lychee-v0.20.1
+
+      - name: Install lychee
+        if: steps.cache-lychee.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL -o lychee.tar.gz https://github.com/lycheeverse/lychee/releases/download/lychee-v0.20.1/lychee-x86_64-unknown-linux-gnu.tar.gz
+          tar -xzf lychee.tar.gz
+          mkdir -p ~/.local/bin
+          mv lychee ~/.local/bin/lychee
+        shell: bash
+
+      - name: Add local bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
       - name: Run Ruff
         run: ruff check src tests
 
@@ -36,6 +55,12 @@ jobs:
 
       - name: Run mypy
         run: mypy src
+
+      - name: Validate documentation guardrails
+        run: |
+          python -m scripts.check_agents_guidance --diff-only
+          codespell --toml docs/codespell.toml docs web README.md
+          lychee --config docs/lychee.toml docs web README.md
 
       - name: Run tests
         run: pytest -q
