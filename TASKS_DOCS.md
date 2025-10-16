@@ -43,7 +43,7 @@ This file tracks progress on the documentation improvements required for the Rea
 ## Phase 5 – Knowledge Sharing & Examples
 - [ ] Produce tutorial-style guides under `docs/tutorials/` covering end-to-end scene editing workflows.
   - [x] Part 1 – Environment setup & first launch walkthrough (`docs/tutorials/environment_setup_first_launch.md`).
-  - [ ] Part 2 – Scene fundamentals and navigation wiring guide.
+  - [x] Part 2 – Scene fundamentals and navigation wiring guide. (Documented in `docs/tutorials/scene_fundamentals_navigation.md`.)
   - [x] Part 3 – Branching narrative authoring guide (`docs/tutorials/branching_scene.md`).
   - [ ] Part 4 – Playtesting & publishing workflow.
   - [x] Outline the multi-part tutorial structure and required screenshots. (Documented in `docs/tutorials/README.md`.)
