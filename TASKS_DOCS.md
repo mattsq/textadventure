@@ -42,9 +42,9 @@ This file tracks progress on the documentation improvements required for the Rea
 
 ## Phase 5 – Knowledge Sharing & Examples
 - [ ] Produce tutorial-style guides under `docs/tutorials/` covering end-to-end scene editing workflows.
-  - [ ] Outline the multi-part tutorial structure and required screenshots.
-  - [ ] Draft "Author your first branching scene" walkthrough in `docs/tutorials/branching_scene.md`.
-  - [ ] Capture review checklist for tutorial updates in `docs/tutorials/README.md`.
+  - [x] Outline the multi-part tutorial structure and required screenshots. (Documented in `docs/tutorials/README.md`.)
+  - [x] Draft "Author your first branching scene" walkthrough in `docs/tutorials/branching_scene.md`.
+  - [x] Capture review checklist for tutorial updates in `docs/tutorials/README.md`.
 - [x] Expand `docs/architecture_overview.md` with rationale for the Vite + React + Tailwind stack and shared terminology definitions.
   - Added "Frontend Stack Rationale" and "Shared Terminology" sections covering stack motivations and key vocabulary alignment.
 - [ ] Introduce PR narrative templates in `docs/contributing.md` for frontend-heavy work (screenshots, accessibility notes, state changes).
