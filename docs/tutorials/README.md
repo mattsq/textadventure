@@ -19,6 +19,7 @@ The tutorial series is structured as four installments that build upon each othe
      - Configure project metadata and default player state.
      - Add two locations and connect them with navigation actions.
      - Capture a screenshot of the location graph showing the new nodes and edges.
+   - Reference tutorial: [`scene_fundamentals_navigation.md`](scene_fundamentals_navigation.md)
 3. **Part 3 – Branching Narrative Authoring**
    - Focus: Layer conditional logic, branching choices, and outcome summaries.
    - Key checkpoints:
