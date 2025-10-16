@@ -33,6 +33,7 @@ The tutorial series is structured as four installments that build upon each othe
      - Launch playtest, record transcript snippets, and note bug logging workflow.
      - Export the scene package and review JSON validation messages.
      - Capture a screenshot of the playtest console with annotations enabled.
+   - Reference tutorial: [`playtesting_publishing_workflow.md`](playtesting_publishing_workflow.md)
 
 > **Screenshot storage:** Place tutorial screenshots under `docs/tutorials/images/` with semantic filenames (e.g., `part3-branching-choice.png`). Update captions inline where the image is referenced.
 
