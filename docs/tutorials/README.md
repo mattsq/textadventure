@@ -12,6 +12,7 @@ The tutorial series is structured as four installments that build upon each othe
      - Verify Node.js, npm, and Python prerequisites.
      - Start the Vite dev server and confirm hot reload.
      - Capture a screenshot of the landing dashboard with the dev server status indicator visible.
+   - Reference tutorial: [`environment_setup_first_launch.md`](environment_setup_first_launch.md)
 2. **Part 2 – Scene Fundamentals**
    - Focus: Create a new project, define locations, and wire basic actions.
    - Key checkpoints:
@@ -24,6 +25,7 @@ The tutorial series is structured as four installments that build upon each othe
      - Add choice prompts and conditional transitions in the scene editor form.
      - Preview branching paths in the graph inspector.
      - Capture a screenshot of the branching choice editor with condition badges visible.
+   - Reference tutorial: [`branching_scene.md`](branching_scene.md)
 4. **Part 4 – Playtesting & Publishing**
    - Focus: Run the built-in playtest mode, collect feedback, and prepare export artifacts.
    - Key checkpoints:
