@@ -231,7 +231,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [ ] Create comprehensive transition editor:
       - [x] Target scene dropdown with autocomplete
       - [ ] Rich text editor for narration
-        - [ ] Evaluate rich text frameworks that output Markdown-compatible content
+      - [x] Evaluate rich text frameworks that output Markdown-compatible content *(Documented findings in `docs/rich_text_editor_evaluation.md`.)*
         - [x] Document requirements and integration plan *(see `docs/rich_text_editor_plan.md`)*
         - [x] Prototype Markdown rendering in the CLI runtime *(Added ANSI Markdown renderer and wired it into the CLI formatting flow.)*
         - [x] Integrate the editor into the scene authoring UI shell *(Wired a Markdown-powered narration editor with live preview, toolbar theming, and validation integration inside the scene detail form.)*
