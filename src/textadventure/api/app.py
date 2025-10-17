@@ -1607,9 +1607,12 @@ class SceneCommentThreadCreateRequest(BaseModel):
     """Request body for creating a new inline comment thread."""
 
     location: SceneCommentLocation = Field(
-        ..., description="Location metadata describing where the thread should be anchored.",
+        ...,
+        description="Location metadata describing where the thread should be anchored.",
     )
-    body: str = Field(..., description="Markdown formatted body for the initial comment.")
+    body: str = Field(
+        ..., description="Markdown formatted body for the initial comment."
+    )
     author_id: str | None = Field(
         None, description="Optional collaborator identifier for the author."
     )
@@ -2503,7 +2506,9 @@ class SceneProjectStore:
                     )
                 )
 
-            if not isinstance(created_at_raw, str) or not isinstance(updated_at_raw, str):
+            if not isinstance(created_at_raw, str) or not isinstance(
+                updated_at_raw, str
+            ):
                 raise ValueError(
                     (
                         f"Project '{project_id}' comment thread '{identifier_raw}' "
@@ -4669,12 +4674,17 @@ class SceneCommentService:
                 continue
             if location_type is not None and thread.location.type != location_type:
                 continue
-            if trimmed_command is not None and thread.location.choice_command != trimmed_command:
+            if (
+                trimmed_command is not None
+                and thread.location.choice_command != trimmed_command
+            ):
                 continue
             filtered.append(thread)
 
         filtered.sort(key=lambda entry: (entry.created_at, entry.identifier))
-        resources = [_build_scene_comment_thread_resource(thread) for thread in filtered]
+        resources = [
+            _build_scene_comment_thread_resource(thread) for thread in filtered
+        ]
         return SceneCommentThreadListResponse(
             project_id=record.identifier,
             scene_id=scene_id,
@@ -4693,7 +4703,9 @@ class SceneCommentService:
         acting_user_id: str | None = None,
     ) -> SceneCommentThreadResource:
         record = self._store.load(project_id)
-        self._enforce_permission(record, acting_user_id, action="create inline comments")
+        self._enforce_permission(
+            record, acting_user_id, action="create inline comments"
+        )
         existing = list(self._store.load_scene_comment_threads(record))
 
         now = datetime.now(timezone.utc)
@@ -4740,7 +4752,9 @@ class SceneCommentService:
         acting_user_id: str | None = None,
     ) -> SceneCommentThreadResource:
         record = self._store.load(project_id)
-        self._enforce_permission(record, acting_user_id, action="reply to inline comments")
+        self._enforce_permission(
+            record, acting_user_id, action="reply to inline comments"
+        )
         threads = list(self._store.load_scene_comment_threads(record))
         trimmed_body = body.strip()
         if not trimmed_body:
