@@ -15,7 +15,7 @@ import shutil
 import uuid
 import zipfile
 from collections import defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from importlib import resources
 from enum import Enum
@@ -9466,6 +9466,38 @@ class PlaytestTranscriptRecorder:
         return tuple(self._entries)
 
 
+@dataclass(frozen=True)
+class PlaytestReplayStep:
+    """Result of replaying a single transcript entry."""
+
+    entry: PlaytestTranscriptEntry
+    actual_event: StoryEvent
+
+    @property
+    def matches(self) -> bool:
+        """Return ``True`` when the replayed event matches the transcript."""
+
+        return self.actual_event == self.entry.event
+
+
+@dataclass(frozen=True)
+class PlaytestReplayResult:
+    """Summary describing the outcome of a transcript replay run."""
+
+    steps: tuple[PlaytestReplayStep, ...]
+    mismatches: tuple[PlaytestReplayStep, ...] = field(init=False)
+
+    def __post_init__(self) -> None:
+        mismatches = tuple(step for step in self.steps if not step.matches)
+        object.__setattr__(self, "mismatches", mismatches)
+
+    @property
+    def is_successful(self) -> bool:
+        """Return ``True`` when all replayed events match the transcript."""
+
+        return not self.mismatches
+
+
 class PlaytestSession:
     """Manage story state for a single live playtest connection."""
 
@@ -9535,6 +9567,63 @@ class PlaytestSession:
         self._world.remember_observation(event.narration)
         self._transcript.record(player_input=command_text, event=event)
         return event
+
+
+def replay_playtest_transcript(
+    transcript: Sequence[PlaytestTranscriptEntry],
+    *,
+    engine_factory: Callable[[], StoryEngine],
+) -> PlaytestReplayResult:
+    """Replay ``transcript`` using a fresh engine instance.
+
+    The helper re-creates a :class:`PlaytestSession` and feeds each recorded player
+    input back into the story engine. The produced events are compared to the
+    transcript so automated tests can flag behavioural regressions.
+
+    Args:
+        transcript: Recorded transcript entries ordered by their ``turn``. The
+            sequence must start at turn 1 and contain contiguous turn numbers.
+        engine_factory: Factory used to construct the story engine for the replay.
+
+    Returns:
+        A :class:`PlaytestReplayResult` describing each replayed step.
+
+    Raises:
+        ValueError: If ``transcript`` contains non-sequential turns or omits player
+            input data required to reproduce an event.
+    """
+
+    if not transcript:
+        return PlaytestReplayResult(steps=())
+
+    session = PlaytestSession(engine_factory)
+    steps: list[PlaytestReplayStep] = []
+    expected_turn = 1
+
+    for index, entry in enumerate(transcript):
+        if entry.turn != expected_turn:
+            raise ValueError(
+                "Transcript entries must have sequential turn numbers starting at 1.",
+            )
+
+        if index == 0:
+            if entry.player_input is not None:
+                raise ValueError(
+                    "First transcript entry must capture the initial event with no player input.",
+                )
+            actual_event = session.reset()
+        else:
+            player_input = entry.player_input
+            if player_input is None:
+                raise ValueError(
+                    f"Transcript entry for turn {entry.turn} does not include the recorded player input.",
+                )
+            actual_event = session.apply_player_input(player_input)
+
+        steps.append(PlaytestReplayStep(entry=entry, actual_event=actual_event))
+        expected_turn += 1
+
+    return PlaytestReplayResult(steps=tuple(steps))
 
 
 class PlaytestManager:
