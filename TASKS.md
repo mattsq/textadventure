@@ -474,3 +474,10 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Update the CLI help output to mention the new command.
   - [x] Cover the new command with automated tests ensuring the formatted
         output matches expectations when providers are available or absent.
+
+## Priority 13: Documentation Follow-ups
+- [x] Introduce PR narrative templates in `docs/contributing.md` for frontend-heavy work.
+  - [x] Capture template goals (screenshots, accessibility notes, state changes) so reviewers know what to expect.
+  - [x] Provide a copyable checklist contributors can drop into PR descriptions.
+- [ ] Capture the Part 4 playtest console screenshot for `docs/tutorials/playtesting_publishing.md` once refreshed assets are available.
+- [ ] Establish a documentation feedback channel (survey or issue label) and reference it from `Agents.md` and `docs/contributing.md`.
