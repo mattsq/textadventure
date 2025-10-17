@@ -236,8 +236,15 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Prototype Markdown rendering in the CLI runtime *(Added ANSI Markdown renderer and wired it into the CLI formatting flow.)*
         - [x] Integrate the editor into the scene authoring UI shell *(Wired a Markdown-powered narration editor with live preview, toolbar theming, and validation integration inside the scene detail form.)*
         - [ ] Add collaborative enhancements (presence indicators, inline comments)
-          - [x] Surface live collaborator presence in the scene editor using the collaboration session API.
-          - [ ] Introduce inline comment threads for narration fields.
+        - [x] Surface live collaborator presence in the scene editor using the collaboration session API.
+        - [x] Introduce inline comment threads for narration fields.
+          - [x] Define backend storage model and REST endpoints for narration comment threads.
+          - [x] Implement frontend comment thread UI and state integration for narration editors.
+            - [x] Extend the Scene Editor API client with inline comment thread endpoints.
+            - [x] Load and manage scene comment thread state in the editor UI.
+            - [x] Render narration comment panels with thread listing, creation, replies, and resolution toggles.
+            - [x] Add loading, empty, and error handling states for comment interactions.
+          - [x] Add automated tests and documentation covering the narration comment workflow.
       - [x] Item requirements multi-select *(Added tag-style multi-select controls in the transition editor so authors can manage required inventory items.)*
       - [x] Item consumption configuration *(Transition editor now includes multi-select controls for configuring consumed inventory items with inline validation feedback.)*
       - [x] Failure narration editor

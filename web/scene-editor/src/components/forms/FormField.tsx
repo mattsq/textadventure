@@ -15,6 +15,7 @@ export interface BaseFieldProps {
   readonly error?: React.ReactNode;
   readonly className?: string;
   readonly inputClassName?: string;
+  readonly labelActions?: React.ReactNode;
 }
 
 interface FieldWrapperProps extends BaseFieldProps {
@@ -28,6 +29,7 @@ interface FieldWrapperProps extends BaseFieldProps {
 const FieldWrapper: React.FC<FieldWrapperProps> = ({
   id,
   label,
+  labelActions,
   description,
   descriptionId,
   error,
@@ -39,10 +41,17 @@ const FieldWrapper: React.FC<FieldWrapperProps> = ({
   return (
     <div className={classNames("flex flex-col gap-2", className)}>
       <div className="flex flex-col gap-1">
-        <label htmlFor={id} className="text-sm font-medium text-slate-200">
-          {label}
-          {required ? <span className="ml-1 text-red-400">*</span> : null}
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor={id} className="text-sm font-medium text-slate-200">
+            {label}
+            {required ? <span className="ml-1 text-red-400">*</span> : null}
+          </label>
+          {labelActions ? (
+            <div className="ml-auto flex items-center gap-2 text-xs text-slate-400">
+              {labelActions}
+            </div>
+          ) : null}
+        </div>
         {description ? (
           <p id={descriptionId} className="text-xs text-slate-400">
             {description}
@@ -96,6 +105,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
       required,
       className,
       inputClassName,
+      labelActions,
       id,
       type = "text",
       ...props
@@ -118,6 +128,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
         errorId={errorId}
         required={required}
         className={className}
+        labelActions={labelActions}
       >
         <input
           {...props}
@@ -155,6 +166,7 @@ export const AutocompleteField = forwardRef<HTMLInputElement, AutocompleteFieldP
       required,
       className,
       inputClassName,
+      labelActions,
       id,
       options,
       value,
@@ -325,6 +337,7 @@ export const AutocompleteField = forwardRef<HTMLInputElement, AutocompleteFieldP
         errorId={errorId}
         required={required}
         className={className}
+        labelActions={labelActions}
       >
         <div className="relative">
           <input
@@ -831,6 +844,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
       required,
       className,
       inputClassName,
+      labelActions,
       id,
       rows = 4,
       ...props
@@ -853,6 +867,7 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
         errorId={errorId}
         required={required}
         className={className}
+        labelActions={labelActions}
       >
         <textarea
           {...props}
@@ -893,6 +908,7 @@ export const MarkdownEditorField: React.FC<MarkdownEditorFieldProps> = ({
   required,
   className,
   inputClassName,
+  labelActions,
   id,
   value,
   onChange,
@@ -941,6 +957,7 @@ export const MarkdownEditorField: React.FC<MarkdownEditorFieldProps> = ({
       errorId={errorId}
       required={required}
       className={className}
+      labelActions={labelActions}
     >
       <div
         className={classNames(

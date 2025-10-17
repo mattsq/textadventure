@@ -1,6 +1,10 @@
 import React from "react";
-import type { TransitionResource } from "../../api";
+import type {
+  SceneCommentThreadResource,
+  TransitionResource,
+} from "../../api";
 import { Card } from "../display";
+import { SceneCommentThreadPanel } from "../collaboration";
 import {
   AutocompleteField,
   MarkdownEditorField,
@@ -19,6 +23,28 @@ export interface TransitionEditorValues {
   readonly target: string | null;
   readonly narration: string;
   readonly extras: TransitionExtras;
+}
+
+export interface TransitionCommentSupport {
+  readonly status: "idle" | "loading" | "ready" | "error" | "disabled";
+  readonly threadsByCommand: Record<
+    string,
+    readonly SceneCommentThreadResource[]
+  >;
+  readonly error?: string | null;
+  readonly disabledReason?: string | null;
+  readonly onRefresh?: () => void | Promise<void>;
+  readonly onCreateThread?: (command: string, body: string) => Promise<void>;
+  readonly onReply?: (
+    command: string,
+    threadId: string,
+    body: string,
+  ) => Promise<void>;
+  readonly onResolve?: (
+    command: string,
+    threadId: string,
+    resolved: boolean,
+  ) => Promise<void>;
 }
 
 export interface TransitionEditorFieldErrors {
@@ -53,6 +79,7 @@ export interface TransitionListEditorProps {
   ) => void;
   readonly highlightedChoiceKey?: string | null;
   readonly getItemRef?: (choiceKey: string) => (element: HTMLLIElement | null) => void;
+  readonly commentSupport?: TransitionCommentSupport;
 }
 
 export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
@@ -70,7 +97,32 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
   onConsumesChange,
   highlightedChoiceKey = null,
   getItemRef,
+  commentSupport,
 }) => {
+  const [expandedCommentChoiceKey, setExpandedCommentChoiceKey] =
+    React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!commentSupport) {
+      setExpandedCommentChoiceKey(null);
+      return;
+    }
+
+    if (!expandedCommentChoiceKey) {
+      return;
+    }
+
+    const targetChoice = choices.find((choice) => choice.key === expandedCommentChoiceKey);
+    if (!targetChoice) {
+      setExpandedCommentChoiceKey(null);
+      return;
+    }
+
+    if (!targetChoice.command.trim()) {
+      setExpandedCommentChoiceKey(null);
+    }
+  }, [commentSupport, choices, expandedCommentChoiceKey]);
+
   return (
     <div className={classNames("flex flex-col gap-4", className)}>
       <Card
@@ -94,6 +146,32 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
               const consumesValues = transition?.extras?.consumes ?? [];
               const failureNarration =
                 transition?.extras?.failure_narration ?? "";
+              const trimmedCommand = choice.command.trim();
+              const commentThreads =
+                trimmedCommand && commentSupport
+                  ? commentSupport.threadsByCommand[trimmedCommand] ?? []
+                  : [];
+              const totalThreadCount = commentThreads.length;
+              const openThreadCount = commentThreads.filter(
+                (thread) => thread.status === "open",
+              ).length;
+              const hasOpenThreads = openThreadCount > 0;
+              const commentButtonDisabled =
+                !commentSupport ||
+                !trimmedCommand ||
+                commentSupport.status === "disabled" ||
+                commentSupport.status === "idle";
+              const isCommentExpanded =
+                expandedCommentChoiceKey === choice.key;
+              const commentPanelId = `transition-comment-panel-${choice.key}`;
+              const commentButtonClassName = classNames(
+                "inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs font-semibold transition",
+                commentButtonDisabled
+                  ? "cursor-not-allowed border-slate-800 text-slate-500"
+                  : hasOpenThreads
+                    ? "border-amber-400/60 text-amber-200 hover:bg-amber-500/20"
+                    : "border-slate-700/60 text-slate-300 hover:border-indigo-400/60 hover:text-indigo-100",
+              );
 
               return (
                 <li
@@ -138,6 +216,37 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                       <MarkdownEditorField
                         className="md:col-span-1"
                         label="Transition narration"
+                        labelActions={
+                          commentSupport ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (commentButtonDisabled) {
+                                  return;
+                                }
+                                setExpandedCommentChoiceKey((previous) =>
+                                  previous === choice.key ? null : choice.key,
+                                );
+                              }}
+                              disabled={commentButtonDisabled}
+                              aria-expanded={isCommentExpanded}
+                              aria-controls={commentPanelId}
+                              className={commentButtonClassName}
+                            >
+                              <span>Comments</span>
+                              {hasOpenThreads ? (
+                                <span className="rounded-full bg-amber-500/20 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+                                  {openThreadCount} open
+                                </span>
+                              ) : null}
+                              {totalThreadCount > 0 ? (
+                                <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-500/30 px-1 text-[10px] font-semibold text-indigo-100">
+                                  {totalThreadCount}
+                                </span>
+                              ) : null}
+                            </button>
+                          ) : undefined
+                        }
                         value={transition?.narration ?? ""}
                         onChange={(nextValue) =>
                           onNarrationChange(choice.key, nextValue)
@@ -149,6 +258,50 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                         previewMode="live"
                         minHeight={220}
                       />
+                      {isCommentExpanded && commentSupport ? (
+                        <div className="md:col-span-2" id={commentPanelId}>
+                          <SceneCommentThreadPanel
+                            status={commentSupport.status}
+                            threads={commentThreads}
+                            error={commentSupport.error ?? null}
+                            disabledReason={commentSupport.disabledReason ?? null}
+                            onRefresh={
+                              commentSupport.onRefresh
+                                ? () => commentSupport.onRefresh?.()
+                                : undefined
+                            }
+                            onCreateThread={
+                              commentSupport.onCreateThread && trimmedCommand
+                                ? (body) =>
+                                    commentSupport.onCreateThread!(
+                                      trimmedCommand,
+                                      body,
+                                    )
+                                : undefined
+                            }
+                            onReply={
+                              commentSupport.onReply && trimmedCommand
+                                ? (threadId, body) =>
+                                    commentSupport.onReply!(
+                                      trimmedCommand,
+                                      threadId,
+                                      body,
+                                    )
+                                : undefined
+                            }
+                            onResolve={
+                              commentSupport.onResolve && trimmedCommand
+                                ? (threadId, resolved) =>
+                                    commentSupport.onResolve!(
+                                      trimmedCommand,
+                                      threadId,
+                                      resolved,
+                                    )
+                                : undefined
+                            }
+                          />
+                        </div>
+                      ) : null}
                       <MarkdownEditorField
                         className="md:col-span-2"
                         label="Failure narration"
