@@ -45,7 +45,8 @@ This file tracks progress on the documentation improvements required for the Rea
   - [x] Part 1 – Environment setup & first launch walkthrough (`docs/tutorials/environment_setup_first_launch.md`).
   - [x] Part 2 – Scene fundamentals and navigation wiring guide. (Documented in `docs/tutorials/scene_fundamentals_navigation.md`.)
   - [x] Part 3 – Branching narrative authoring guide (`docs/tutorials/branching_scene.md`).
-  - [ ] Part 4 – Playtesting & publishing workflow.
+  - [x] Part 4 – Playtesting & publishing workflow (`docs/tutorials/playtesting_publishing.md`).
+  - [ ] Capture and embed the Part 4 playtest console screenshot once refreshed assets are available.
   - [x] Outline the multi-part tutorial structure and required screenshots. (Documented in `docs/tutorials/README.md`.)
   - [x] Draft "Author your first branching scene" walkthrough in `docs/tutorials/branching_scene.md`.
   - [x] Capture review checklist for tutorial updates in `docs/tutorials/README.md`.
