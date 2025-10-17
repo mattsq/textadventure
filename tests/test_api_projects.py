@@ -1328,6 +1328,123 @@ def test_collaboration_sessions_purge_expired(tmp_path: Path) -> None:
     assert json.loads(collaboration_path.read_text())["sessions"] == []
 
 
+def test_scene_comment_thread_lifecycle(tmp_path: Path) -> None:
+    scenes: dict[str, Any] = {
+        "start": {
+            "description": "Start",
+            "choices": [
+                {"command": "go", "description": "Go"},
+            ],
+            "transitions": {"go": {"narration": "Go", "target": None}},
+        }
+    }
+
+    _write_project(
+        tmp_path,
+        "shared",
+        scenes,
+        metadata={
+            "name": "Shared",
+            "collaborators": [
+                {"user_id": "owner@example.com", "role": "owner"},
+                {"user_id": "editor@example.com", "role": "editor"},
+                {"user_id": "viewer@example.com", "role": "viewer"},
+            ],
+        },
+    )
+
+    settings = SceneApiSettings(project_root=tmp_path)
+    client = TestClient(create_app(settings=settings))
+
+    list_response = client.get("/api/projects/shared/scenes/start/comments")
+    assert list_response.status_code == 200
+    assert list_response.json()["threads"] == []
+
+    create_payload = {
+        "location": {"type": "transition_narration", "choice_command": "go"},
+        "body": "Consider adding more tension to the reveal.",
+    }
+
+    missing_actor = client.post(
+        "/api/projects/shared/scenes/start/comments",
+        json=create_payload,
+    )
+    assert missing_actor.status_code == 403
+
+    create_response = client.post(
+        "/api/projects/shared/scenes/start/comments",
+        params={"acting_user_id": "viewer@example.com"},
+        json=create_payload,
+    )
+    assert create_response.status_code == 201
+    created_thread = create_response.json()
+    assert created_thread["scene_id"] == "start"
+    assert created_thread["status"] == "open"
+    assert len(created_thread["comments"]) == 1
+    assert (
+        created_thread["comments"][0]["body"]
+        == "Consider adding more tension to the reveal."
+    )
+    assert created_thread["comments"][0]["author_id"] == "viewer@example.com"
+
+    thread_id = created_thread["id"]
+
+    reply_response = client.post(
+        f"/api/projects/shared/scenes/start/comments/{thread_id}/replies",
+        params={"acting_user_id": "owner@example.com"},
+        json={"body": "Added additional sensory detail to the corridor."},
+    )
+    assert reply_response.status_code == 201
+    replied_thread = reply_response.json()
+    assert len(replied_thread["comments"]) == 2
+    assert replied_thread["comments"][1]["author_id"] == "owner@example.com"
+
+    resolve_response = client.post(
+        f"/api/projects/shared/scenes/start/comments/{thread_id}/resolution",
+        params={"acting_user_id": "owner@example.com"},
+        json={"resolved": True},
+    )
+    assert resolve_response.status_code == 200
+    resolved_thread = resolve_response.json()
+    assert resolved_thread["status"] == "resolved"
+    assert resolved_thread["resolved_by"] == "owner@example.com"
+    assert resolved_thread["resolved_at"] is not None
+
+    reopen_response = client.post(
+        f"/api/projects/shared/scenes/start/comments/{thread_id}/resolution",
+        params={"acting_user_id": "editor@example.com"},
+        json={"resolved": False},
+    )
+    assert reopen_response.status_code == 200
+    reopened_thread = reopen_response.json()
+    assert reopened_thread["status"] == "open"
+    assert reopened_thread["resolved_at"] is None
+    assert reopened_thread["resolved_by"] is None
+
+    filtered_none = client.get(
+        "/api/projects/shared/scenes/start/comments",
+        params={"choice_command": "wait"},
+    )
+    assert filtered_none.status_code == 200
+    assert filtered_none.json()["threads"] == []
+
+    filtered_type = client.get(
+        "/api/projects/shared/scenes/start/comments",
+        params={"location_type": "transition_narration"},
+    )
+    assert filtered_type.status_code == 200
+    assert len(filtered_type.json()["threads"]) == 1
+
+    comments_path = tmp_path / "shared" / "comments.json"
+    stored_payload = json.loads(comments_path.read_text())
+    assert len(stored_payload["threads"]) == 1
+    stored_thread = stored_payload["threads"][0]
+    assert stored_thread["scene_id"] == "start"
+    assert stored_thread["location"]["choice_command"] == "go"
+    assert len(stored_thread["comments"]) == 2
+    assert stored_thread["comments"][0]["author_id"] == "viewer@example.com"
+
+
 def test_projects_endpoints_return_404_when_disabled() -> None:
     client = TestClient(create_app(settings=SceneApiSettings()))
 

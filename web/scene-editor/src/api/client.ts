@@ -179,6 +179,66 @@ export interface SceneReferenceListResponse {
   readonly data: readonly SceneReferenceResource[];
 }
 
+export type SceneCommentLocationType = "transition_narration";
+
+export interface SceneCommentLocation {
+  readonly type: SceneCommentLocationType;
+  readonly choice_command: string;
+}
+
+export interface SceneCommentResource {
+  readonly id: string;
+  readonly author_id: string | null;
+  readonly author_display_name: string | null;
+  readonly body: string;
+  readonly created_at: string;
+}
+
+export interface SceneCommentThreadResource {
+  readonly id: string;
+  readonly scene_id: string;
+  readonly status: "open" | "resolved";
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly resolved_at: string | null;
+  readonly resolved_by: string | null;
+  readonly location: SceneCommentLocation;
+  readonly comments: readonly SceneCommentResource[];
+}
+
+export interface SceneCommentThreadListResponse {
+  readonly project_id: string;
+  readonly scene_id: string;
+  readonly threads: readonly SceneCommentThreadResource[];
+}
+
+export interface SceneCommentThreadCreateRequest {
+  readonly location: SceneCommentLocation;
+  readonly body: string;
+  readonly author_id?: string | null;
+  readonly author_display_name?: string | null;
+}
+
+export interface SceneCommentReplyRequest {
+  readonly body: string;
+  readonly author_id?: string | null;
+  readonly author_display_name?: string | null;
+}
+
+export interface SceneCommentResolveRequest {
+  readonly resolved: boolean;
+}
+
+export interface ListSceneCommentThreadsParams {
+  readonly locationType?: SceneCommentLocationType;
+  readonly choiceCommand?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface SceneCommentMutationOptions extends RequestOptions {
+  readonly actingUserId?: string;
+}
+
 export interface ProjectCollaborationSessionResource {
   readonly session_id: string;
   readonly user_id: string;
@@ -535,6 +595,84 @@ export class SceneEditorApiClient {
     return this.request<ProjectCollaborationSessionListResponse>(
       `/projects/${encodeURIComponent(projectId)}/collaboration/sessions`,
       { signal: options.signal },
+    );
+  }
+
+  async listSceneCommentThreads(
+    projectId: string,
+    sceneId: string,
+    params: ListSceneCommentThreadsParams = {},
+  ): Promise<SceneCommentThreadListResponse> {
+    const { signal, locationType, choiceCommand } = params;
+    return this.request<SceneCommentThreadListResponse>(
+      `/projects/${encodeURIComponent(projectId)}/scenes/${encodeURIComponent(sceneId)}/comments`,
+      { signal },
+      {
+        location_type: locationType,
+        choice_command: choiceCommand,
+      },
+    );
+  }
+
+  async createSceneCommentThread(
+    projectId: string,
+    sceneId: string,
+    payload: SceneCommentThreadCreateRequest,
+    options: SceneCommentMutationOptions = {},
+  ): Promise<SceneCommentThreadResource> {
+    return this.request<SceneCommentThreadResource>(
+      `/projects/${encodeURIComponent(projectId)}/scenes/${encodeURIComponent(sceneId)}/comments`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        signal: options.signal,
+      },
+      {
+        acting_user_id: options.actingUserId,
+      },
+    );
+  }
+
+  async replyToSceneCommentThread(
+    projectId: string,
+    sceneId: string,
+    threadId: string,
+    payload: SceneCommentReplyRequest,
+    options: SceneCommentMutationOptions = {},
+  ): Promise<SceneCommentThreadResource> {
+    return this.request<SceneCommentThreadResource>(
+      `/projects/${encodeURIComponent(projectId)}/scenes/${encodeURIComponent(sceneId)}/comments/${encodeURIComponent(threadId)}/replies`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        signal: options.signal,
+      },
+      {
+        acting_user_id: options.actingUserId,
+      },
+    );
+  }
+
+  async setSceneCommentThreadResolution(
+    projectId: string,
+    sceneId: string,
+    threadId: string,
+    payload: SceneCommentResolveRequest,
+    options: SceneCommentMutationOptions = {},
+  ): Promise<SceneCommentThreadResource> {
+    return this.request<SceneCommentThreadResource>(
+      `/projects/${encodeURIComponent(projectId)}/scenes/${encodeURIComponent(sceneId)}/comments/${encodeURIComponent(threadId)}/resolution`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        signal: options.signal,
+      },
+      {
+        acting_user_id: options.actingUserId,
+      },
     );
   }
 }

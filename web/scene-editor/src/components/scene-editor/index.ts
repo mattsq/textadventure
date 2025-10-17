@@ -9,6 +9,7 @@ export {
   type TransitionEditorValues,
   type TransitionEditorFieldErrors,
   type TransitionExtras,
+  type TransitionCommentSupport,
   type TransitionListEditorProps,
 } from "./TransitionListEditor";
 export {

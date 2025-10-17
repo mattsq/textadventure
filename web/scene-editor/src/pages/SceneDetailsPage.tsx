@@ -7,6 +7,7 @@ import {
   type TransitionResource,
   type SceneResource,
   type ValidationIssue,
+  type SceneCommentThreadResource,
 } from "../api";
 import { EditorPanel } from "../components/layout";
 import { Badge, Card } from "../components/display";
@@ -20,6 +21,7 @@ import {
   type TransitionEditorFieldErrors,
   type TransitionEditorValues,
   type TransitionExtras,
+  type TransitionCommentSupport,
 } from "../components/scene-editor";
 import { useSceneEditorStore } from "../state";
 
@@ -166,6 +168,50 @@ const serializeTransition = (transition: TransitionResource): string => {
   });
 };
 
+const parseIsoTimestamp = (value: string): number => {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const sortThreadsByRecentUpdate = (
+  threads: readonly SceneCommentThreadResource[],
+): SceneCommentThreadResource[] =>
+  [...threads].sort((a, b) => {
+    const updateDiff =
+      parseIsoTimestamp(b.updated_at) - parseIsoTimestamp(a.updated_at);
+    if (updateDiff !== 0) {
+      return updateDiff;
+    }
+    return a.id.localeCompare(b.id);
+  });
+
+const groupThreadsByCommand = (
+  threads: readonly SceneCommentThreadResource[],
+): Record<string, readonly SceneCommentThreadResource[]> => {
+  const grouped: Record<string, SceneCommentThreadResource[]> = {};
+
+  for (const thread of threads) {
+    if (thread.location.type !== "transition_narration") {
+      continue;
+    }
+    const command = thread.location.choice_command;
+    if (!command) {
+      continue;
+    }
+
+    const bucket = grouped[command] ?? [];
+    bucket.push(thread);
+    grouped[command] = bucket;
+  }
+
+  const result: Record<string, readonly SceneCommentThreadResource[]> = {};
+  for (const [command, items] of Object.entries(grouped)) {
+    result[command] = sortThreadsByRecentUpdate(items);
+  }
+
+  return result;
+};
+
 const normaliseStringList = (
   values?: readonly string[],
 ): readonly string[] | undefined => {
@@ -243,6 +289,22 @@ interface TransitionDraft {
   readonly key: string;
   readonly narration: string;
 }
+
+type CommentStatus = "idle" | "loading" | "ready" | "error" | "disabled";
+
+interface SceneCommentFeatureState {
+  readonly status: CommentStatus;
+  readonly threadsByCommand: Record<string, readonly SceneCommentThreadResource[]>;
+  readonly error: string | null;
+  readonly disabledReason: string | null;
+}
+
+type ProjectResolutionState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; projectId: string }
+  | { status: "empty" }
+  | { status: "error"; message: string };
 
 interface ValidationSnapshot {
   readonly fieldErrors: FieldErrors;
@@ -433,6 +495,16 @@ const buildStatusMessage = (
   tone: StatusNotice["tone"],
 ): StatusNotice => ({ message, tone });
 
+const formatSceneCommentError = (error: unknown, fallback: string): string => {
+  if (error instanceof SceneEditorApiError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
+};
+
 const SceneDetailsPage: React.FC = () => {
   const params = useParams<{ sceneId: string }>();
   const navigate = useNavigate();
@@ -449,6 +521,22 @@ const SceneDetailsPage: React.FC = () => {
             : undefined,
       }),
     [],
+  );
+
+  const actingUserId = React.useMemo(() => {
+    const rawValue =
+      typeof import.meta.env.VITE_SCENE_EDITOR_ACTING_USER_ID === "string"
+        ? import.meta.env.VITE_SCENE_EDITOR_ACTING_USER_ID.trim()
+        : "";
+    return rawValue.length > 0 ? rawValue : null;
+  }, []);
+
+  const mutationDisabledReason = React.useMemo(
+    () =>
+      actingUserId
+        ? null
+        : "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to start or reply to inline comments.",
+    [actingUserId],
   );
 
   const routeSceneId = React.useMemo(
@@ -472,6 +560,16 @@ const SceneDetailsPage: React.FC = () => {
   const [validationIssues, setValidationIssues] = React.useState<
     readonly ValidationIssue[]
   >([]);
+  const [projectState, setProjectState] = React.useState<ProjectResolutionState>({
+    status: "idle",
+  });
+  const [commentState, setCommentState] =
+    React.useState<SceneCommentFeatureState>({
+      status: "idle",
+      threadsByCommand: {},
+      error: null,
+      disabledReason: mutationDisabledReason,
+    });
   const [formState, setFormState] = React.useState({
     sceneId: "",
     description: "",
@@ -503,6 +601,265 @@ const SceneDetailsPage: React.FC = () => {
     },
     [],
   );
+  const projectId =
+    projectState.status === "ready" ? projectState.projectId : null;
+
+  React.useEffect(() => {
+    if (projectState.status !== "idle") {
+      return;
+    }
+
+    const abortController = new AbortController();
+    let isMounted = true;
+
+    const resolveProject = async () => {
+      setProjectState({ status: "loading" });
+      try {
+        const response = await apiClient.listProjects({
+          signal: abortController.signal,
+        });
+        if (!isMounted) {
+          return;
+        }
+
+        if (!response.data || response.data.length === 0) {
+          setProjectState({ status: "empty" });
+          setCommentState({
+            status: "disabled",
+            threadsByCommand: {},
+            error: null,
+            disabledReason:
+              "Create a project to enable inline comments for narration fields.",
+          });
+          return;
+        }
+
+        const [firstProject] = response.data;
+        setProjectState({ status: "ready", projectId: firstProject.id });
+      } catch (error) {
+        if (!isMounted || abortController.signal.aborted) {
+          return;
+        }
+
+        const message = formatSceneCommentError(
+          error,
+          "Unable to load project information for inline comments.",
+        );
+        setProjectState({ status: "error", message });
+        setCommentState((previous) => ({
+          ...previous,
+          status: "error",
+          error: message,
+        }));
+      }
+    };
+
+    void resolveProject();
+
+    return () => {
+      isMounted = false;
+      abortController.abort();
+    };
+  }, [apiClient, projectState.status]);
+
+  const refreshCommentThreads = React.useCallback(async () => {
+    if (!projectId || !routeSceneId) {
+      return;
+    }
+
+    setCommentState((previous) => ({
+      status: "loading",
+      threadsByCommand: previous.threadsByCommand,
+      error: null,
+      disabledReason: previous.disabledReason ?? mutationDisabledReason,
+    }));
+
+    try {
+      const response = await apiClient.listSceneCommentThreads(
+        projectId,
+        routeSceneId,
+        { locationType: "transition_narration" },
+      );
+      setCommentState({
+        status: "ready",
+        threadsByCommand: groupThreadsByCommand(response.threads),
+        error: null,
+        disabledReason: mutationDisabledReason,
+      });
+    } catch (error) {
+      if (error instanceof SceneEditorApiError && error.status === 404) {
+        setCommentState({
+          status: "disabled",
+          threadsByCommand: {},
+          error: null,
+          disabledReason:
+            "Inline comments are not enabled for this project.",
+        });
+        return;
+      }
+
+      const message = formatSceneCommentError(
+        error,
+        "Failed to load comment threads.",
+      );
+      setCommentState((previous) => ({
+        status: "error",
+        threadsByCommand: previous.threadsByCommand,
+        error: message,
+        disabledReason: previous.disabledReason ?? mutationDisabledReason,
+      }));
+    }
+  }, [
+    apiClient,
+    mutationDisabledReason,
+    projectId,
+    routeSceneId,
+  ]);
+
+  const upsertCommentThread = React.useCallback(
+    (thread: SceneCommentThreadResource) => {
+      setCommentState((previous) => {
+        if (previous.status === "disabled") {
+          return previous;
+        }
+
+        const command = thread.location.choice_command;
+        const existing = previous.threadsByCommand[command] ?? [];
+        const filtered = existing.filter((item) => item.id !== thread.id);
+        const merged = sortThreadsByRecentUpdate([...filtered, thread]);
+
+        return {
+          status: "ready",
+          threadsByCommand: {
+            ...previous.threadsByCommand,
+            [command]: merged,
+          },
+          error: null,
+          disabledReason: mutationDisabledReason,
+        };
+      });
+    },
+    [mutationDisabledReason],
+  );
+
+  const handleCreateCommentThread = React.useCallback(
+    async (command: string, body: string) => {
+      if (!projectId || !routeSceneId) {
+        throw new Error(
+          "Inline comments are unavailable until a project is selected.",
+        );
+      }
+      if (!actingUserId) {
+        throw new Error(
+          "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to create inline comments.",
+        );
+      }
+
+      try {
+        const thread = await apiClient.createSceneCommentThread(
+          projectId,
+          routeSceneId,
+          {
+            location: {
+              type: "transition_narration",
+              choice_command: command,
+            },
+            body,
+          },
+          { actingUserId },
+        );
+        upsertCommentThread(thread);
+      } catch (error) {
+        const message = formatSceneCommentError(
+          error,
+          "Failed to start a new comment thread.",
+        );
+        setCommentState((previous) => ({
+          ...previous,
+          status: "error",
+          error: message,
+        }));
+        throw error;
+      }
+    },
+    [actingUserId, apiClient, projectId, routeSceneId, upsertCommentThread],
+  );
+
+  const handleReplyToCommentThread = React.useCallback(
+    async (_command: string, threadId: string, body: string) => {
+      if (!projectId || !routeSceneId) {
+        throw new Error(
+          "Inline comments are unavailable until a project is selected.",
+        );
+      }
+      if (!actingUserId) {
+        throw new Error(
+          "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to reply to inline comments.",
+        );
+      }
+
+      try {
+        const thread = await apiClient.replyToSceneCommentThread(
+          projectId,
+          routeSceneId,
+          threadId,
+          { body },
+          { actingUserId },
+        );
+        upsertCommentThread(thread);
+      } catch (error) {
+        const message = formatSceneCommentError(
+          error,
+          "Failed to post a comment reply.",
+        );
+        setCommentState((previous) => ({
+          ...previous,
+          status: "error",
+          error: message,
+        }));
+        throw error;
+      }
+    },
+    [actingUserId, apiClient, projectId, routeSceneId, upsertCommentThread],
+  );
+
+  const handleResolveCommentThread = React.useCallback(
+    async (_command: string, threadId: string, resolved: boolean) => {
+      if (!projectId || !routeSceneId) {
+        throw new Error(
+          "Inline comments are unavailable until a project is selected.",
+        );
+      }
+      if (!actingUserId) {
+        throw new Error(
+          "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to update inline comment resolution.",
+        );
+      }
+
+      try {
+        const thread = await apiClient.setSceneCommentThreadResolution(
+          projectId,
+          routeSceneId,
+          threadId,
+          { resolved },
+          { actingUserId },
+        );
+        upsertCommentThread(thread);
+      } catch (error) {
+        const message = formatSceneCommentError(
+          error,
+          "Failed to update the comment thread resolution.",
+        );
+        setCommentState((previous) => ({
+          ...previous,
+          status: "error",
+          error: message,
+        }));
+        throw error;
+      }
+    },
+    [actingUserId, apiClient, projectId, routeSceneId, upsertCommentThread],
+  );
 
   React.useEffect(() => {
     if (!routeSceneId) {
@@ -515,6 +872,23 @@ const SceneDetailsPage: React.FC = () => {
     setLoadStatus("loading");
     setLoadError(null);
     setStatusNotice(null);
+    setCommentState((previous) => {
+      if (previous.status === "disabled") {
+        return {
+          status: "disabled",
+          threadsByCommand: {},
+          error: null,
+          disabledReason: previous.disabledReason,
+        };
+      }
+
+      return {
+        status: "idle",
+        threadsByCommand: {},
+        error: null,
+        disabledReason: previous.disabledReason,
+      };
+    });
 
     void (async () => {
       try {
@@ -798,6 +1172,24 @@ const SceneDetailsPage: React.FC = () => {
         : validationSnapshot.transitionErrors,
     );
   }, [validationSnapshot]);
+
+  React.useEffect(() => {
+    if (!projectId || !routeSceneId || loadStatus !== "success") {
+      return;
+    }
+
+    if (commentState.status !== "idle") {
+      return;
+    }
+
+    void refreshCommentThreads();
+  }, [
+    commentState.status,
+    loadStatus,
+    projectId,
+    refreshCommentThreads,
+    routeSceneId,
+  ]);
 
   const combinedTransitions = React.useMemo(
     () => {
@@ -1349,6 +1741,41 @@ const SceneDetailsPage: React.FC = () => {
       ? `Scene detail: ${routeSceneId}`
       : "Scene detail";
 
+  const canMutateComments =
+    projectId !== null &&
+    commentState.status !== "disabled" &&
+    actingUserId !== null;
+  const canRefreshComments =
+    projectId !== null && commentState.status !== "disabled";
+
+  const transitionCommentSupport = React.useMemo<TransitionCommentSupport>(
+    () => ({
+      status: commentState.status,
+      threadsByCommand: commentState.threadsByCommand,
+      error: commentState.error,
+      disabledReason: commentState.disabledReason ?? mutationDisabledReason,
+      onRefresh: canRefreshComments ? () => refreshCommentThreads() : undefined,
+      onCreateThread: canMutateComments
+        ? handleCreateCommentThread
+        : undefined,
+      onReply: canMutateComments ? handleReplyToCommentThread : undefined,
+      onResolve: canMutateComments ? handleResolveCommentThread : undefined,
+    }),
+    [
+      canMutateComments,
+      canRefreshComments,
+      commentState.disabledReason,
+      mutationDisabledReason,
+      commentState.error,
+      commentState.status,
+      commentState.threadsByCommand,
+      handleCreateCommentThread,
+      handleReplyToCommentThread,
+      handleResolveCommentThread,
+      refreshCommentThreads,
+    ],
+  );
+
   return (
     <EditorPanel
       title={panelTitle}
@@ -1429,6 +1856,7 @@ const SceneDetailsPage: React.FC = () => {
               onConsumesChange={handleTransitionConsumesChange}
               highlightedChoiceKey={highlightedChoiceKey}
               getItemRef={getTransitionItemRef}
+              commentSupport={transitionCommentSupport}
             />
             <div className="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">

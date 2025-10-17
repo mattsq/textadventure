@@ -1500,6 +1500,163 @@ class ProjectCollaborationSessionRequest(BaseModel):
     )
 
 
+class SceneCommentLocation(BaseModel):
+    """Location metadata describing where an inline comment is anchored."""
+
+    type: SceneCommentLocationType = Field(
+        ..., description="Semantic identifier describing the comment target."
+    )
+    choice_command: str = Field(
+        ..., description="Player command associated with the transition narration."
+    )
+
+    @field_validator("choice_command")
+    @classmethod
+    def _validate_choice_command(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("choice_command must not be empty.")
+        return trimmed
+
+
+class SceneCommentResource(BaseModel):
+    """Representation of an individual inline comment."""
+
+    id: str = Field(..., description="Stable identifier for the comment entry.")
+    author_id: str | None = Field(
+        None, description="Optional collaborator identifier for the author."
+    )
+    author_display_name: str | None = Field(
+        None, description="Optional display name resolved for the author."
+    )
+    body: str = Field(..., description="Markdown formatted comment body.")
+    created_at: datetime = Field(
+        ..., description="Timestamp indicating when the comment was created."
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_validator("body")
+    @classmethod
+    def _validate_body(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Comment body must not be empty.")
+        return trimmed
+
+
+class SceneCommentThreadResource(BaseModel):
+    """Inline comment thread with associated discussion entries."""
+
+    id: str = Field(..., description="Stable identifier for the comment thread.")
+    scene_id: str = Field(
+        ..., description="Scene identifier the comment thread is associated with."
+    )
+    status: Literal["open", "resolved"] = Field(
+        ..., description="Current resolution status for the thread."
+    )
+    created_at: datetime = Field(
+        ..., description="Timestamp indicating when the thread was created."
+    )
+    updated_at: datetime = Field(
+        ..., description="Timestamp for the most recent change within the thread."
+    )
+    resolved_at: datetime | None = Field(
+        None, description="Timestamp when the thread was resolved, if applicable."
+    )
+    resolved_by: str | None = Field(
+        None, description="Optional collaborator identifier that resolved the thread."
+    )
+    location: SceneCommentLocation = Field(
+        ..., description="Location metadata describing the thread anchor."
+    )
+    comments: list[SceneCommentResource] = Field(
+        default_factory=list,
+        description="Chronologically ordered list of comments within the thread.",
+    )
+
+    @field_serializer("created_at")
+    def _serialise_created_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("updated_at")
+    def _serialise_updated_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+    @field_serializer("resolved_at")
+    def _serialise_resolved_at(self, value: datetime | None) -> str | None:
+        return value.isoformat() if value is not None else None
+
+
+class SceneCommentThreadListResponse(BaseModel):
+    """Response payload enumerating inline comment threads for a scene."""
+
+    project_id: str = Field(..., description="Identifier for the requested project.")
+    scene_id: str = Field(
+        ..., description="Scene identifier the comment threads were filtered against."
+    )
+    threads: list[SceneCommentThreadResource] = Field(
+        default_factory=list,
+        description="Ordered collection of comment threads for the scene.",
+    )
+
+
+class SceneCommentThreadCreateRequest(BaseModel):
+    """Request body for creating a new inline comment thread."""
+
+    location: SceneCommentLocation = Field(
+        ...,
+        description="Location metadata describing where the thread should be anchored.",
+    )
+    body: str = Field(
+        ..., description="Markdown formatted body for the initial comment."
+    )
+    author_id: str | None = Field(
+        None, description="Optional collaborator identifier for the author."
+    )
+    author_display_name: str | None = Field(
+        None, description="Optional display name resolved for the author."
+    )
+
+    @field_validator("body")
+    @classmethod
+    def _validate_body(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Comment body must not be empty.")
+        return trimmed
+
+
+class SceneCommentReplyRequest(BaseModel):
+    """Request body for appending a comment to an existing thread."""
+
+    body: str = Field(..., description="Markdown formatted reply body.")
+    author_id: str | None = Field(
+        None, description="Optional collaborator identifier for the author."
+    )
+    author_display_name: str | None = Field(
+        None, description="Optional display name resolved for the author."
+    )
+
+    @field_validator("body")
+    @classmethod
+    def _validate_body(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Comment body must not be empty.")
+        return trimmed
+
+
+class SceneCommentResolveRequest(BaseModel):
+    """Request payload for toggling the resolution state of a thread."""
+
+    resolved: bool = Field(
+        ..., description="Set to true to resolve the thread or false to reopen it."
+    )
+
+
 class UserProfileResource(BaseModel):
     """Representation of a user account exposed through the API."""
 
@@ -1801,6 +1958,46 @@ class ProjectCollaborationSessionRecord:
     expires_at: datetime
 
 
+class SceneCommentLocationType(str, Enum):
+    """Enumerated locations where inline scene comments can be attached."""
+
+    TRANSITION_NARRATION = "transition_narration"
+    TRANSITION_FAILURE_NARRATION = "transition_failure_narration"
+
+
+@dataclass(frozen=True)
+class SceneCommentLocationRecord:
+    """Precise target within a scene where a comment thread is anchored."""
+
+    type: SceneCommentLocationType
+    choice_command: str
+
+
+@dataclass(frozen=True)
+class SceneCommentEntryRecord:
+    """Individual comment captured within a thread."""
+
+    identifier: str
+    author_id: str | None
+    author_display_name: str | None
+    body: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class SceneCommentThreadRecord:
+    """Inline comment thread anchored to a specific scene location."""
+
+    identifier: str
+    scene_id: str
+    location: SceneCommentLocationRecord
+    created_at: datetime
+    updated_at: datetime
+    resolved_at: datetime | None
+    resolved_by: str | None
+    comments: tuple[SceneCommentEntryRecord, ...]
+
+
 @dataclass(frozen=True)
 class UserAccountRecord:
     """Filesystem-backed representation of a user profile."""
@@ -1834,6 +2031,7 @@ class SceneProjectStore:
     _METADATA_FILENAME = "project.json"
     _DEFAULT_DATASET_NAME = "scenes.json"
     _COLLABORATION_FILENAME = "collaboration.json"
+    _COMMENTS_FILENAME = "comments.json"
 
     def __init__(self, root: Path) -> None:
         self._root = root
@@ -2130,6 +2328,26 @@ class SceneProjectStore:
         self._write_collaboration_sessions(path, sessions, record.identifier)
         return tuple(sessions)
 
+    def load_scene_comment_threads(
+        self, record: AdventureProjectRecord
+    ) -> tuple[SceneCommentThreadRecord, ...]:
+        """Return inline comment threads stored for ``record``."""
+
+        path = record.scene_path.parent / self._COMMENTS_FILENAME
+        threads = self._read_scene_comment_threads(path, record.identifier)
+        return tuple(threads)
+
+    def save_scene_comment_threads(
+        self,
+        record: AdventureProjectRecord,
+        threads: Sequence[SceneCommentThreadRecord],
+    ) -> tuple[SceneCommentThreadRecord, ...]:
+        """Persist inline comment threads for ``record`` and return the stored set."""
+
+        path = record.scene_path.parent / self._COMMENTS_FILENAME
+        self._write_scene_comment_threads(path, threads, record.identifier)
+        return tuple(threads)
+
     def _load_metadata_payload(self, path: Path) -> dict[str, Any]:
         if not path.exists():
             return {}
@@ -2164,6 +2382,365 @@ class SceneProjectStore:
         except OSError as exc:
             raise RuntimeError(
                 f"Failed to write project metadata for '{project_id}'."
+            ) from exc
+
+    def _read_scene_comment_threads(
+        self, path: Path, project_id: str
+    ) -> List[SceneCommentThreadRecord]:
+        if not path.exists():
+            return []
+
+        try:
+            payload = _load_json(path)
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                f"Project '{project_id}' comment metadata could not be loaded."
+            ) from exc
+
+        if not isinstance(payload, Mapping):
+            raise ValueError(
+                f"Project '{project_id}' comment metadata must be a mapping."
+            )
+
+        raw_threads = payload.get("threads", [])
+        if raw_threads is None:
+            return []
+        if not isinstance(raw_threads, Sequence):
+            raise ValueError(
+                f"Project '{project_id}' comment metadata has an invalid 'threads' field."
+            )
+
+        threads: list[SceneCommentThreadRecord] = []
+        seen_thread_ids: set[str] = set()
+
+        for index, entry in enumerate(raw_threads):
+            if not isinstance(entry, Mapping):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread at index {index} "
+                        "must be a mapping."
+                    )
+                )
+
+            identifier_raw = entry.get("id")
+            scene_id_raw = entry.get("scene_id")
+            location_raw = entry.get("location")
+            comments_raw = entry.get("comments", [])
+            created_at_raw = entry.get("created_at")
+            updated_at_raw = entry.get("updated_at")
+            resolved_at_raw = entry.get("resolved_at")
+            resolved_by_raw = entry.get("resolved_by")
+
+            if not isinstance(identifier_raw, str) or not identifier_raw.strip():
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread at index {index} "
+                        "is missing a valid 'id'."
+                    )
+                )
+            if identifier_raw in seen_thread_ids:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment metadata defines duplicate "
+                        f"thread id '{identifier_raw}'."
+                    )
+                )
+            seen_thread_ids.add(identifier_raw)
+
+            if not isinstance(scene_id_raw, str) or not scene_id_raw.strip():
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "is missing a valid 'scene_id'."
+                    )
+                )
+            if not isinstance(location_raw, Mapping):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "has an invalid 'location'."
+                    )
+                )
+
+            location_type_raw = location_raw.get("type")
+            choice_command_raw = location_raw.get("choice_command")
+
+            if not isinstance(location_type_raw, str):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "is missing a valid location 'type'."
+                    )
+                )
+            try:
+                location_type = SceneCommentLocationType(location_type_raw)
+            except ValueError as exc:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "has an unknown location type '{location_type_raw}'."
+                    )
+                ) from exc
+
+            if not isinstance(choice_command_raw, str):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "is missing a valid 'choice_command'."
+                    )
+                )
+            trimmed_command = choice_command_raw.strip()
+            if not trimmed_command:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "must include a non-empty 'choice_command'."
+                    )
+                )
+
+            if not isinstance(comments_raw, Sequence):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "has an invalid 'comments' field."
+                    )
+                )
+
+            if not isinstance(created_at_raw, str) or not isinstance(
+                updated_at_raw, str
+            ):
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "is missing timestamp metadata."
+                    )
+                )
+
+            try:
+                created_at = _ensure_timezone(datetime.fromisoformat(created_at_raw))
+                updated_at = _ensure_timezone(datetime.fromisoformat(updated_at_raw))
+            except ValueError as exc:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "contains invalid timestamps."
+                    )
+                ) from exc
+
+            if resolved_at_raw is None:
+                resolved_at = None
+            elif isinstance(resolved_at_raw, str):
+                try:
+                    resolved_at = _ensure_timezone(
+                        datetime.fromisoformat(resolved_at_raw)
+                    )
+                except ValueError as exc:
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            "contains an invalid 'resolved_at' timestamp."
+                        )
+                    ) from exc
+            else:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "has an invalid 'resolved_at' field."
+                    )
+                )
+
+            resolved_by: str | None
+            if resolved_by_raw is None:
+                resolved_by = None
+            elif isinstance(resolved_by_raw, str):
+                resolved_by = resolved_by_raw.strip() or None
+            else:
+                raise ValueError(
+                    (
+                        f"Project '{project_id}' comment thread '{identifier_raw}' "
+                        "has an invalid 'resolved_by' field."
+                    )
+                )
+
+            comment_entries: list[SceneCommentEntryRecord] = []
+            seen_comment_ids: set[str] = set()
+
+            for comment_index, comment_raw in enumerate(comments_raw):
+                if not isinstance(comment_raw, Mapping):
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has an invalid comment at index {comment_index}."
+                        )
+                    )
+
+                comment_id_raw = comment_raw.get("id")
+                body_raw = comment_raw.get("body")
+                author_id_raw = comment_raw.get("author_id")
+                display_name_raw = comment_raw.get("author_display_name")
+                comment_created_at_raw = comment_raw.get("created_at")
+
+                if not isinstance(comment_id_raw, str) or not comment_id_raw.strip():
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has a comment at index {comment_index} without a valid 'id'."
+                        )
+                    )
+                if comment_id_raw in seen_comment_ids:
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"defines duplicate comment id '{comment_id_raw}'."
+                        )
+                    )
+                seen_comment_ids.add(comment_id_raw)
+
+                if not isinstance(body_raw, str):
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has a comment at index {comment_index} without a valid 'body'."
+                        )
+                    )
+                trimmed_body = body_raw.strip()
+                if not trimmed_body:
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has a comment at index {comment_index} with an empty body."
+                        )
+                    )
+
+                if author_id_raw is None:
+                    author_id = None
+                elif isinstance(author_id_raw, str):
+                    author_id = author_id_raw.strip() or None
+                else:
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has a comment at index {comment_index} with an invalid 'author_id'."
+                        )
+                    )
+
+                if display_name_raw is None:
+                    display_name = None
+                elif isinstance(display_name_raw, str):
+                    display_name = display_name_raw.strip() or None
+                else:
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has a comment at index {comment_index} with an invalid 'author_display_name'."
+                        )
+                    )
+
+                if not isinstance(comment_created_at_raw, str):
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has a comment at index {comment_index} without a valid 'created_at'."
+                        )
+                    )
+
+                try:
+                    comment_created_at = _ensure_timezone(
+                        datetime.fromisoformat(comment_created_at_raw)
+                    )
+                except ValueError as exc:
+                    raise ValueError(
+                        (
+                            f"Project '{project_id}' comment thread '{identifier_raw}' "
+                            f"has a comment at index {comment_index} with an invalid 'created_at'."
+                        )
+                    ) from exc
+
+                comment_entries.append(
+                    SceneCommentEntryRecord(
+                        identifier=comment_id_raw,
+                        author_id=author_id,
+                        author_display_name=display_name,
+                        body=trimmed_body,
+                        created_at=comment_created_at,
+                    )
+                )
+
+            threads.append(
+                SceneCommentThreadRecord(
+                    identifier=identifier_raw,
+                    scene_id=scene_id_raw,
+                    location=SceneCommentLocationRecord(
+                        type=location_type, choice_command=trimmed_command
+                    ),
+                    created_at=created_at,
+                    updated_at=updated_at,
+                    resolved_at=resolved_at,
+                    resolved_by=resolved_by,
+                    comments=tuple(comment_entries),
+                )
+            )
+
+        return threads
+
+    def _write_scene_comment_threads(
+        self,
+        path: Path,
+        threads: Sequence[SceneCommentThreadRecord],
+        project_id: str,
+    ) -> None:
+        payload = {
+            "threads": [
+                {
+                    "id": thread.identifier,
+                    "scene_id": thread.scene_id,
+                    "location": {
+                        "type": thread.location.type.value,
+                        "choice_command": thread.location.choice_command,
+                    },
+                    "created_at": thread.created_at.isoformat(),
+                    "updated_at": thread.updated_at.isoformat(),
+                    "resolved_at": (
+                        thread.resolved_at.isoformat()
+                        if thread.resolved_at is not None
+                        else None
+                    ),
+                    "resolved_by": thread.resolved_by,
+                    "comments": [
+                        {
+                            "id": comment.identifier,
+                            "author_id": comment.author_id,
+                            "author_display_name": comment.author_display_name,
+                            "body": comment.body,
+                            "created_at": comment.created_at.isoformat(),
+                        }
+                        for comment in thread.comments
+                    ],
+                }
+                for thread in threads
+            ]
+        }
+
+        try:
+            serialisable = json.loads(json.dumps(payload, ensure_ascii=False))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Project '{project_id}' comment metadata could not be serialised to JSON."
+            ) from exc
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to prepare comment metadata for project '{project_id}'."
+            ) from exc
+
+        try:
+            with path.open("w", encoding="utf-8") as handle:
+                json.dump(serialisable, handle, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to write comment metadata for project '{project_id}'."
             ) from exc
 
     def _read_collaboration_sessions(
@@ -4068,6 +4645,238 @@ class ProjectService:
             )
 
 
+class SceneCommentService:
+    """Business logic for inline scene narration comment threads."""
+
+    def __init__(
+        self,
+        store: SceneProjectStore,
+        project_service: ProjectService | None = None,
+    ) -> None:
+        self._store = store
+        self._project_service = project_service
+
+    def list_threads(
+        self,
+        project_id: str,
+        scene_id: str,
+        *,
+        location_type: SceneCommentLocationType | None = None,
+        choice_command: str | None = None,
+    ) -> SceneCommentThreadListResponse:
+        record = self._store.load(project_id)
+        threads = list(self._store.load_scene_comment_threads(record))
+        filtered: list[SceneCommentThreadRecord] = []
+        trimmed_command = _normalise_optional_text(choice_command)
+
+        for thread in threads:
+            if thread.scene_id != scene_id:
+                continue
+            if location_type is not None and thread.location.type != location_type:
+                continue
+            if (
+                trimmed_command is not None
+                and thread.location.choice_command != trimmed_command
+            ):
+                continue
+            filtered.append(thread)
+
+        filtered.sort(key=lambda entry: (entry.created_at, entry.identifier))
+        resources = [
+            _build_scene_comment_thread_resource(thread) for thread in filtered
+        ]
+        return SceneCommentThreadListResponse(
+            project_id=record.identifier,
+            scene_id=scene_id,
+            threads=resources,
+        )
+
+    def create_thread(
+        self,
+        project_id: str,
+        scene_id: str,
+        *,
+        location: SceneCommentLocation,
+        body: str,
+        author_id: str | None = None,
+        author_display_name: str | None = None,
+        acting_user_id: str | None = None,
+    ) -> SceneCommentThreadResource:
+        record = self._store.load(project_id)
+        self._enforce_permission(
+            record, acting_user_id, action="create inline comments"
+        )
+        existing = list(self._store.load_scene_comment_threads(record))
+
+        now = datetime.now(timezone.utc)
+        trimmed_body = body.strip()
+        if not trimmed_body:
+            raise ValueError("Comment body must not be empty.")
+
+        location_record = SceneCommentLocationRecord(
+            type=location.type,
+            choice_command=location.choice_command,
+        )
+        comment = SceneCommentEntryRecord(
+            identifier=f"comment-{uuid.uuid4().hex}",
+            author_id=_normalise_optional_text(author_id),
+            author_display_name=_normalise_optional_text(author_display_name),
+            body=trimmed_body,
+            created_at=now,
+        )
+        thread = SceneCommentThreadRecord(
+            identifier=f"thread-{uuid.uuid4().hex}",
+            scene_id=scene_id,
+            location=location_record,
+            created_at=now,
+            updated_at=now,
+            resolved_at=None,
+            resolved_by=None,
+            comments=(comment,),
+        )
+
+        existing.append(thread)
+        existing.sort(key=lambda entry: (entry.created_at, entry.identifier))
+        self._store.save_scene_comment_threads(record, existing)
+        return _build_scene_comment_thread_resource(thread)
+
+    def add_comment(
+        self,
+        project_id: str,
+        scene_id: str,
+        thread_id: str,
+        *,
+        body: str,
+        author_id: str | None = None,
+        author_display_name: str | None = None,
+        acting_user_id: str | None = None,
+    ) -> SceneCommentThreadResource:
+        record = self._store.load(project_id)
+        self._enforce_permission(
+            record, acting_user_id, action="reply to inline comments"
+        )
+        threads = list(self._store.load_scene_comment_threads(record))
+        trimmed_body = body.strip()
+        if not trimmed_body:
+            raise ValueError("Comment body must not be empty.")
+
+        now = datetime.now(timezone.utc)
+        normalised_author = _normalise_optional_text(author_id)
+        normalised_display_name = _normalise_optional_text(author_display_name)
+
+        updated_threads: list[SceneCommentThreadRecord] = []
+        target_thread: SceneCommentThreadRecord | None = None
+
+        for thread in threads:
+            if thread.identifier != thread_id:
+                updated_threads.append(thread)
+                continue
+
+            if thread.scene_id != scene_id:
+                raise KeyError(
+                    f"Comment thread '{thread_id}' does not belong to scene '{scene_id}'."
+                )
+
+            new_comment = SceneCommentEntryRecord(
+                identifier=f"comment-{uuid.uuid4().hex}",
+                author_id=normalised_author,
+                author_display_name=normalised_display_name,
+                body=trimmed_body,
+                created_at=now,
+            )
+            target_thread = SceneCommentThreadRecord(
+                identifier=thread.identifier,
+                scene_id=thread.scene_id,
+                location=thread.location,
+                created_at=thread.created_at,
+                updated_at=now,
+                resolved_at=thread.resolved_at,
+                resolved_by=thread.resolved_by,
+                comments=thread.comments + (new_comment,),
+            )
+            updated_threads.append(target_thread)
+
+        if target_thread is None:
+            raise KeyError(f"Comment thread '{thread_id}' does not exist.")
+
+        updated_threads.sort(key=lambda entry: (entry.created_at, entry.identifier))
+        self._store.save_scene_comment_threads(record, updated_threads)
+        return _build_scene_comment_thread_resource(target_thread)
+
+    def set_resolution(
+        self,
+        project_id: str,
+        scene_id: str,
+        thread_id: str,
+        *,
+        resolved: bool,
+        acting_user_id: str | None = None,
+    ) -> SceneCommentThreadResource:
+        record = self._store.load(project_id)
+        self._enforce_permission(
+            record,
+            acting_user_id,
+            action="update inline comment resolution state",
+        )
+        threads = list(self._store.load_scene_comment_threads(record))
+        now = datetime.now(timezone.utc)
+        normalised_actor = _normalise_optional_text(acting_user_id)
+
+        updated_threads: list[SceneCommentThreadRecord] = []
+        target_thread: SceneCommentThreadRecord | None = None
+
+        for thread in threads:
+            if thread.identifier != thread_id:
+                updated_threads.append(thread)
+                continue
+
+            if thread.scene_id != scene_id:
+                raise KeyError(
+                    f"Comment thread '{thread_id}' does not belong to scene '{scene_id}'."
+                )
+
+            target_thread = SceneCommentThreadRecord(
+                identifier=thread.identifier,
+                scene_id=thread.scene_id,
+                location=thread.location,
+                created_at=thread.created_at,
+                updated_at=now,
+                resolved_at=now if resolved else None,
+                resolved_by=normalised_actor if resolved else None,
+                comments=thread.comments,
+            )
+            updated_threads.append(target_thread)
+
+        if target_thread is None:
+            raise KeyError(f"Comment thread '{thread_id}' does not exist.")
+
+        updated_threads.sort(key=lambda entry: (entry.created_at, entry.identifier))
+        self._store.save_scene_comment_threads(record, updated_threads)
+        return _build_scene_comment_thread_resource(target_thread)
+
+    def _enforce_permission(
+        self,
+        record: AdventureProjectRecord,
+        acting_user_id: str | None,
+        *,
+        action: str,
+    ) -> None:
+        project_service = self._project_service
+        if project_service is None:
+            return
+
+        project_service._require_project_permission(  # noqa: SLF001 - internal use
+            record,
+            acting_user_id=acting_user_id,
+            allowed_roles=(
+                CollaboratorRole.OWNER,
+                CollaboratorRole.EDITOR,
+                CollaboratorRole.VIEWER,
+            ),
+            action=action,
+        )
+
+
 class UserService:
     """Business logic supporting the user management endpoints."""
 
@@ -4465,6 +5274,34 @@ def _build_project_detail(
         checksum=checksum,
     )
     return resource, scenes
+
+
+def _build_scene_comment_thread_resource(
+    record: SceneCommentThreadRecord,
+) -> SceneCommentThreadResource:
+    return SceneCommentThreadResource(
+        id=record.identifier,
+        scene_id=record.scene_id,
+        status="resolved" if record.resolved_at is not None else "open",
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        resolved_at=record.resolved_at,
+        resolved_by=record.resolved_by,
+        location=SceneCommentLocation(
+            type=record.location.type,
+            choice_command=record.location.choice_command,
+        ),
+        comments=[
+            SceneCommentResource(
+                id=comment.identifier,
+                author_id=comment.author_id,
+                author_display_name=comment.author_display_name,
+                body=comment.body,
+                created_at=comment.created_at,
+            )
+            for comment in record.comments
+        ],
+    )
 
 
 def _build_marketplace_summary(
@@ -6571,6 +7408,7 @@ def create_app(
     user_service: UserService | None = None,
     marketplace_service: MarketplaceService | None = None,
     forum_service: ForumService | None = None,
+    scene_comment_service: SceneCommentService | None = None,
     settings: SceneApiSettings | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the scene management endpoints."""
@@ -6628,6 +7466,10 @@ def create_app(
             template_store=template_store,
             project_service=project,
         )
+
+    comment = scene_comment_service
+    if comment is None and project_store is not None:
+        comment = SceneCommentService(store=project_store, project_service=project)
 
     marketplace = marketplace_service
     if marketplace is None:
@@ -6694,6 +7536,12 @@ def create_app(
             "description": (
                 "Manage adventure projects, including asset inventories and "
                 "collaborator rosters exposed to editor tooling."
+            ),
+        },
+        {
+            "name": "Scene Comments",
+            "description": (
+                "List, create, and resolve inline comment threads for scene narration within projects."
             ),
         },
         {
@@ -7608,6 +8456,158 @@ def create_app(
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/projects/{project_id}/scenes/{scene_id}/comments",
+        response_model=SceneCommentThreadListResponse,
+        tags=["Scene Comments"],
+    )
+    def list_scene_comment_threads(
+        project_id: str,
+        scene_id: str,
+        location_type: SceneCommentLocationType | None = Query(
+            None,
+            description="Optional location type filter when listing comment threads.",
+        ),
+        choice_command: str | None = Query(
+            None,
+            description="Optional transition command filter for comment threads.",
+        ),
+    ) -> SceneCommentThreadListResponse:
+        if comment is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Scene comment functionality is not configured for this deployment.",
+            )
+
+        try:
+            return comment.list_threads(
+                project_id,
+                scene_id,
+                location_type=location_type,
+                choice_command=choice_command,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/projects/{project_id}/scenes/{scene_id}/comments",
+        response_model=SceneCommentThreadResource,
+        status_code=201,
+        tags=["Scene Comments"],
+    )
+    def create_scene_comment_thread(
+        project_id: str,
+        scene_id: str,
+        payload: SceneCommentThreadCreateRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description="Identifier of the collaborator creating the comment thread.",
+        ),
+    ) -> SceneCommentThreadResource:
+        if comment is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Scene comment functionality is not configured for this deployment.",
+            )
+
+        try:
+            return comment.create_thread(
+                project_id,
+                scene_id,
+                location=payload.location,
+                body=payload.body,
+                author_id=payload.author_id or acting_user_id,
+                author_display_name=payload.author_display_name,
+                acting_user_id=acting_user_id,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/projects/{project_id}/scenes/{scene_id}/comments/{thread_id}/replies",
+        response_model=SceneCommentThreadResource,
+        status_code=201,
+        tags=["Scene Comments"],
+    )
+    def add_scene_comment_reply(
+        project_id: str,
+        scene_id: str,
+        thread_id: str,
+        payload: SceneCommentReplyRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description="Identifier of the collaborator adding the inline comment reply.",
+        ),
+    ) -> SceneCommentThreadResource:
+        if comment is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Scene comment functionality is not configured for this deployment.",
+            )
+
+        try:
+            return comment.add_comment(
+                project_id,
+                scene_id,
+                thread_id,
+                body=payload.body,
+                author_id=payload.author_id or acting_user_id,
+                author_display_name=payload.author_display_name,
+                acting_user_id=acting_user_id,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/projects/{project_id}/scenes/{scene_id}/comments/{thread_id}/resolution",
+        response_model=SceneCommentThreadResource,
+        tags=["Scene Comments"],
+    )
+    def set_scene_comment_resolution(
+        project_id: str,
+        scene_id: str,
+        thread_id: str,
+        payload: SceneCommentResolveRequest,
+        acting_user_id: str | None = Query(
+            None,
+            description="Identifier of the collaborator updating the comment thread resolution state.",
+        ),
+    ) -> SceneCommentThreadResource:
+        if comment is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Scene comment functionality is not configured for this deployment.",
+            )
+
+        try:
+            return comment.set_resolution(
+                project_id,
+                scene_id,
+                thread_id,
+                resolved=payload.resolved,
+                acting_user_id=acting_user_id,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(
         "/api/marketplace/entries",

@@ -1091,6 +1091,73 @@ Binary response body containing the file contents.
 - `404 Not Found` – Project or asset does not exist.
 - `400 Bad Request` – Asset path is invalid or targets a directory.
 
+### Inline scene comments
+
+Comment threads let collaborators discuss individual transition narrations while
+editing a project. Each thread is anchored to a scene identifier plus a choice
+command and records the full comment history along with resolution metadata.
+
+#### `GET /projects/{project_id}/scenes/{scene_id}/comments`
+
+List comment threads associated with a scene. Optional query parameters filter
+by `location_type` (currently `transition_narration`) and `choice_command`.
+
+```json
+{
+  "project_id": "shared",
+  "scene_id": "start",
+  "threads": [
+    {
+      "id": "thread-e2b6c2d8",
+      "scene_id": "start",
+      "status": "open",
+      "created_at": "2024-06-01T10:15:00Z",
+      "updated_at": "2024-06-01T10:18:00Z",
+      "location": {
+        "type": "transition_narration",
+        "choice_command": "go"
+      },
+      "comments": [
+        {
+          "id": "comment-8b7a",
+          "author_id": "viewer@example.com",
+          "body": "Consider building more tension before the reveal.",
+          "created_at": "2024-06-01T10:15:00Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### `POST /projects/{project_id}/scenes/{scene_id}/comments`
+
+Create a new thread anchored to a transition narration. Requests require the
+`location` payload (type + command) and initial `body`. The acting collaborator
+is supplied via `?acting_user_id=` and must be listed on the project.
+
+- `201 Created` – Returns the persisted thread with the initial comment.
+- `403 Forbidden` – Missing or unauthorised collaborator context.
+- `404 Not Found` – Project does not exist or inline comments are disabled.
+
+#### `POST /projects/{project_id}/scenes/{scene_id}/comments/{thread_id}/replies`
+
+Append a comment to an existing thread. Replies inherit the acting collaborator
+identifier unless an explicit `author_id` is provided in the body.
+
+- `201 Created` – Returns the updated thread including the appended reply.
+- `404 Not Found` – Thread or scene mismatch.
+- `403 Forbidden` – Acting collaborator lacks permission.
+
+#### `POST /projects/{project_id}/scenes/{scene_id}/comments/{thread_id}/resolution`
+
+Toggle a thread's resolution state. Setting `{"resolved": true}` records the
+timestamp and acting collaborator; sending `false` reopens the thread.
+
+- `200 OK` – Returns the updated thread reflecting the new status.
+- `404 Not Found` – Thread does not exist for the specified scene.
+- `403 Forbidden` – Acting collaborator lacks permission to update the thread.
+
 ## Notes for Future Iterations
 
 - Introduce `PATCH /scenes/{scene_id}` for partial updates once concurrent edit
