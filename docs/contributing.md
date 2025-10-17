@@ -81,6 +81,32 @@ warnings and style violations rather than suppressing them.
 - Provide examples or command snippets where helpful so other contributors can reproduce your setup
   or validate the behaviour.
 
+### PR Narrative Templates for Frontend-Heavy Work
+
+When a pull request substantially affects the React scene editor or other browser-delivered
+experiences, include a short narrative that highlights the user-facing impact and testing artefacts.
+This context makes it easier for reviewers to evaluate visual or interaction changes.
+
+- **Screenshots or recordings** – Capture before/after context or new UI states. Use the repository's
+  screenshot workflow (see `web/scene-editor/AGENTS.md`) and link the artifact in the PR.
+- **Accessibility notes** – Call out keyboard navigation, focus management, and ARIA updates so
+  reviewers understand how the change affects assistive technology support.
+- **State changes** – Mention whether local storage, URL params, or persisted project data formats are
+  touched so maintainers can spot migration needs.
+- **Test coverage** – Summarise the automated and manual checks you ran (unit tests, integration
+  tests, browser smoke tests).
+
+Copy and adapt the following checklist in your PR description to keep narratives consistent:
+
+```
+## Frontend Narrative
+- [ ] Screenshots or recordings attached (mention viewport/device)
+- [ ] Accessibility considerations noted (keyboard, screen reader, colour contrast)
+- [ ] State management / persistence impacts described
+- [ ] Automated tests listed with command output
+- [ ] Manual verification steps described (if applicable)
+```
+
 ## Pull Request Review Process
 
 - Ensure your branch is up to date with `main` before requesting review. Resolve merge conflicts
