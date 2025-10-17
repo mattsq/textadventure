@@ -523,6 +523,22 @@ const SceneDetailsPage: React.FC = () => {
     [],
   );
 
+  const actingUserId = React.useMemo(() => {
+    const rawValue =
+      typeof import.meta.env.VITE_SCENE_EDITOR_ACTING_USER_ID === "string"
+        ? import.meta.env.VITE_SCENE_EDITOR_ACTING_USER_ID.trim()
+        : "";
+    return rawValue.length > 0 ? rawValue : null;
+  }, []);
+
+  const mutationDisabledReason = React.useMemo(
+    () =>
+      actingUserId
+        ? null
+        : "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to start or reply to inline comments.",
+    [actingUserId],
+  );
+
   const routeSceneId = React.useMemo(
     () => (params.sceneId ? decodeURIComponent(params.sceneId) : null),
     [params.sceneId],
@@ -552,7 +568,7 @@ const SceneDetailsPage: React.FC = () => {
       status: "idle",
       threadsByCommand: {},
       error: null,
-      disabledReason: null,
+      disabledReason: mutationDisabledReason,
     });
   const [formState, setFormState] = React.useState({
     sceneId: "",
@@ -655,7 +671,7 @@ const SceneDetailsPage: React.FC = () => {
       status: "loading",
       threadsByCommand: previous.threadsByCommand,
       error: null,
-      disabledReason: null,
+      disabledReason: previous.disabledReason ?? mutationDisabledReason,
     }));
 
     try {
@@ -668,7 +684,7 @@ const SceneDetailsPage: React.FC = () => {
         status: "ready",
         threadsByCommand: groupThreadsByCommand(response.threads),
         error: null,
-        disabledReason: null,
+        disabledReason: mutationDisabledReason,
       });
     } catch (error) {
       if (error instanceof SceneEditorApiError && error.status === 404) {
@@ -690,10 +706,15 @@ const SceneDetailsPage: React.FC = () => {
         status: "error",
         threadsByCommand: previous.threadsByCommand,
         error: message,
-        disabledReason: null,
+        disabledReason: previous.disabledReason ?? mutationDisabledReason,
       }));
     }
-  }, [apiClient, projectId, routeSceneId]);
+  }, [
+    apiClient,
+    mutationDisabledReason,
+    projectId,
+    routeSceneId,
+  ]);
 
   const upsertCommentThread = React.useCallback(
     (thread: SceneCommentThreadResource) => {
@@ -714,11 +735,11 @@ const SceneDetailsPage: React.FC = () => {
             [command]: merged,
           },
           error: null,
-          disabledReason: null,
+          disabledReason: mutationDisabledReason,
         };
       });
     },
-    [],
+    [mutationDisabledReason],
   );
 
   const handleCreateCommentThread = React.useCallback(
@@ -726,6 +747,11 @@ const SceneDetailsPage: React.FC = () => {
       if (!projectId || !routeSceneId) {
         throw new Error(
           "Inline comments are unavailable until a project is selected.",
+        );
+      }
+      if (!actingUserId) {
+        throw new Error(
+          "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to create inline comments.",
         );
       }
 
@@ -740,6 +766,7 @@ const SceneDetailsPage: React.FC = () => {
             },
             body,
           },
+          { actingUserId },
         );
         upsertCommentThread(thread);
       } catch (error) {
@@ -755,7 +782,7 @@ const SceneDetailsPage: React.FC = () => {
         throw error;
       }
     },
-    [apiClient, projectId, routeSceneId, upsertCommentThread],
+    [actingUserId, apiClient, projectId, routeSceneId, upsertCommentThread],
   );
 
   const handleReplyToCommentThread = React.useCallback(
@@ -765,6 +792,11 @@ const SceneDetailsPage: React.FC = () => {
           "Inline comments are unavailable until a project is selected.",
         );
       }
+      if (!actingUserId) {
+        throw new Error(
+          "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to reply to inline comments.",
+        );
+      }
 
       try {
         const thread = await apiClient.replyToSceneCommentThread(
@@ -772,6 +804,7 @@ const SceneDetailsPage: React.FC = () => {
           routeSceneId,
           threadId,
           { body },
+          { actingUserId },
         );
         upsertCommentThread(thread);
       } catch (error) {
@@ -787,7 +820,7 @@ const SceneDetailsPage: React.FC = () => {
         throw error;
       }
     },
-    [apiClient, projectId, routeSceneId, upsertCommentThread],
+    [actingUserId, apiClient, projectId, routeSceneId, upsertCommentThread],
   );
 
   const handleResolveCommentThread = React.useCallback(
@@ -797,6 +830,11 @@ const SceneDetailsPage: React.FC = () => {
           "Inline comments are unavailable until a project is selected.",
         );
       }
+      if (!actingUserId) {
+        throw new Error(
+          "Configure VITE_SCENE_EDITOR_ACTING_USER_ID to update inline comment resolution.",
+        );
+      }
 
       try {
         const thread = await apiClient.setSceneCommentThreadResolution(
@@ -804,6 +842,7 @@ const SceneDetailsPage: React.FC = () => {
           routeSceneId,
           threadId,
           { resolved },
+          { actingUserId },
         );
         upsertCommentThread(thread);
       } catch (error) {
@@ -819,7 +858,7 @@ const SceneDetailsPage: React.FC = () => {
         throw error;
       }
     },
-    [apiClient, projectId, routeSceneId, upsertCommentThread],
+    [actingUserId, apiClient, projectId, routeSceneId, upsertCommentThread],
   );
 
   React.useEffect(() => {
@@ -1703,7 +1742,9 @@ const SceneDetailsPage: React.FC = () => {
       : "Scene detail";
 
   const canMutateComments =
-    projectId !== null && commentState.status !== "disabled";
+    projectId !== null &&
+    commentState.status !== "disabled" &&
+    actingUserId !== null;
   const canRefreshComments =
     projectId !== null && commentState.status !== "disabled";
 
@@ -1712,7 +1753,7 @@ const SceneDetailsPage: React.FC = () => {
       status: commentState.status,
       threadsByCommand: commentState.threadsByCommand,
       error: commentState.error,
-      disabledReason: commentState.disabledReason,
+      disabledReason: commentState.disabledReason ?? mutationDisabledReason,
       onRefresh: canRefreshComments ? () => refreshCommentThreads() : undefined,
       onCreateThread: canMutateComments
         ? handleCreateCommentThread
@@ -1724,6 +1765,7 @@ const SceneDetailsPage: React.FC = () => {
       canMutateComments,
       canRefreshComments,
       commentState.disabledReason,
+      mutationDisabledReason,
       commentState.error,
       commentState.status,
       commentState.threadsByCommand,

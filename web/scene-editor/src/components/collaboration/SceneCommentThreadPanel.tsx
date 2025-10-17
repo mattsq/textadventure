@@ -66,6 +66,14 @@ export const SceneCommentThreadPanel: React.FC<SceneCommentThreadPanelProps> = (
 
   const isDisabled = status === "disabled";
   const displayedError = error ?? localError;
+  const readOnlyMessage =
+    !isDisabled && disabledReason
+      ? (
+          <div className="rounded-lg border border-slate-800/60 bg-slate-900/40 px-4 py-3 text-sm text-slate-300">
+            {disabledReason}
+          </div>
+        )
+      : null;
 
   const handleCreateThread = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -155,6 +163,8 @@ export const SceneCommentThreadPanel: React.FC<SceneCommentThreadPanelProps> = (
       {status === "loading" || status === "idle" ? (
         <div className="text-sm text-slate-300">Loading comments…</div>
       ) : null}
+
+      {readOnlyMessage}
 
       {displayedError ? (
         <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100" role="alert">
