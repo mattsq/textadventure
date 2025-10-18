@@ -4,6 +4,7 @@ import SceneEditorLayout from "./routes/SceneEditorLayout";
 import OverviewPage from "./pages/OverviewPage";
 import SceneLibraryPage from "./pages/SceneLibraryPage";
 import SceneGraphPage from "./pages/SceneGraphPage";
+import ChoiceMatrixPage from "./pages/ChoiceMatrixPage";
 import SceneCreatePlaceholderPage from "./pages/SceneCreatePlaceholderPage";
 import SceneDetailsPage from "./pages/SceneDetailsPage";
 
@@ -13,6 +14,7 @@ export const App: React.FC = () => (
       <Route element={<SceneEditorLayout />}>
         <Route index element={<OverviewPage />} />
         <Route path="scenes" element={<SceneLibraryPage />} />
+        <Route path="choices" element={<ChoiceMatrixPage />} />
         <Route path="graph" element={<SceneGraphPage />} />
         <Route path="scenes/new" element={<SceneCreatePlaceholderPage />} />
         <Route path="scenes/:sceneId" element={<SceneDetailsPage />} />

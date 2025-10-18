@@ -40,6 +40,7 @@ const onboardingSections: EditorSidebarSection[] = [
 const navigationLinks = [
   { to: "/", label: "Overview" },
   { to: "/scenes", label: "Scene Library" },
+  { to: "/choices", label: "Choice Matrix" },
   { to: "/graph", label: "Scene Graph" },
   { to: "/scenes/new", label: "Create Scene" },
 ] as const;
@@ -92,6 +93,19 @@ const getRouteMetadata = (pathname: string) => {
         </span>
       ),
       logMessage: "Scene graph visualisation ready for topology reviews and validation planning.",
+    };
+  }
+
+  if (pathname === "/choices") {
+    return {
+      currentLabel: "Choice Matrix",
+      subtitle: (
+        <span>
+          Audit choice coverage across scenes, highlight missing transitions, and
+          jump straight into detailed editing for follow-up work.
+        </span>
+      ),
+      logMessage: "Choice matrix overview ready for transition coverage reviews.",
     };
   }
 
@@ -157,6 +171,8 @@ export const SceneEditorLayout: React.FC = () => {
     } else if (location.pathname === "/scenes/new") {
       items.push({ id: "scene-library", label: "Scene Library", onClick: () => navigate("/scenes") });
       items.push({ id: "scene-create", label: "Create Scene", current: true });
+    } else if (location.pathname === "/choices") {
+      items.push({ id: "choice-matrix", label: "Choice Matrix", current: true });
     } else if (location.pathname === "/graph") {
       items.push({ id: "scene-graph", label: "Scene Graph", current: true });
     } else if (sceneId) {

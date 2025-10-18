@@ -253,7 +253,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Extend the builder to cover inventory-based requirements and forbid constraints. *(Narration override editor now supports configuring required/forbidden inventory and history values with multi-select controls.)*
         - [x] Provide a readable summary of active conditions for each transition.
     - [ ] Implement choice matrix editor:
-      - [ ] Grid view of all choices across scenes
+      - [x] Grid view of all choices across scenes *(Added a choice matrix page with filtering controls, coverage badges, and navigation into scene details.)*
+      - [ ] Handle pagination and large datasets in the choice matrix view
       - [ ] Bulk editing capabilities
       - [ ] Command standardization tools
       - [ ] Consistency checking
