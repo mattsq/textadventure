@@ -11,6 +11,7 @@ const classNames = (...values: ClassValue[]): string =>
 export interface TransitionNarrationOverridesEditorProps {
   readonly overrides: readonly NarrationOverrideResource[];
   readonly historyOptions: readonly string[];
+  readonly itemOptions: readonly string[];
   readonly disabled?: boolean;
   readonly onChange: (
     overrides: readonly NarrationOverrideResource[],
@@ -35,7 +36,13 @@ const buildOverrideKey = (
 
 export const TransitionNarrationOverridesEditor: React.FC<
   TransitionNarrationOverridesEditorProps
-> = ({ overrides, historyOptions, disabled = false, onChange }) => {
+> = ({
+  overrides,
+  historyOptions,
+  itemOptions,
+  disabled = false,
+  onChange,
+}) => {
   const hasOverrides = overrides.length > 0;
 
   const handleOverrideChange = React.useCallback(
@@ -100,6 +107,11 @@ export const TransitionNarrationOverridesEditor: React.FC<
           const key = buildOverrideKey(override, index);
           const historyAll = override.requires_history_all ?? [];
           const historyAny = override.requires_history_any ?? [];
+          const forbidsHistoryAny = override.forbids_history_any ?? [];
+          const inventoryAll = override.requires_inventory_all ?? [];
+          const inventoryAny = override.requires_inventory_any ?? [];
+          const forbidsInventoryAny =
+            override.forbids_inventory_any ?? [];
 
           return (
             <li
@@ -130,8 +142,9 @@ export const TransitionNarrationOverridesEditor: React.FC<
                   Remove
                 </button>
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <MarkdownEditorField
+                  className="lg:col-span-1"
                   label="Override narration"
                   value={override.narration ?? ""}
                   onChange={(nextValue) =>
@@ -144,7 +157,7 @@ export const TransitionNarrationOverridesEditor: React.FC<
                   disabled={disabled}
                   minHeight={180}
                 />
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 lg:col-span-1">
                   <MultiSelectField
                     label="History required (all)"
                     description="Players must have recorded every listed history entry to see this narration."
@@ -171,6 +184,62 @@ export const TransitionNarrationOverridesEditor: React.FC<
                     }
                     options={historyOptions}
                     placeholder="Add optional history entries"
+                    disabled={disabled}
+                  />
+                  <MultiSelectField
+                    label="Forbidden history entries"
+                    description="Players must not have any of these history records for the override to apply."
+                    values={forbidsHistoryAny}
+                    onChange={(values) =>
+                      handleOverrideChange(index, {
+                        ...override,
+                        forbids_history_any: values,
+                      })
+                    }
+                    options={historyOptions}
+                    placeholder="Add forbidden history entries"
+                    disabled={disabled}
+                  />
+                  <MultiSelectField
+                    label="Inventory required (all)"
+                    description="Players must carry every listed item to unlock this narration."
+                    values={inventoryAll}
+                    onChange={(values) =>
+                      handleOverrideChange(index, {
+                        ...override,
+                        requires_inventory_all: values,
+                      })
+                    }
+                    options={itemOptions}
+                    placeholder="Add required items"
+                    disabled={disabled}
+                  />
+                  <MultiSelectField
+                    label="Inventory required (any)"
+                    description="Players need at least one of these items for the override to apply."
+                    values={inventoryAny}
+                    onChange={(values) =>
+                      handleOverrideChange(index, {
+                        ...override,
+                        requires_inventory_any: values,
+                      })
+                    }
+                    options={itemOptions}
+                    placeholder="Add optional items"
+                    disabled={disabled}
+                  />
+                  <MultiSelectField
+                    label="Forbidden inventory"
+                    description="The override is hidden if players carry any of these items."
+                    values={forbidsInventoryAny}
+                    onChange={(values) =>
+                      handleOverrideChange(index, {
+                        ...override,
+                        forbids_inventory_any: values,
+                      })
+                    }
+                    options={itemOptions}
+                    placeholder="Add forbidden items"
                     disabled={disabled}
                   />
                 </div>

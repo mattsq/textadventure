@@ -1195,6 +1195,20 @@ const SceneDetailsPage: React.FC = () => {
       }
     };
 
+    const addOverrideItems = (
+      overrides?: readonly NarrationOverrideResource[],
+    ) => {
+      if (!overrides) {
+        return;
+      }
+
+      for (const override of overrides) {
+        addItems(override.requires_inventory_all);
+        addItems(override.requires_inventory_any);
+        addItems(override.forbids_inventory_any);
+      }
+    };
+
     for (const transition of Object.values(formState.transitions)) {
       if (!transition) {
         continue;
@@ -1206,12 +1220,14 @@ const SceneDetailsPage: React.FC = () => {
       addItem((extras as TransitionExtras).item ?? null);
       addItems(extras.requires);
       addItems(extras.consumes);
+      addOverrideItems(extras.narration_overrides);
     }
 
     for (const transition of Object.values(unmanagedTransitions)) {
       addItem(transition.item ?? null);
       addItems(transition.requires);
       addItems(transition.consumes);
+      addOverrideItems(transition.narration_overrides);
     }
 
     return Array.from(items).sort((a, b) => a.localeCompare(b));

@@ -250,7 +250,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Failure narration editor
       - [ ] Conditional logic builder
         - [x] Support editing narration overrides with history requirements inside the transition editor.
-        - [ ] Extend the builder to cover inventory-based requirements and forbid constraints.
+        - [x] Extend the builder to cover inventory-based requirements and forbid constraints. *(Narration override editor now supports configuring required/forbidden inventory and history values with multi-select controls.)*
         - [ ] Provide a readable summary of active conditions for each transition.
     - [ ] Implement choice matrix editor:
       - [ ] Grid view of all choices across scenes

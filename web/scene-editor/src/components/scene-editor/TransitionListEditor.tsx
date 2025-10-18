@@ -356,6 +356,7 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                           transition?.extras?.narration_overrides ?? []
                         }
                         historyOptions={historyOptions}
+                        itemOptions={itemOptions}
                         disabled={disabled}
                         onChange={(overrides) =>
                           onNarrationOverridesChange(choice.key, overrides)
