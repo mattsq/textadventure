@@ -8,6 +8,7 @@ import {
   type SceneResource,
   type ValidationIssue,
   type SceneCommentThreadResource,
+  type NarrationOverrideResource,
 } from "../api";
 import { EditorPanel } from "../components/layout";
 import { Badge, Card } from "../components/display";
@@ -27,6 +28,11 @@ import { useSceneEditorStore } from "../state";
 
 type TransitionExtrasDraft = {
   -readonly [Key in keyof TransitionExtras]: TransitionExtras[Key];
+};
+
+type NarrationOverrideDraft = {
+  -readonly [Key in keyof NarrationOverrideResource]:
+    NarrationOverrideResource[Key];
 };
 
 const formatTimestamp = (value: string): string => {
@@ -146,6 +152,16 @@ const serializeTransition = (transition: TransitionResource): string => {
   filteredExtras.sort(([a], [b]) => a.localeCompare(b));
   const normalisedExtras: Record<string, unknown> = {};
   for (const [key, value] of filteredExtras) {
+    if (key === "narration_overrides" && Array.isArray(value)) {
+      const normalised = normaliseNarrationOverrideList(
+        value as readonly NarrationOverrideResource[],
+      );
+      if (normalised) {
+        normalisedExtras[key] = normalised;
+      }
+      continue;
+    }
+
     if (
       Array.isArray(value) &&
       ORDER_INSENSITIVE_EXTRA_KEYS.has(key) &&
@@ -236,6 +252,70 @@ const normaliseStringList = (
   }
 
   return result.length > 0 ? result : undefined;
+};
+
+const normaliseNarrationOverride = (
+  override: NarrationOverrideResource,
+): NarrationOverrideResource => {
+  const trimmedNarration = (override.narration ?? "").trim();
+
+  const requiresHistoryAll = normaliseStringList(
+    override.requires_history_all,
+  );
+  const requiresHistoryAny = normaliseStringList(
+    override.requires_history_any,
+  );
+  const forbidsHistoryAny = normaliseStringList(
+    override.forbids_history_any,
+  );
+  const requiresInventoryAll = normaliseStringList(
+    override.requires_inventory_all,
+  );
+  const requiresInventoryAny = normaliseStringList(
+    override.requires_inventory_any,
+  );
+  const forbidsInventoryAny = normaliseStringList(
+    override.forbids_inventory_any,
+  );
+  const records = normaliseStringList(override.records);
+
+  const result: Partial<NarrationOverrideDraft> = {
+    narration: trimmedNarration,
+  };
+
+  if (requiresHistoryAll) {
+    result.requires_history_all = requiresHistoryAll;
+  }
+  if (requiresHistoryAny) {
+    result.requires_history_any = requiresHistoryAny;
+  }
+  if (forbidsHistoryAny) {
+    result.forbids_history_any = forbidsHistoryAny;
+  }
+  if (requiresInventoryAll) {
+    result.requires_inventory_all = requiresInventoryAll;
+  }
+  if (requiresInventoryAny) {
+    result.requires_inventory_any = requiresInventoryAny;
+  }
+  if (forbidsInventoryAny) {
+    result.forbids_inventory_any = forbidsInventoryAny;
+  }
+  if (records) {
+    result.records = records;
+  }
+
+  return result as NarrationOverrideResource;
+};
+
+const normaliseNarrationOverrideList = (
+  overrides?: readonly NarrationOverrideResource[],
+): readonly NarrationOverrideResource[] | undefined => {
+  if (!overrides || overrides.length === 0) {
+    return undefined;
+  }
+
+  return overrides.map((override) => normaliseNarrationOverride(override));
 };
 
 const areTransitionsEqual = (
@@ -1049,6 +1129,20 @@ const SceneDetailsPage: React.FC = () => {
         consumes: normaliseStringList(rawExtras.consumes),
       };
 
+      if ("records" in trimmedExtras) {
+        trimmedExtras.records = normaliseStringList(trimmedExtras.records);
+      }
+
+      const normalisedOverrides = normaliseNarrationOverrideList(
+        rawExtras.narration_overrides,
+      );
+
+      if (normalisedOverrides) {
+        trimmedExtras.narration_overrides = normalisedOverrides as TransitionExtras["narration_overrides"];
+      } else {
+        delete trimmedExtras.narration_overrides;
+      }
+
       const failureValue = rawExtras.failure_narration;
       if (typeof failureValue === "string") {
         const trimmedFailure = failureValue.trim();
@@ -1121,6 +1215,51 @@ const SceneDetailsPage: React.FC = () => {
     }
 
     return Array.from(items).sort((a, b) => a.localeCompare(b));
+  }, [formState.transitions, unmanagedTransitions]);
+
+  const availableHistoryOptions = React.useMemo(() => {
+    const entries = new Set<string>();
+
+    const addValues = (values?: readonly string[]) => {
+      const normalised = normaliseStringList(values);
+      if (!normalised) {
+        return;
+      }
+      for (const value of normalised) {
+        entries.add(value);
+      }
+    };
+
+    const addOverrides = (
+      overrides?: readonly NarrationOverrideResource[],
+    ) => {
+      if (!overrides) {
+        return;
+      }
+
+      for (const override of overrides) {
+        addValues(override.requires_history_all);
+        addValues(override.requires_history_any);
+        addValues(override.forbids_history_any);
+        addValues(override.records);
+      }
+    };
+
+    for (const transition of Object.values(formState.transitions)) {
+      if (!transition) {
+        continue;
+      }
+      const extras = transition.extras ?? ({} as TransitionExtras);
+      addValues(extras.records);
+      addOverrides(extras.narration_overrides);
+    }
+
+    for (const transition of Object.values(unmanagedTransitions)) {
+      addValues(transition.records);
+      addOverrides(transition.narration_overrides);
+    }
+
+    return Array.from(entries).sort((a, b) => a.localeCompare(b));
   }, [formState.transitions, unmanagedTransitions]);
 
   const validationSnapshot = React.useMemo(
@@ -1705,6 +1844,43 @@ const SceneDetailsPage: React.FC = () => {
     setStatusNotice(null);
   };
 
+  const handleTransitionNarrationOverridesChange = (
+    choiceKey: string,
+    overrides: readonly NarrationOverrideResource[],
+  ) => {
+    setFormState((previous) => {
+      const previousTransition =
+        previous.transitions[choiceKey] ?? createEmptyTransition();
+      const previousExtras =
+        previousTransition.extras ?? ({} as TransitionExtras);
+
+      const nextExtras: Partial<TransitionExtrasDraft> = {
+        ...(previousExtras as TransitionExtras),
+      };
+
+      if (overrides.length === 0) {
+        delete nextExtras.narration_overrides;
+      } else {
+        nextExtras.narration_overrides = overrides.map((override) => ({
+          ...override,
+        })) as TransitionExtras["narration_overrides"];
+      }
+
+      return {
+        ...previous,
+        transitions: {
+          ...previous.transitions,
+          [choiceKey]: {
+            ...previousTransition,
+            extras: nextExtras as TransitionExtras,
+          },
+        },
+      };
+    });
+
+    setStatusNotice(null);
+  };
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void performSave("manual");
@@ -1848,12 +2024,16 @@ const SceneDetailsPage: React.FC = () => {
               errors={transitionErrors}
               targetOptions={availableTargetOptions}
               itemOptions={availableItemOptions}
+              historyOptions={availableHistoryOptions}
               disabled={isSaving}
               onTargetChange={handleTransitionTargetChange}
               onNarrationChange={handleTransitionNarrationChange}
               onFailureNarrationChange={handleTransitionFailureNarrationChange}
               onRequiresChange={handleTransitionRequiresChange}
               onConsumesChange={handleTransitionConsumesChange}
+              onNarrationOverridesChange={
+                handleTransitionNarrationOverridesChange
+              }
               highlightedChoiceKey={highlightedChoiceKey}
               getItemRef={getTransitionItemRef}
               commentSupport={transitionCommentSupport}

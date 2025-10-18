@@ -1,5 +1,6 @@
 import React from "react";
 import type {
+  NarrationOverrideResource,
   SceneCommentThreadResource,
   TransitionResource,
 } from "../../api";
@@ -11,6 +12,7 @@ import {
   MultiSelectField,
 } from "../forms";
 import type { ChoiceEditorItem } from "./ChoiceListEditor";
+import { TransitionNarrationOverridesEditor } from "./TransitionNarrationOverridesEditor";
 
 type ClassValue = string | false | null | undefined;
 
@@ -62,6 +64,7 @@ export interface TransitionListEditorProps {
   readonly errors: Readonly<Record<string, TransitionEditorFieldErrors>>;
   readonly targetOptions: readonly string[];
   readonly itemOptions: readonly string[];
+  readonly historyOptions: readonly string[];
   readonly disabled?: boolean;
   readonly onTargetChange: (choiceKey: string, value: string) => void;
   readonly onNarrationChange: (choiceKey: string, value: string) => void;
@@ -77,6 +80,10 @@ export interface TransitionListEditorProps {
     choiceKey: string,
     values: readonly string[],
   ) => void;
+  readonly onNarrationOverridesChange: (
+    choiceKey: string,
+    overrides: readonly NarrationOverrideResource[],
+  ) => void;
   readonly highlightedChoiceKey?: string | null;
   readonly getItemRef?: (choiceKey: string) => (element: HTMLLIElement | null) => void;
   readonly commentSupport?: TransitionCommentSupport;
@@ -89,12 +96,14 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
   errors,
   targetOptions,
   itemOptions,
+  historyOptions,
   disabled = false,
   onTargetChange,
   onNarrationChange,
   onFailureNarrationChange,
   onRequiresChange,
   onConsumesChange,
+  onNarrationOverridesChange,
   highlightedChoiceKey = null,
   getItemRef,
   commentSupport,
@@ -341,6 +350,16 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                         placeholder="Add consumed items"
                         disabled={disabled}
                         error={fieldErrors.consumes}
+                      />
+                      <TransitionNarrationOverridesEditor
+                        overrides={
+                          transition?.extras?.narration_overrides ?? []
+                        }
+                        historyOptions={historyOptions}
+                        disabled={disabled}
+                        onChange={(overrides) =>
+                          onNarrationOverridesChange(choice.key, overrides)
+                        }
                       />
                     </div>
                   </div>
