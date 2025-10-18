@@ -249,6 +249,9 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Item consumption configuration *(Transition editor now includes multi-select controls for configuring consumed inventory items with inline validation feedback.)*
       - [x] Failure narration editor
       - [ ] Conditional logic builder
+        - [x] Support editing narration overrides with history requirements inside the transition editor.
+        - [ ] Extend the builder to cover inventory-based requirements and forbid constraints.
+        - [ ] Provide a readable summary of active conditions for each transition.
     - [ ] Implement choice matrix editor:
       - [ ] Grid view of all choices across scenes
       - [ ] Bulk editing capabilities
