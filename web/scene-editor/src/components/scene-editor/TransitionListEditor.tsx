@@ -12,6 +12,7 @@ import {
   MultiSelectField,
 } from "../forms";
 import type { ChoiceEditorItem } from "./ChoiceListEditor";
+import { TransitionConditionSummary } from "./TransitionConditionSummary";
 import { TransitionNarrationOverridesEditor } from "./TransitionNarrationOverridesEditor";
 
 type ClassValue = string | false | null | undefined;
@@ -207,6 +208,11 @@ export const TransitionListEditor: React.FC<TransitionListEditorProps> = ({
                       </p>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
+                      <TransitionConditionSummary
+                        className="md:col-span-2"
+                        target={transition?.target ?? null}
+                        extras={transition?.extras}
+                      />
                       <div className="flex flex-col gap-2 md:col-span-1">
                         <AutocompleteField
                           label="Target scene"
