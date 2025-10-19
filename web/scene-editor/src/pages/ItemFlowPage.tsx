@@ -57,6 +57,13 @@ interface GraphBuildResult {
   readonly edges: Edge[];
 }
 
+interface SceneItemSummary {
+  readonly sceneId: string;
+  readonly itemIds: readonly string[];
+  readonly itemCount: number;
+  readonly commandCount: number;
+}
+
 const ITEM_NODE_DIMENSIONS = { width: 280, height: 260 } as const;
 const SCENE_NODE_DIMENSIONS = { width: 260, height: 220 } as const;
 
@@ -321,6 +328,61 @@ const buildItemFlowGraph = (
   return { nodes: positionedNodes, edges };
 };
 
+type ItemFlowRelationKey = "sources" | "requirements" | "consumptions";
+
+const summariseItemFlowByScene = (
+  itemFlow: ItemFlowSummaryResource | null,
+  relation: ItemFlowRelationKey,
+): readonly SceneItemSummary[] => {
+  if (!itemFlow) {
+    return [];
+  }
+
+  const summaries = new Map<string, { items: Set<string>; commands: Set<string> }>();
+
+  for (const detail of itemFlow.items) {
+    const references = detail[relation];
+    for (const reference of references) {
+      let aggregate = summaries.get(reference.scene_id);
+      if (!aggregate) {
+        aggregate = { items: new Set<string>(), commands: new Set<string>() };
+        summaries.set(reference.scene_id, aggregate);
+      }
+      aggregate.items.add(detail.item);
+      aggregate.commands.add(reference.command);
+    }
+  }
+
+  const results: SceneItemSummary[] = [];
+  for (const [sceneId, aggregate] of summaries) {
+    const sortedItems = Array.from(aggregate.items).sort((a, b) => a.localeCompare(b));
+    results.push({
+      sceneId,
+      itemIds: sortedItems,
+      itemCount: sortedItems.length,
+      commandCount: aggregate.commands.size,
+    });
+  }
+
+  results.sort((a, b) => {
+    if (b.itemCount !== a.itemCount) {
+      return b.itemCount - a.itemCount;
+    }
+    if (b.commandCount !== a.commandCount) {
+      return b.commandCount - a.commandCount;
+    }
+    return a.sceneId.localeCompare(b.sceneId);
+  });
+
+  return results;
+};
+
+const formatCountLabel = (count: number, singular: string, plural: string): string =>
+  `${count} ${count === 1 ? singular : plural}`;
+
+const SOURCE_SUMMARY_LIMIT = 8;
+const REQUIREMENT_SUMMARY_LIMIT = 8;
+
 const formatTimestamp = (value: string | null): string => {
   if (!value) {
     return "Unknown";
@@ -375,6 +437,12 @@ export const ItemFlowPage: React.FC = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState<ItemFlowNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [reactFlowInstance, setReactFlowInstance] = React.useState<ReactFlowInstance | null>(null);
+  const handleOpenScene = React.useCallback(
+    (sceneId: string) => {
+      navigate(`/scenes/${encodeURIComponent(sceneId)}`);
+    },
+    [navigate],
+  );
 
   React.useEffect(() => {
     const abortController = new AbortController();
@@ -430,12 +498,12 @@ export const ItemFlowPage: React.FC = () => {
 
     const { nodes: builtNodes, edges: builtEdges } = buildItemFlowGraph(state.data.item_flow, {
       filterItem: selectedItem,
-      onOpenScene: (sceneId) => navigate(`/scenes/${encodeURIComponent(sceneId)}`),
+      onOpenScene: handleOpenScene,
     });
 
     setNodes(builtNodes);
     setEdges(builtEdges);
-  }, [state.data, selectedItem, itemOptions, setNodes, setEdges, navigate]);
+  }, [state.data, selectedItem, itemOptions, setNodes, setEdges, handleOpenScene]);
 
   React.useEffect(() => {
     if (!reactFlowInstance) {
@@ -466,6 +534,14 @@ export const ItemFlowPage: React.FC = () => {
       consumptionDeficit: state.data?.item_flow.items_with_consumption_deficit.length ?? 0,
       unreachableSources: state.data?.item_flow.items_with_unreachable_sources.length ?? 0,
     }),
+    [state.data],
+  );
+  const sourceSummaries = React.useMemo(
+    () => summariseItemFlowByScene(state.data?.item_flow ?? null, "sources"),
+    [state.data],
+  );
+  const requirementSummaries = React.useMemo(
+    () => summariseItemFlowByScene(state.data?.item_flow ?? null, "requirements"),
     [state.data],
   );
 
@@ -570,12 +646,104 @@ export const ItemFlowPage: React.FC = () => {
                 <span className="font-semibold text-rose-200">{flaggedCounts.unreachableSources}</span>
               </li>
             </ul>
-          </div>
+            </div>
 
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Legend</h3>
-            <ul className="space-y-2 text-xs text-slate-300">
-              <li className="flex items-center gap-2">
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Scene source tracking</h3>
+              {sourceSummaries.length > 0 ? (
+                <ul className="space-y-2 text-xs leading-relaxed text-slate-300">
+                  {sourceSummaries.slice(0, SOURCE_SUMMARY_LIMIT).map((summary) => (
+                    <li
+                      key={`source-summary-${summary.sceneId}`}
+                      className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenScene(summary.sceneId)}
+                          className="text-sm font-semibold text-emerald-200 transition hover:text-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+                        >
+                          {summary.sceneId}
+                        </button>
+                        <span className="text-[11px] uppercase tracking-wide text-emerald-300/80">
+                          {formatCountLabel(summary.itemCount, "item", "items")} · {formatCountLabel(summary.commandCount, "command", "commands")}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-emerald-100">
+                        {summary.itemIds.map((itemId) => (
+                          <span
+                            key={`source-summary-${summary.sceneId}-${itemId}`}
+                            className="rounded-md bg-emerald-500/10 px-2 py-1 text-emerald-100/90"
+                          >
+                            {itemId}
+                          </span>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs leading-relaxed text-slate-400">
+                  No scenes currently award items in this dataset. Once scenes include item rewards they will appear here.
+                </p>
+              )}
+              {sourceSummaries.length > SOURCE_SUMMARY_LIMIT ? (
+                <p className="text-[11px] text-slate-500">
+                  Showing top {SOURCE_SUMMARY_LIMIT} of {sourceSummaries.length} scenes that award items.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Scene usage tracking</h3>
+              {requirementSummaries.length > 0 ? (
+                <ul className="space-y-2 text-xs leading-relaxed text-slate-300">
+                  {requirementSummaries.slice(0, REQUIREMENT_SUMMARY_LIMIT).map((summary) => (
+                    <li
+                      key={`usage-summary-${summary.sceneId}`}
+                      className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenScene(summary.sceneId)}
+                          className="text-sm font-semibold text-sky-200 transition hover:text-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300"
+                        >
+                          {summary.sceneId}
+                        </button>
+                        <span className="text-[11px] uppercase tracking-wide text-sky-200/80">
+                          {formatCountLabel(summary.itemCount, "item", "items")} · {formatCountLabel(summary.commandCount, "command", "commands")}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-sky-100">
+                        {summary.itemIds.map((itemId) => (
+                          <span
+                            key={`usage-summary-${summary.sceneId}-${itemId}`}
+                            className="rounded-md bg-sky-500/10 px-2 py-1 text-sky-100/90"
+                          >
+                            {itemId}
+                          </span>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs leading-relaxed text-slate-400">
+                  No scenes currently require items. Requirements will appear once transitions demand inventory items.
+                </p>
+              )}
+              {requirementSummaries.length > REQUIREMENT_SUMMARY_LIMIT ? (
+                <p className="text-[11px] text-slate-500">
+                  Showing top {REQUIREMENT_SUMMARY_LIMIT} of {requirementSummaries.length} scenes that require items.
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Legend</h3>
+              <ul className="space-y-2 text-xs text-slate-300">
+                <li className="flex items-center gap-2">
                 <span className="inline-flex h-3 w-3 rounded-full bg-emerald-400" aria-hidden />
                 Scene awards the item
               </li>
