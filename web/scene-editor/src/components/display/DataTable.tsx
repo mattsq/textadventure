@@ -25,6 +25,11 @@ export interface DataTableProps<T> {
   readonly onRowClick?: (item: T, index: number) => void;
   readonly dense?: boolean;
   readonly className?: string;
+  readonly getRowClassName?: (item: T, index: number) => string | undefined;
+  readonly getRowProps?: (
+    item: T,
+    index: number,
+  ) => React.HTMLAttributes<HTMLTableRowElement> | undefined;
 }
 
 const alignmentClasses: Record<ColumnAlignment, string> = {
@@ -62,12 +67,9 @@ export const DataTable = <T,>({
   onRowClick,
   dense = false,
   className,
+  getRowClassName,
+  getRowProps,
 }: DataTableProps<T>): React.ReactElement => {
-  const rowClassName = classNames(
-    "group", // enable hover styles on children
-    onRowClick ? "cursor-pointer" : undefined,
-  );
-
   return (
     <div
       className={classNames(
@@ -111,11 +113,40 @@ export const DataTable = <T,>({
           ) : (
             data.map((item, rowIndex) => {
               const key = getRowKey ? getRowKey(item, rowIndex) : rowIndex;
+              const rowSpecificProps = getRowProps
+                ? getRowProps(item, rowIndex)
+                : undefined;
+              const {
+                onClick: extraOnClick,
+                className: extraClassName,
+                ...restRowProps
+              } = rowSpecificProps ?? {};
+              const combinedClassName = classNames(
+                "group", // enable hover styles on children
+                onRowClick ? "cursor-pointer" : undefined,
+                getRowClassName ? getRowClassName(item, rowIndex) : undefined,
+                extraClassName,
+              );
+              const handleRowClick = (
+                event: React.MouseEvent<HTMLTableRowElement>,
+              ) => {
+                if (extraOnClick) {
+                  extraOnClick(event);
+                }
+
+                if (!event.defaultPrevented && onRowClick) {
+                  onRowClick(item, rowIndex);
+                }
+              };
+
               return (
                 <tr
                   key={key}
-                  onClick={onRowClick ? () => onRowClick(item, rowIndex) : undefined}
-                  className={rowClassName}
+                  onClick={
+                    onRowClick || extraOnClick ? handleRowClick : undefined
+                  }
+                  className={combinedClassName}
+                  {...restRowProps}
                 >
                   {columns.map((column) => (
                     <td

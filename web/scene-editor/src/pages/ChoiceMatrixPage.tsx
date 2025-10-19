@@ -1,6 +1,10 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { createSceneEditorApiClient } from "../api";
+import {
+  createSceneEditorApiClient,
+  SceneEditorApiError,
+  type TransitionResource,
+} from "../api";
 import {
   Badge,
   Card,
@@ -68,6 +72,19 @@ const transitionDescriptionMap: Record<ChoiceMatrixTransitionType, string> = {
 };
 
 const PAGE_SIZE_OPTIONS: readonly number[] = [25, 50, 100, 200];
+
+type BulkActionType = "link" | "mark-terminal" | "clear-transition";
+
+interface BulkStatusMessage {
+  readonly type: "success" | "error" | "info";
+  readonly message: string;
+}
+
+const BULK_STATUS_CLASSNAMES: Record<BulkStatusMessage["type"], string> = {
+  success: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
+  error: "border-rose-500/40 bg-rose-500/10 text-rose-100",
+  info: "border-indigo-400/40 bg-indigo-500/10 text-indigo-100",
+};
 
 const formatTimestamp = (value: string): string => {
   const parsed = new Date(value);
@@ -232,11 +249,6 @@ export const ChoiceMatrixPage: React.FC = () => {
     [navigate],
   );
 
-  const columns = React.useMemo(
-    () => buildColumns(handleRowNavigate),
-    [handleRowNavigate],
-  );
-
   const [debouncedSearch, setDebouncedSearch] = React.useState(searchQuery);
 
   React.useEffect(() => {
@@ -250,6 +262,86 @@ export const ChoiceMatrixPage: React.FC = () => {
   }, [searchQuery]);
 
   const matrixRows = matrixState.data ?? [];
+
+  const buildRowKey = React.useCallback(
+    (row: ChoiceMatrixRow) => `${row.sceneId}:::${row.choiceCommand}`,
+    [],
+  );
+
+  const [selectedRowIds, setSelectedRowIds] = React.useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const selectedRows = React.useMemo(
+    () => matrixRows.filter((row) => selectedRowIds.has(buildRowKey(row))),
+    [matrixRows, selectedRowIds, buildRowKey],
+  );
+
+  const selectedChoiceCount = selectedRows.length;
+
+  const selectedSceneCount = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of selectedRows) {
+      ids.add(row.sceneId);
+    }
+
+    return ids.size;
+  }, [selectedRows]);
+
+  const selectionSummary =
+    selectedChoiceCount === 0
+      ? "Select choices from the table to enable bulk actions."
+      : `Selected ${selectedChoiceCount} ${
+          selectedChoiceCount === 1 ? "choice" : "choices"
+        } across ${selectedSceneCount} ${
+          selectedSceneCount === 1 ? "scene" : "scenes"
+        }.`;
+
+  const availableSceneIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of matrixRows) {
+      ids.add(row.sceneId);
+      if (row.targetSceneId) {
+        ids.add(row.targetSceneId);
+      }
+    }
+
+    return Array.from(ids).sort((a, b) => a.localeCompare(b));
+  }, [matrixRows]);
+
+  const [bulkAction, setBulkAction] = React.useState<BulkActionType>("link");
+  const [bulkTarget, setBulkTarget] = React.useState("");
+  const [isApplyingBulkAction, setIsApplyingBulkAction] =
+    React.useState(false);
+  const [bulkStatus, setBulkStatus] = React.useState<BulkStatusMessage | null>(
+    null,
+  );
+
+  React.useEffect(() => {
+    setSelectedRowIds((previous) => {
+      const validKeys = new Set(matrixRows.map(buildRowKey));
+      let changed = false;
+      const next = new Set<string>();
+
+      previous.forEach((key) => {
+        if (validKeys.has(key)) {
+          next.add(key);
+        } else {
+          changed = true;
+        }
+      });
+
+      return changed ? next : previous;
+    });
+  }, [matrixRows, buildRowKey]);
+
+  const applyButtonLabel = isApplyingBulkAction
+    ? "Applying…"
+    : selectedChoiceCount === 0
+    ? "Apply action"
+    : `Apply to ${selectedChoiceCount} ${
+        selectedChoiceCount === 1 ? "choice" : "choices"
+      }`;
   const normalizedQuery = debouncedSearch.trim().toLowerCase();
 
   const filteredRows = React.useMemo(() => {
@@ -295,6 +387,67 @@ export const ChoiceMatrixPage: React.FC = () => {
     () => filteredRows.slice(startIndex, endIndex),
     [filteredRows, startIndex, endIndex],
   );
+
+  const visibleRowKeys = React.useMemo(
+    () => paginatedRows.map((row) => buildRowKey(row)),
+    [paginatedRows, buildRowKey],
+  );
+
+  const allVisibleSelected =
+    visibleRowKeys.length > 0 &&
+    visibleRowKeys.every((key) => selectedRowIds.has(key));
+  const someVisibleSelected = visibleRowKeys.some((key) =>
+    selectedRowIds.has(key),
+  );
+
+  const selectionHeaderCheckboxRef = React.useRef<HTMLInputElement | null>(
+    null,
+  );
+
+  React.useEffect(() => {
+    if (selectionHeaderCheckboxRef.current) {
+      selectionHeaderCheckboxRef.current.indeterminate =
+        someVisibleSelected && !allVisibleSelected;
+    }
+  }, [someVisibleSelected, allVisibleSelected]);
+
+  const toggleSingleRow = React.useCallback(
+    (row: ChoiceMatrixRow) => {
+      setSelectedRowIds((previous) => {
+        const key = buildRowKey(row);
+        const next = new Set(previous);
+        if (next.has(key)) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+
+        return next;
+      });
+    },
+    [buildRowKey],
+  );
+
+  const handleSelectAllVisible = React.useCallback(() => {
+    setSelectedRowIds((previous) => {
+      const next = new Set(previous);
+      if (visibleRowKeys.length === 0) {
+        return previous;
+      }
+
+      if (allVisibleSelected) {
+        visibleRowKeys.forEach((key) => next.delete(key));
+      } else {
+        visibleRowKeys.forEach((key) => next.add(key));
+      }
+
+      return next;
+    });
+  }, [allVisibleSelected, visibleRowKeys]);
+
+  const handleClearSelection = React.useCallback(() => {
+    setSelectedRowIds(() => new Set());
+  }, []);
 
   React.useEffect(() => {
     if (page !== safePage) {
@@ -378,6 +531,276 @@ export const ChoiceMatrixPage: React.FC = () => {
       setPage(nextPage);
     },
     [setPage],
+  );
+
+  const handleBulkActionChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const value = event.target.value as BulkActionType;
+    setBulkAction(value);
+    if (value !== "link") {
+      setBulkTarget("");
+    }
+  };
+
+  const handleBulkTargetChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setBulkTarget(event.target.value);
+  };
+
+  const getRowProps = React.useCallback(
+    (row: ChoiceMatrixRow) => {
+      const key = buildRowKey(row);
+      if (!selectedRowIds.has(key)) {
+        return undefined;
+      }
+
+      return {
+        className: "bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/40",
+        "aria-selected": true,
+      } as React.HTMLAttributes<HTMLTableRowElement>;
+    },
+    [buildRowKey, selectedRowIds],
+  );
+
+  const columns = React.useMemo(() => {
+    const baseColumns = buildColumns(handleRowNavigate);
+    const selectionColumn: DataTableColumn<ChoiceMatrixRow> = {
+      id: "selection",
+      header: (
+        <label className="inline-flex items-center justify-center">
+          <span className="sr-only">Select visible choices</span>
+          <input
+            ref={selectionHeaderCheckboxRef}
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-indigo-400"
+            checked={visibleRowKeys.length > 0 && allVisibleSelected}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => {
+              event.stopPropagation();
+              handleSelectAllVisible();
+            }}
+            disabled={visibleRowKeys.length === 0}
+          />
+        </label>
+      ),
+      align: "center",
+      className: "w-12",
+      render: (row) => {
+        const isSelected = selectedRowIds.has(buildRowKey(row));
+        return (
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-indigo-400"
+            checked={isSelected}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => {
+              event.stopPropagation();
+              toggleSingleRow(row);
+            }}
+            aria-label={`Select choice ${row.choiceCommand} in scene ${row.sceneId}`}
+          />
+        );
+      },
+    };
+
+    return [selectionColumn, ...baseColumns];
+  }, [
+    allVisibleSelected,
+    buildRowKey,
+    handleRowNavigate,
+    handleSelectAllVisible,
+    selectedRowIds,
+    toggleSingleRow,
+    visibleRowKeys.length,
+  ]);
+
+  const handleBulkActionSubmit = React.useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setBulkStatus(null);
+
+      if (selectedRowIds.size === 0) {
+        setBulkStatus({
+          type: "error",
+          message:
+            "Select at least one choice before applying a bulk action.",
+        });
+        return;
+      }
+
+      const trimmedTarget = bulkTarget.trim();
+
+      if (bulkAction === "link" && trimmedTarget === "") {
+        setBulkStatus({
+          type: "error",
+          message: "Enter a target scene identifier before linking choices.",
+        });
+        return;
+      }
+
+      const rowsToUpdate = matrixRows.filter((row) =>
+        selectedRowIds.has(buildRowKey(row)),
+      );
+
+      if (rowsToUpdate.length === 0) {
+        setBulkStatus({
+          type: "info",
+          message:
+            "No matching choices remain after applying the current filters.",
+        });
+        return;
+      }
+
+      setIsApplyingBulkAction(true);
+
+      let updatedChoiceCount = 0;
+      let updatedSceneCount = 0;
+
+      try {
+        const grouped = new Map<string, ChoiceMatrixRow[]>();
+        for (const row of rowsToUpdate) {
+          const bucket = grouped.get(row.sceneId) ?? [];
+          bucket.push(row);
+          grouped.set(row.sceneId, bucket);
+        }
+
+        for (const [sceneId, rows] of grouped) {
+          const sceneResponse = await apiClient.getScene(sceneId);
+          const scene = sceneResponse.data;
+
+          const nextTransitions: Record<string, TransitionResource> =
+            Object.fromEntries(
+              Object.entries(scene.transitions).map(
+                ([command, transition]) => [
+                  command,
+                  {
+                    ...transition,
+                    target: transition.target ?? null,
+                    narration: transition.narration ?? "",
+                  },
+                ],
+              ),
+            );
+
+          let sceneUpdatedCount = 0;
+
+          for (const row of rows) {
+            const command = row.choiceCommand;
+
+            if (bulkAction === "clear-transition") {
+              if (
+                Object.prototype.hasOwnProperty.call(nextTransitions, command)
+              ) {
+                delete nextTransitions[command];
+                sceneUpdatedCount += 1;
+              }
+              continue;
+            }
+
+            const existing = nextTransitions[command];
+            const baseTransition: TransitionResource = existing
+              ? {
+                  ...existing,
+                  target: existing.target ?? null,
+                  narration: existing.narration ?? "",
+                }
+              : { target: null, narration: "" };
+
+            if (bulkAction === "link") {
+              if (baseTransition.target === trimmedTarget) {
+                continue;
+              }
+
+              nextTransitions[command] = {
+                ...baseTransition,
+                target: trimmedTarget,
+              };
+              sceneUpdatedCount += 1;
+              continue;
+            }
+
+            if (existing && (existing.target ?? null) === null) {
+              continue;
+            }
+
+            nextTransitions[command] = {
+              ...baseTransition,
+              target: null,
+            };
+            sceneUpdatedCount += 1;
+          }
+
+          if (sceneUpdatedCount === 0) {
+            continue;
+          }
+
+          try {
+            await apiClient.updateScene(sceneId, {
+              scene: {
+                description: scene.description,
+                choices: scene.choices.map((choice) => ({
+                  command: choice.command,
+                  description: choice.description,
+                })),
+                transitions: nextTransitions,
+              },
+            });
+          } catch (error) {
+            const message =
+              error instanceof SceneEditorApiError
+                ? `Scene "${sceneId}": ${error.message}`
+                : `Unable to update scene "${sceneId}". Please try again.`;
+            setBulkStatus({ type: "error", message });
+            return;
+          }
+
+          updatedChoiceCount += sceneUpdatedCount;
+          updatedSceneCount += 1;
+        }
+
+        if (updatedChoiceCount === 0) {
+          setBulkStatus({
+            type: "info",
+            message:
+              "No changes were required. The selected choices already matched the requested state.",
+          });
+          return;
+        }
+
+        setBulkStatus({
+          type: "success",
+          message: `Updated ${updatedChoiceCount} ${
+            updatedChoiceCount === 1 ? "choice" : "choices"
+          } across ${updatedSceneCount} ${
+            updatedSceneCount === 1 ? "scene" : "scenes"
+          }.`,
+        });
+        setSelectedRowIds(() => new Set());
+        if (bulkAction === "link") {
+          setBulkTarget("");
+        }
+        triggerLoad();
+      } catch (error) {
+        const message =
+          error instanceof SceneEditorApiError
+            ? error.message
+            : "Unable to apply the bulk action. Please try again.";
+        setBulkStatus({ type: "error", message });
+      } finally {
+        setIsApplyingBulkAction(false);
+      }
+    },
+    [
+      apiClient,
+      bulkAction,
+      bulkTarget,
+      buildRowKey,
+      matrixRows,
+      selectedRowIds,
+      triggerLoad,
+    ],
   );
 
   return (
@@ -485,11 +908,80 @@ export const ChoiceMatrixPage: React.FC = () => {
         description="Click any command or target to open the associated scene for deeper editing."
       >
         <div className="space-y-4">
+          <form
+            onSubmit={handleBulkActionSubmit}
+            className="space-y-4 rounded-lg border border-slate-800/60 bg-slate-900/40 p-4"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Bulk actions</h3>
+                <p className="text-xs text-slate-300">{selectionSummary}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="inline-flex items-center gap-1 rounded border border-slate-600/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/60 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={selectedRowIds.size === 0 || isApplyingBulkAction}
+                >
+                  Clear selection
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={selectedRowIds.size === 0 || isApplyingBulkAction}
+                >
+                  {applyButtonLabel}
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <SelectField
+                label="Bulk action"
+                value={bulkAction}
+                onChange={handleBulkActionChange}
+                disabled={isApplyingBulkAction}
+              >
+                <option value="link">Link to scene</option>
+                <option value="mark-terminal">Mark as terminal ending</option>
+                <option value="clear-transition">Remove transition link</option>
+              </SelectField>
+              {bulkAction === "link" ? (
+                <div className="md:col-span-2 lg:col-span-2">
+                  <TextField
+                    id="bulk-target-scene"
+                    label="Target scene identifier"
+                    placeholder="Enter a scene ID to link to"
+                    value={bulkTarget}
+                    onChange={handleBulkTargetChange}
+                    list="bulk-target-options"
+                    required
+                    disabled={isApplyingBulkAction}
+                    description="Link all selected choices to this destination scene."
+                  />
+                  <datalist id="bulk-target-options">
+                    {availableSceneIds.map((sceneId) => (
+                      <option key={sceneId} value={sceneId} />
+                    ))}
+                  </datalist>
+                </div>
+              ) : null}
+            </div>
+            {bulkStatus ? (
+              <div
+                role="status"
+                className={`rounded-lg border px-3 py-2 text-xs font-medium ${BULK_STATUS_CLASSNAMES[bulkStatus.type]}`}
+              >
+                {bulkStatus.message}
+              </div>
+            ) : null}
+          </form>
           <DataTable
             columns={columns}
             data={paginatedRows}
-            getRowKey={(row) => `${row.sceneId}-${row.choiceCommand}`}
+            getRowKey={(row) => buildRowKey(row)}
             onRowClick={handleRowNavigate}
+            getRowProps={getRowProps}
             emptyState={
               matrixState.status === "loading"
                 ? "Loading choice data..."
