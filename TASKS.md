@@ -265,8 +265,8 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Testing interface for conditions
     - [ ] Add item flow analyzer:
       - [x] Visual item dependency graph *(Added an interactive item flow graph view in the web editor with filtering, stats, and scene navigation.)*
-      - [ ] Source tracking (where items come from)
-      - [ ] Usage tracking (where items are required)
+      - [x] Source tracking (where items come from) *(Added aggregated scene source panels in the item flow insights sidebar.)*
+      - [x] Usage tracking (where items are required) *(Surfaced scene-level requirement summaries with quick navigation controls.)*
       - [x] Orphaned item detection *(Implemented analytics helpers and CLI reporting for orphaned/unsourced items.)*
       - [x] Item balance analysis *(Added award/consumption balance classification and reporting.)*
 
