@@ -264,7 +264,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Visual representation of complex conditions
       - [ ] Testing interface for conditions
     - [ ] Add item flow analyzer:
-      - [ ] Visual item dependency graph
+      - [x] Visual item dependency graph *(Added an interactive item flow graph view in the web editor with filtering, stats, and scene navigation.)*
       - [ ] Source tracking (where items come from)
       - [ ] Usage tracking (where items are required)
       - [x] Orphaned item detection *(Implemented analytics helpers and CLI reporting for orphaned/unsourced items.)*
