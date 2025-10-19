@@ -95,6 +95,21 @@ const formatTimestamp = (value: string): string => {
   return parsed.toLocaleString();
 };
 
+const standardizeCommand = (value: string): string => {
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === "") {
+    return "";
+  }
+
+  const sanitized = trimmed
+    .replace(/[^a-z0-9\s_-]/g, " ")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return sanitized;
+};
+
 const buildColumns = (
   onRowClick: (row: ChoiceMatrixRow) => void,
 ): readonly DataTableColumn<ChoiceMatrixRow>[] => [
@@ -316,6 +331,40 @@ export const ChoiceMatrixPage: React.FC = () => {
   const [bulkStatus, setBulkStatus] = React.useState<BulkStatusMessage | null>(
     null,
   );
+  const [isStandardizingCommands, setIsStandardizingCommands] =
+    React.useState(false);
+  const [standardizeStatus, setStandardizeStatus] =
+    React.useState<BulkStatusMessage | null>(null);
+
+  const standardizationCandidates = React.useMemo(() => {
+    return selectedRows
+      .map((row) => ({
+        row,
+        suggestion: standardizeCommand(row.choiceCommand),
+      }))
+      .filter(({ row, suggestion }) =>
+        suggestion === "" ? false : suggestion !== row.choiceCommand,
+      );
+  }, [selectedRows]);
+
+  const invalidStandardizationCommands = React.useMemo(() => {
+    const invalid = new Set<string>();
+    for (const row of selectedRows) {
+      if (standardizeCommand(row.choiceCommand) === "") {
+        invalid.add(row.choiceCommand);
+      }
+    }
+
+    return Array.from(invalid).sort((a, b) => a.localeCompare(b));
+  }, [selectedRows]);
+
+  const standardizationPreview = React.useMemo(
+    () => standardizationCandidates.slice(0, 5),
+    [standardizationCandidates],
+  );
+
+  const remainingStandardizationCount =
+    standardizationCandidates.length - standardizationPreview.length;
 
   React.useEffect(() => {
     setSelectedRowIds((previous) => {
@@ -343,6 +392,14 @@ export const ChoiceMatrixPage: React.FC = () => {
         selectedChoiceCount === 1 ? "choice" : "choices"
       }`;
   const normalizedQuery = debouncedSearch.trim().toLowerCase();
+
+  const standardizeButtonLabel = isStandardizingCommands
+    ? "Standardizing…"
+    : standardizationCandidates.length === 0
+    ? "Standardize commands"
+    : `Standardize ${standardizationCandidates.length} ${
+        standardizationCandidates.length === 1 ? "command" : "commands"
+      }`;
 
   const filteredRows = React.useMemo(() => {
     return matrixRows.filter((row) => {
@@ -448,6 +505,157 @@ export const ChoiceMatrixPage: React.FC = () => {
   const handleClearSelection = React.useCallback(() => {
     setSelectedRowIds(() => new Set());
   }, []);
+
+  const handleStandardizeCommands = React.useCallback(async () => {
+    if (standardizationCandidates.length === 0) {
+      setStandardizeStatus({
+        type: "info",
+        message:
+          "Select choices with commands that need formatting before running standardization.",
+      });
+      return;
+    }
+
+    setIsStandardizingCommands(true);
+    setStandardizeStatus(null);
+
+    const updatesByScene = new Map<
+      string,
+      readonly { readonly row: ChoiceMatrixRow; readonly suggestion: string }[]
+    >();
+
+    for (const candidate of standardizationCandidates) {
+      const existing = updatesByScene.get(candidate.row.sceneId);
+      if (existing) {
+        updatesByScene.set(candidate.row.sceneId, [...existing, candidate]);
+      } else {
+        updatesByScene.set(candidate.row.sceneId, [candidate]);
+      }
+    }
+
+    try {
+      let renamedCommandCount = 0;
+
+      for (const [sceneId, updates] of updatesByScene.entries()) {
+        let scene;
+        try {
+          const sceneResponse = await apiClient.getScene(sceneId);
+          scene = sceneResponse.data;
+        } catch (error) {
+          const message =
+            error instanceof SceneEditorApiError
+              ? `Scene "${sceneId}": ${error.message}`
+              : `Unable to load scene "${sceneId}". Please try again.`;
+          setStandardizeStatus({ type: "error", message });
+          return;
+        }
+
+        const updateMap = new Map<string, string>(
+          updates.map(({ row, suggestion }) => [row.choiceCommand, suggestion]),
+        );
+
+        const occurrenceMap = new Map<string, number>();
+        for (const suggestion of updateMap.values()) {
+          occurrenceMap.set(
+            suggestion,
+            (occurrenceMap.get(suggestion) ?? 0) + 1,
+          );
+        }
+
+        for (const [suggestion, count] of occurrenceMap.entries()) {
+          if (count > 1) {
+            setStandardizeStatus({
+              type: "error",
+              message: `Scene "${sceneId}": multiple commands would resolve to "${suggestion}". Adjust the selection and try again.`,
+            });
+            return;
+          }
+        }
+
+        const existingCommands = new Set(
+          scene.choices.map((choice) => choice.command),
+        );
+
+        for (const [oldCommand, newCommand] of updateMap.entries()) {
+          if (
+            newCommand !== oldCommand &&
+            existingCommands.has(newCommand) &&
+            !updateMap.has(newCommand)
+          ) {
+            setStandardizeStatus({
+              type: "error",
+              message: `Scene "${sceneId}": command "${newCommand}" already exists. Rename commands manually to resolve the conflict.`,
+            });
+            return;
+          }
+        }
+
+        const updatedChoices = scene.choices.map((choice) => {
+          const replacement = updateMap.get(choice.command);
+          if (!replacement) {
+            return choice;
+          }
+
+          return {
+            ...choice,
+            command: replacement,
+          };
+        });
+
+        const updatedTransitions: Record<string, TransitionResource> = {};
+        for (const [command, transition] of Object.entries(scene.transitions)) {
+          const replacement = updateMap.get(command);
+          updatedTransitions[replacement ?? command] = transition;
+        }
+
+        try {
+          await apiClient.updateScene(sceneId, {
+            scene: {
+              description: scene.description,
+              choices: updatedChoices.map((choice) => ({
+                command: choice.command,
+                description: choice.description,
+              })),
+              transitions: updatedTransitions,
+            },
+          });
+        } catch (error) {
+          const message =
+            error instanceof SceneEditorApiError
+              ? `Scene "${sceneId}": ${error.message}`
+              : `Unable to update scene "${sceneId}". Please try again.`;
+          setStandardizeStatus({ type: "error", message });
+          return;
+        }
+
+        renamedCommandCount += updates.length;
+      }
+
+      setStandardizeStatus({
+        type: "success",
+        message: `Renamed ${renamedCommandCount} ${
+          renamedCommandCount === 1 ? "command" : "commands"
+        } across ${updatesByScene.size} ${
+          updatesByScene.size === 1 ? "scene" : "scenes"
+        }.`,
+      });
+      setSelectedRowIds(() => new Set());
+      triggerLoad();
+    } catch (error) {
+      const message =
+        error instanceof SceneEditorApiError
+          ? error.message
+          : "Unable to standardize commands. Please try again.";
+      setStandardizeStatus({ type: "error", message });
+    } finally {
+      setIsStandardizingCommands(false);
+    }
+  }, [
+    apiClient,
+    setSelectedRowIds,
+    standardizationCandidates,
+    triggerLoad,
+  ]);
 
   React.useEffect(() => {
     if (page !== safePage) {
@@ -976,6 +1184,74 @@ export const ChoiceMatrixPage: React.FC = () => {
               </div>
             ) : null}
           </form>
+          <div className="space-y-3 rounded-lg border border-indigo-500/40 bg-indigo-500/10 p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Command standardization</h3>
+                <p className="text-xs text-slate-200">
+                  Convert selected commands to kebab-case to keep player input consistent across the adventure.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleStandardizeCommands}
+                className="inline-flex items-center gap-2 rounded bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={
+                  isStandardizingCommands || standardizationCandidates.length === 0
+                }
+              >
+                {standardizeButtonLabel}
+              </button>
+            </div>
+            {standardizationPreview.length > 0 ? (
+              <ul className="space-y-2 text-xs text-slate-100">
+                {standardizationPreview.map(({ row, suggestion }) => (
+                  <li
+                    key={`${row.sceneId}:::${row.choiceCommand}`}
+                    className="flex flex-wrap items-center gap-2"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <code className="rounded bg-slate-900/70 px-2 py-1 font-mono text-[0.65rem] uppercase tracking-wide">
+                        {row.choiceCommand}
+                      </code>
+                      <span aria-hidden className="text-slate-400">
+                        →
+                      </span>
+                      <code className="rounded bg-emerald-600/20 px-2 py-1 font-mono text-[0.65rem] uppercase tracking-wide text-emerald-200">
+                        {suggestion}
+                      </code>
+                    </span>
+                    <span className="text-[0.65rem] uppercase tracking-wide text-indigo-200/80">
+                      {row.sceneId}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-300">
+                Select choices with inconsistent commands to preview suggested updates.
+              </p>
+            )}
+            {remainingStandardizationCount > 0 ? (
+              <p className="text-[0.7rem] text-slate-300">
+                +{remainingStandardizationCount} additional {" "}
+                {remainingStandardizationCount === 1 ? "command" : "commands"} ready for renaming.
+              </p>
+            ) : null}
+            {invalidStandardizationCommands.length > 0 ? (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                Unable to generate kebab-case commands for: {invalidStandardizationCommands.join(", ")}. Update these manually.
+              </div>
+            ) : null}
+            {standardizeStatus ? (
+              <div
+                role="status"
+                className={`rounded-lg border px-3 py-2 text-xs font-medium ${BULK_STATUS_CLASSNAMES[standardizeStatus.type]}`}
+              >
+                {standardizeStatus.message}
+              </div>
+            ) : null}
+          </div>
           <DataTable
             columns={columns}
             data={paginatedRows}

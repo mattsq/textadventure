@@ -256,7 +256,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Grid view of all choices across scenes *(Added a choice matrix page with filtering controls, coverage badges, and navigation into scene details.)*
       - [x] Handle pagination and large datasets in the choice matrix view *(Added configurable page sizing with navigation controls so large adventures remain responsive.)*
       - [x] Bulk editing capabilities *(Choice matrix now supports multi-select linking, terminal marking, and transition clearing with API-backed updates.)*
-      - [ ] Command standardization tools
+      - [x] Command standardization tools *(Added kebab-case auto-renaming tools in the choice matrix with conflict detection and API-backed updates.)*
       - [ ] Consistency checking
     - [ ] Build conditional logic visual editor:
       - [ ] Drag-and-drop condition builder
