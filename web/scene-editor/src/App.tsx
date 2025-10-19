@@ -7,6 +7,7 @@ import SceneGraphPage from "./pages/SceneGraphPage";
 import ChoiceMatrixPage from "./pages/ChoiceMatrixPage";
 import SceneCreatePlaceholderPage from "./pages/SceneCreatePlaceholderPage";
 import SceneDetailsPage from "./pages/SceneDetailsPage";
+import ItemFlowPage from "./pages/ItemFlowPage";
 
 export const App: React.FC = () => (
   <BrowserRouter>
@@ -15,6 +16,7 @@ export const App: React.FC = () => (
         <Route index element={<OverviewPage />} />
         <Route path="scenes" element={<SceneLibraryPage />} />
         <Route path="choices" element={<ChoiceMatrixPage />} />
+        <Route path="analytics/item-flow" element={<ItemFlowPage />} />
         <Route path="graph" element={<SceneGraphPage />} />
         <Route path="scenes/new" element={<SceneCreatePlaceholderPage />} />
         <Route path="scenes/:sceneId" element={<SceneDetailsPage />} />

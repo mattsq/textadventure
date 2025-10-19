@@ -179,6 +179,80 @@ export interface SceneReferenceListResponse {
   readonly data: readonly SceneReferenceResource[];
 }
 
+export interface SceneCommandIssueResource {
+  readonly scene_id: string;
+  readonly command: string;
+}
+
+export interface SceneTargetIssueResource {
+  readonly scene_id: string;
+  readonly command: string;
+  readonly target: string;
+}
+
+export interface SceneOverrideIssueResource {
+  readonly scene_id: string;
+  readonly command: string;
+  readonly index: number;
+}
+
+export interface QualityIssuesResource {
+  readonly issue_count: number;
+  readonly scenes_missing_description: readonly string[];
+  readonly duplicate_choice_commands: readonly SceneCommandIssueResource[];
+  readonly choices_missing_description: readonly SceneCommandIssueResource[];
+  readonly transitions_missing_narration: readonly SceneCommandIssueResource[];
+  readonly gated_transitions_missing_failure: readonly SceneCommandIssueResource[];
+  readonly conditional_overrides_missing_narration: readonly SceneOverrideIssueResource[];
+  readonly transitions_with_unknown_target: readonly SceneTargetIssueResource[];
+}
+
+export interface SceneReachabilityResource {
+  readonly start_scene: string;
+  readonly reachable_scenes: readonly string[];
+  readonly unreachable_scenes: readonly string[];
+  readonly reachable_count: number;
+  readonly unreachable_count: number;
+  readonly total_scene_count: number;
+  readonly fully_reachable: boolean;
+}
+
+export interface ItemReferenceResource {
+  readonly scene_id: string;
+  readonly command: string;
+}
+
+export interface ItemFlowDetailsResource {
+  readonly item: string;
+  readonly sources: readonly ItemReferenceResource[];
+  readonly requirements: readonly ItemReferenceResource[];
+  readonly consumptions: readonly ItemReferenceResource[];
+  readonly is_orphaned: boolean;
+  readonly is_missing_source: boolean;
+  readonly has_surplus_awards: boolean;
+  readonly has_consumption_deficit: boolean;
+}
+
+export interface ItemFlowSummaryResource {
+  readonly items: readonly ItemFlowDetailsResource[];
+  readonly orphaned_items: readonly string[];
+  readonly items_missing_sources: readonly string[];
+  readonly items_with_surplus_awards: readonly string[];
+  readonly items_with_consumption_deficit: readonly string[];
+  readonly items_with_unreachable_sources: readonly string[];
+}
+
+export interface SceneValidationReport {
+  readonly generated_at: string;
+  readonly quality: QualityIssuesResource;
+  readonly reachability: SceneReachabilityResource;
+  readonly item_flow: ItemFlowSummaryResource;
+}
+
+export interface SceneValidationResponse {
+  readonly data: SceneValidationReport;
+}
+
 export type SceneCommentLocationType = "transition_narration";
 
 export interface SceneCommentLocation {
@@ -290,10 +364,8 @@ export interface SceneGraphParams {
   readonly startScene?: string;
 }
 
-export interface ValidationSummaryResponse {
-  readonly data: {
-    readonly issues: readonly ValidationIssue[];
-  };
+export interface SceneValidationParams {
+  readonly startScene?: string;
 }
 
 export interface ImportScenesResponse {
@@ -539,10 +611,14 @@ export class SceneEditorApiClient {
     );
   }
 
-  async validateScenes(options: RequestOptions = {}): Promise<ValidationSummaryResponse> {
-    return this.request<ValidationSummaryResponse>(
+  async validateScenes(
+    params: SceneValidationParams = {},
+    options: RequestOptions = {},
+  ): Promise<SceneValidationResponse> {
+    return this.request<SceneValidationResponse>(
       "/scenes/validate",
       { signal: options.signal },
+      { start_scene: params.startScene },
     );
   }
 

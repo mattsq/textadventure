@@ -41,6 +41,7 @@ const navigationLinks = [
   { to: "/", label: "Overview" },
   { to: "/scenes", label: "Scene Library" },
   { to: "/choices", label: "Choice Matrix" },
+  { to: "/analytics/item-flow", label: "Item Flow" },
   { to: "/graph", label: "Scene Graph" },
   { to: "/scenes/new", label: "Create Scene" },
 ] as const;
@@ -93,6 +94,18 @@ const getRouteMetadata = (pathname: string) => {
         </span>
       ),
       logMessage: "Scene graph visualisation ready for topology reviews and validation planning.",
+    };
+  }
+
+  if (pathname === "/analytics/item-flow") {
+    return {
+      currentLabel: "Item Flow",
+      subtitle: (
+        <span>
+          Inspect how items move between scenes, highlight missing sources, and identify consumptions that may block progression.
+        </span>
+      ),
+      logMessage: "Item flow visualisation prepared for dependency analysis and balancing reviews.",
     };
   }
 
@@ -173,6 +186,8 @@ export const SceneEditorLayout: React.FC = () => {
       items.push({ id: "scene-create", label: "Create Scene", current: true });
     } else if (location.pathname === "/choices") {
       items.push({ id: "choice-matrix", label: "Choice Matrix", current: true });
+    } else if (location.pathname === "/analytics/item-flow") {
+      items.push({ id: "item-flow", label: "Item Flow", current: true });
     } else if (location.pathname === "/graph") {
       items.push({ id: "scene-graph", label: "Scene Graph", current: true });
     } else if (sceneId) {
