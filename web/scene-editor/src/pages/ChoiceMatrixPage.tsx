@@ -11,6 +11,7 @@ import {
   type DataTableColumn,
 } from "../components/display";
 import { EditorPanel } from "../components/layout";
+import { Pagination } from "../components/navigation";
 import { SelectField, TextField } from "../components/forms";
 import {
   type ChoiceMatrixRow,
@@ -65,6 +66,8 @@ const transitionDescriptionMap: Record<ChoiceMatrixTransitionType, string> = {
   terminal: "This choice ends the adventure.",
   unlinked: "No transition is linked to this choice yet.",
 };
+
+const PAGE_SIZE_OPTIONS: readonly number[] = [25, 50, 100, 200];
 
 const formatTimestamp = (value: string): string => {
   const parsed = new Date(value);
@@ -195,9 +198,13 @@ export const ChoiceMatrixPage: React.FC = () => {
     searchQuery,
     validationFilter,
     transitionFilter,
+    page,
+    pageSize,
     setSearchQuery,
     setValidationFilter,
     setTransitionFilter,
+    setPage,
+    setPageSize,
     loadChoiceMatrix,
   } = useChoiceMatrixStore();
 
@@ -279,6 +286,31 @@ export const ChoiceMatrixPage: React.FC = () => {
     });
   }, [matrixRows, normalizedQuery, transitionFilter, validationFilter]);
 
+  const totalMatchingRows = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalMatchingRows / pageSize));
+  const safePage = Math.max(1, Math.min(page, totalPages));
+  const startIndex = totalMatchingRows === 0 ? 0 : (safePage - 1) * pageSize;
+  const endIndex = totalMatchingRows === 0 ? 0 : Math.min(startIndex + pageSize, totalMatchingRows);
+  const paginatedRows = React.useMemo(
+    () => filteredRows.slice(startIndex, endIndex),
+    [filteredRows, startIndex, endIndex],
+  );
+
+  React.useEffect(() => {
+    if (page !== safePage) {
+      setPage(safePage);
+    }
+  }, [page, safePage, setPage]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [normalizedQuery, transitionFilter, validationFilter, setPage]);
+
+  const resultsLabel =
+    totalMatchingRows === 0
+      ? "Showing 0 of 0 matching choices"
+      : `Showing ${startIndex + 1}–${endIndex} of ${totalMatchingRows} matching choices`;
+
   const sceneCount = React.useMemo(() => new Set(matrixRows.map((row) => row.sceneId)).size, [matrixRows]);
   const linkedCount = matrixRows.filter((row) => row.transitionType === "linked").length;
   const terminalCount = matrixRows.filter((row) => row.transitionType === "terminal").length;
@@ -331,6 +363,22 @@ export const ChoiceMatrixPage: React.FC = () => {
   ) => {
     setTransitionFilter(event.target.value as ChoiceMatrixTransitionFilter);
   };
+
+  const handlePageSizeChange = (
+    event: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const nextSize = Number.parseInt(event.target.value, 10);
+    if (!Number.isNaN(nextSize)) {
+      setPageSize(nextSize);
+    }
+  };
+
+  const handlePageChange = React.useCallback(
+    (nextPage: number) => {
+      setPage(nextPage);
+    },
+    [setPage],
+  );
 
   return (
     <div className="space-y-8">
@@ -436,17 +484,41 @@ export const ChoiceMatrixPage: React.FC = () => {
         title="Scene choice overview"
         description="Click any command or target to open the associated scene for deeper editing."
       >
-        <DataTable
-          columns={columns}
-          data={filteredRows}
-          getRowKey={(row) => `${row.sceneId}-${row.choiceCommand}`}
-          onRowClick={handleRowNavigate}
-          emptyState={
-            matrixState.status === "loading"
-              ? "Loading choice data..."
-              : "No choices match the current filters."
-          }
-        />
+        <div className="space-y-4">
+          <DataTable
+            columns={columns}
+            data={paginatedRows}
+            getRowKey={(row) => `${row.sceneId}-${row.choiceCommand}`}
+            onRowClick={handleRowNavigate}
+            emptyState={
+              matrixState.status === "loading"
+                ? "Loading choice data..."
+                : "No choices match the current filters."
+            }
+          />
+          <div className="flex flex-col gap-4 border-t border-slate-800/60 pt-4 md:flex-row md:items-center md:justify-between">
+            <span className="text-xs text-slate-300">{resultsLabel}</span>
+            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <SelectField
+                label="Rows per page"
+                value={String(pageSize)}
+                onChange={handlePageSizeChange}
+                className="sm:w-44"
+              >
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option} rows
+                  </option>
+                ))}
+              </SelectField>
+              <Pagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            </div>
+          </div>
+        </div>
       </EditorPanel>
     </div>
   );

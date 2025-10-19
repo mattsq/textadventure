@@ -254,7 +254,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
         - [x] Provide a readable summary of active conditions for each transition.
     - [ ] Implement choice matrix editor:
       - [x] Grid view of all choices across scenes *(Added a choice matrix page with filtering controls, coverage badges, and navigation into scene details.)*
-      - [ ] Handle pagination and large datasets in the choice matrix view
+      - [x] Handle pagination and large datasets in the choice matrix view *(Added configurable page sizing with navigation controls so large adventures remain responsive.)*
       - [ ] Bulk editing capabilities
       - [ ] Command standardization tools
       - [ ] Consistency checking

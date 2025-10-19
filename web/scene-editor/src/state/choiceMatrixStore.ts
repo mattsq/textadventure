@@ -31,6 +31,8 @@ export interface ChoiceMatrixState {
   readonly searchQuery: string;
   readonly validationFilter: SceneTableValidationFilter;
   readonly transitionFilter: ChoiceMatrixTransitionFilter;
+  readonly page: number;
+  readonly pageSize: number;
   readonly setSearchQuery: (value: string) => void;
   readonly setValidationFilter: (
     value: SceneTableValidationFilter,
@@ -38,6 +40,8 @@ export interface ChoiceMatrixState {
   readonly setTransitionFilter: (
     value: ChoiceMatrixTransitionFilter,
   ) => void;
+  readonly setPage: (value: number) => void;
+  readonly setPageSize: (value: number) => void;
   readonly loadChoiceMatrix: (
     client: SceneEditorApiClient,
     options?: { signal?: AbortSignal }
@@ -127,9 +131,32 @@ export const useChoiceMatrixStore = create<ChoiceMatrixState>((set, get) => ({
   searchQuery: "",
   validationFilter: "all",
   transitionFilter: "all",
+  page: 1,
+  pageSize: 25,
   setSearchQuery: (value) => set({ searchQuery: value }),
   setValidationFilter: (value) => set({ validationFilter: value }),
   setTransitionFilter: (value) => set({ transitionFilter: value }),
+  setPage: (value) =>
+    set((state) => {
+      const nextPage = Math.max(1, Math.floor(value));
+      if (state.page === nextPage) {
+        return {};
+      }
+
+      return { page: nextPage };
+    }),
+  setPageSize: (value) =>
+    set((state) => {
+      const nextSize = Math.max(1, Math.floor(value));
+      if (state.pageSize === nextSize && state.page === 1) {
+        return {};
+      }
+
+      return {
+        pageSize: nextSize,
+        page: 1,
+      };
+    }),
   loadChoiceMatrix: async (client, options = {}) => {
     const previous = get().matrixState;
     set({
