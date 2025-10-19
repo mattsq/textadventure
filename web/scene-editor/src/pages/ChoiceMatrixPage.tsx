@@ -72,6 +72,7 @@ const transitionDescriptionMap: Record<ChoiceMatrixTransitionType, string> = {
 };
 
 const PAGE_SIZE_OPTIONS: readonly number[] = [25, 50, 100, 200];
+const CONSISTENCY_PREVIEW_LIMIT = 6;
 
 type BulkActionType = "link" | "mark-terminal" | "clear-transition";
 
@@ -84,6 +85,35 @@ const BULK_STATUS_CLASSNAMES: Record<BulkStatusMessage["type"], string> = {
   success: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
   error: "border-rose-500/40 bg-rose-500/10 text-rose-100",
   info: "border-indigo-400/40 bg-indigo-500/10 text-indigo-100",
+};
+
+type ConsistencyIssueSeverity = "error" | "warning";
+
+interface CommandConsistencyIssue {
+  readonly command: string;
+  readonly severity: ConsistencyIssueSeverity;
+  readonly messages: readonly string[];
+  readonly scenes: readonly {
+    readonly sceneId: string;
+    readonly transitionType: ChoiceMatrixTransitionType;
+    readonly targetSceneId: string | null;
+  }[];
+}
+
+const CONSISTENCY_SEVERITY_VARIANT: Record<
+  ConsistencyIssueSeverity,
+  React.ComponentProps<typeof Badge>["variant"]
+> = {
+  error: "danger",
+  warning: "warning",
+};
+
+const CONSISTENCY_SEVERITY_LABEL: Record<
+  ConsistencyIssueSeverity,
+  string
+> = {
+  error: "Action required",
+  warning: "Needs review",
 };
 
 const formatTimestamp = (value: string): string => {
@@ -109,6 +139,9 @@ const standardizeCommand = (value: string): string => {
 
   return sanitized;
 };
+
+const normalizeDescription = (value: string): string =>
+  value.replace(/\s+/g, " ").trim();
 
 const buildColumns = (
   onRowClick: (row: ChoiceMatrixRow) => void,
@@ -278,6 +311,112 @@ export const ChoiceMatrixPage: React.FC = () => {
 
   const matrixRows = matrixState.data ?? [];
 
+  const commandConsistencyIssues = React.useMemo(() => {
+    const rowsByCommand = new Map<string, ChoiceMatrixRow[]>();
+    for (const row of matrixRows) {
+      const existing = rowsByCommand.get(row.choiceCommand);
+      if (existing) {
+        existing.push(row);
+      } else {
+        rowsByCommand.set(row.choiceCommand, [row]);
+      }
+    }
+
+    const issues: CommandConsistencyIssue[] = [];
+
+    for (const [command, rows] of rowsByCommand.entries()) {
+      if (rows.length <= 1) {
+        continue;
+      }
+
+      const messages: string[] = [];
+      let severity: ConsistencyIssueSeverity | null = null;
+
+      const transitionTypes = new Set<ChoiceMatrixTransitionType>();
+      const linkedTargets = new Set<string>();
+      const normalizedDescriptions = new Set<string>();
+
+      for (const row of rows) {
+        transitionTypes.add(row.transitionType);
+        if (row.transitionType === "linked" && row.targetSceneId) {
+          linkedTargets.add(row.targetSceneId);
+        }
+        normalizedDescriptions.add(normalizeDescription(row.choiceDescription));
+      }
+
+      if (transitionTypes.size > 1) {
+        const labelList = Array.from(transitionTypes)
+          .sort((a, b) => a.localeCompare(b))
+          .map((type) => transitionLabelMap[type]);
+        messages.push(
+          `Transition types differ (${labelList.join(", ")}).`,
+        );
+        severity = "error";
+      }
+
+      if (linkedTargets.size > 1) {
+        const targetList = Array.from(linkedTargets).sort((a, b) =>
+          a.localeCompare(b),
+        );
+        messages.push(
+          `Linked choices target multiple scenes (${targetList.join(", ")}).`,
+        );
+        severity = "error";
+      }
+
+      if (normalizedDescriptions.size > 1) {
+        const descriptionPreview = Array.from(normalizedDescriptions)
+          .map((value) => (value === "" ? "“(empty)”" : `“${value}”`))
+          .sort((a, b) => a.localeCompare(b))
+          .slice(0, 2);
+        const remainingDescriptionCount =
+          normalizedDescriptions.size - descriptionPreview.length;
+        const descriptionMessage =
+          descriptionPreview.length === 0
+            ? "Descriptions differ."
+            : `Descriptions differ (${descriptionPreview.join(" vs ")}${
+                remainingDescriptionCount > 0
+                  ? ` +${remainingDescriptionCount} more`
+                  : ""
+              }).`;
+        messages.push(descriptionMessage);
+        if (severity !== "error") {
+          severity = "warning";
+        }
+      }
+
+      if (messages.length === 0) {
+        continue;
+      }
+
+      const scenes = rows
+        .slice()
+        .sort((a, b) => a.sceneId.localeCompare(b.sceneId))
+        .map((row) => ({
+          sceneId: row.sceneId,
+          transitionType: row.transitionType,
+          targetSceneId: row.targetSceneId,
+        }));
+
+      issues.push({
+        command,
+        severity: severity ?? "warning",
+        messages,
+        scenes,
+      });
+    }
+
+    issues.sort((a, b) => {
+      if (a.severity !== b.severity) {
+        return a.severity === "error" ? -1 : 1;
+      }
+
+      return a.command.localeCompare(b.command);
+    });
+
+    return issues;
+  }, [matrixRows]);
+
   const buildRowKey = React.useCallback(
     (row: ChoiceMatrixRow) => `${row.sceneId}:::${row.choiceCommand}`,
     [],
@@ -302,6 +441,14 @@ export const ChoiceMatrixPage: React.FC = () => {
 
     return ids.size;
   }, [selectedRows]);
+
+  const consistencyPreview = React.useMemo(
+    () => commandConsistencyIssues.slice(0, CONSISTENCY_PREVIEW_LIMIT),
+    [commandConsistencyIssues],
+  );
+
+  const remainingConsistencyIssueCount =
+    commandConsistencyIssues.length - consistencyPreview.length;
 
   const selectionSummary =
     selectedChoiceCount === 0
@@ -725,6 +872,13 @@ export const ChoiceMatrixPage: React.FC = () => {
     setTransitionFilter(event.target.value as ChoiceMatrixTransitionFilter);
   };
 
+  const handleFocusCommand = React.useCallback(
+    (command: string) => {
+      setSearchQuery(command);
+    },
+    [setSearchQuery],
+  );
+
   const handlePageSizeChange = (
     event: React.ChangeEvent<HTMLSelectElement>,
   ) => {
@@ -1077,6 +1231,96 @@ export const ChoiceMatrixPage: React.FC = () => {
             <span className="text-xs text-slate-400">Prioritise adding transitions or retiring these choices.</span>
           </Card>
         </div>
+
+        <Card
+          variant="subtle"
+          title="Consistency checks"
+          description="Identify commands that behave differently across scenes."
+        >
+          {commandConsistencyIssues.length === 0 ? (
+            <p className="text-xs text-emerald-200">
+              All commands share consistent descriptions and transition targets.
+            </p>
+          ) : (
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-300">
+                Review {commandConsistencyIssues.length} {" "}
+                {commandConsistencyIssues.length === 1
+                  ? "command"
+                  : "commands"} flagged for inconsistent behaviour.
+              </p>
+              <ul className="space-y-3">
+                {consistencyPreview.map((issue) => (
+                  <li
+                    key={issue.command}
+                    className="space-y-2 rounded-lg border border-slate-800/60 bg-slate-900/40 p-3"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code className="rounded bg-slate-900/70 px-2 py-1 font-mono text-[0.65rem] uppercase tracking-wide text-slate-100">
+                        {issue.command}
+                      </code>
+                      <Badge
+                        size="sm"
+                        variant={CONSISTENCY_SEVERITY_VARIANT[issue.severity]}
+                      >
+                        {CONSISTENCY_SEVERITY_LABEL[issue.severity]}
+                      </Badge>
+                      <span className="text-[0.65rem] uppercase tracking-wide text-slate-400">
+                        {issue.scenes.length} {" "}
+                        {issue.scenes.length === 1 ? "scene" : "scenes"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleFocusCommand(issue.command)}
+                        className="inline-flex items-center gap-1 rounded border border-indigo-500/40 px-2 py-1 text-[0.65rem] font-semibold text-indigo-100 transition hover:border-indigo-400/70 hover:bg-indigo-500/20"
+                      >
+                        Focus
+                      </button>
+                    </div>
+                    <ul className="list-disc space-y-1 pl-5 text-slate-200">
+                      {issue.messages.map((message) => (
+                        <li key={`${issue.command}::${message}`}>{message}</li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-wrap gap-2 text-[0.65rem] text-slate-300">
+                      {issue.scenes.map((scene) => (
+                        <span
+                          key={`${issue.command}:::${scene.sceneId}:::${scene.transitionType}:::${scene.targetSceneId ?? "_"}`}
+                          className="inline-flex items-center gap-1 rounded-full border border-slate-800/60 px-2 py-1"
+                        >
+                          <span className="font-mono uppercase tracking-wide text-indigo-200">
+                            {scene.sceneId}
+                          </span>
+                          <span aria-hidden className="text-slate-500">
+                            •
+                          </span>
+                          <span>{transitionLabelMap[scene.transitionType]}</span>
+                          {scene.transitionType === "linked" && scene.targetSceneId ? (
+                            <>
+                              <span aria-hidden className="text-slate-500">→</span>
+                              <span className="font-mono text-slate-100">
+                                {scene.targetSceneId}
+                              </span>
+                            </>
+                          ) : null}
+                        </span>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {remainingConsistencyIssueCount > 0 ? (
+                <p className="text-[0.65rem] text-slate-400">
+                  +{remainingConsistencyIssueCount} additional {" "}
+                  {remainingConsistencyIssueCount === 1
+                    ? "command"
+                    : "commands"} flagged for review. Use Focus to filter the
+                  table by command.
+                </p>
+              ) : null}
+            </div>
+          )}
+        </Card>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <TextField
