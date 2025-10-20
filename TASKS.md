@@ -485,3 +485,293 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Provide a copyable checklist contributors can drop into PR descriptions.
 - [ ] Capture the Part 4 playtest console screenshot for `docs/tutorials/playtesting_publishing.md` once refreshed assets are available.
 - [ ] Establish a documentation feedback channel (survey or issue label) and reference it from `Agents.md` and `docs/contributing.md`.
+
+## Priority 14: Repository Refactoring
+
+The repository has grown organically and requires systematic refactoring to improve maintainability, testability, and developer experience. This priority section addresses three critical issues identified through comprehensive codebase analysis:
+
+1. **Monolithic API layer** (`api/app.py` - 10,253 lines) containing all routes, models, and logic
+2. **Oversized frontend page components** (2,500+ lines) mixing concerns and business logic
+3. **Missing architectural layers** (service layer, proper state separation)
+
+**Analysis Documents**: See `REFACTORING_PLAN.md`, `REFACTORING_EXECUTIVE_SUMMARY.md`, and `REFACTORING_ANALYSIS.md` for detailed rationale.
+
+### Phase 1: Backend API Layer Decomposition (CRITICAL - 15-21 days)
+
+**Goal**: Break down the monolithic `api/app.py` file into focused, maintainable modules with clear separation of concerns.
+
+- [ ] **Phase 1A: Extract API Models from app.py** (~2-3 days)
+  - [ ] Create `src/textadventure/api/models/` directory structure with `__init__.py`
+  - [ ] Extract scene-related Pydantic models to `models/scene.py` (SceneResource, SceneCreateRequest, SceneUpdateRequest, etc.)
+  - [ ] Extract project-related models to `models/project.py` (ProjectResource, ProjectCreateRequest, etc.)
+  - [ ] Extract marketplace models to `models/marketplace.py` (MarketplaceEntry, MarketplacePublishRequest, etc.)
+  - [ ] Extract forum models to `models/forum.py` (ForumThread, ForumPost, etc.)
+  - [ ] Extract collaboration models to `models/collaboration.py` (CollaborationSession, PresenceUpdate, etc.)
+  - [ ] Extract common/shared models to `models/common.py` (PaginationMetadata, ValidationStatus, ExportFormat enums, etc.)
+  - [ ] Extract response wrapper models to `models/responses.py` (ErrorResponse, SuccessResponse, etc.)
+  - [ ] Update all imports in `app.py` to reference new model locations
+  - [ ] Run full test suite to verify no regressions (all tests must pass)
+  - [ ] Update `api/__init__.py` to export models from new locations for backward compatibility
+  - [ ] Verify `app.py` is reduced by ~2,500-3,000 lines
+
+- [ ] **Phase 1B: Extract Route Handlers from app.py** (~4-5 days)
+  - [ ] Create `src/textadventure/api/routes/` directory structure with `__init__.py`
+  - [ ] Extract scene CRUD routes to `routes/scenes.py` (list, get, create, update, delete, validate, graph, search, export, import, diff, rollback)
+  - [ ] Extract project management routes to `routes/projects.py` (list, get, create, update, delete, collaborators, templates, export)
+  - [ ] Extract marketplace routes to `routes/marketplace.py` (list, get, publish, reviews, search)
+  - [ ] Extract forum routes to `routes/forum.py` (list threads, create thread, create post, search)
+  - [ ] Extract collaboration routes to `routes/collaboration.py` (sessions, presence, heartbeat, comments)
+  - [ ] Extract asset management routes to `routes/assets.py` (list, upload, download, delete)
+  - [ ] Extract playtest/testing routes to `routes/playtest.py` (websocket, transcript, replay)
+  - [ ] Extract health check routes to `routes/health.py` (health, readiness endpoints)
+  - [ ] Refactor `app.py` to register APIRouter instances from route modules instead of defining routes directly
+  - [ ] Ensure each route module properly handles dependencies, error responses, and request validation
+  - [ ] Run full test suite and verify all API endpoints still function correctly
+  - [ ] Update API documentation/OpenAPI spec generation to reflect new structure
+  - [ ] Verify `app.py` is reduced by an additional ~3,000-4,000 lines
+
+- [ ] **Phase 1C: Extract Service Layer from Route Handlers** (~5-7 days)
+  - [ ] Create `src/textadventure/api/services/` directory structure with `__init__.py`
+  - [ ] Implement `services/scene_service.py` with SceneService class encapsulating scene business logic (CRUD, validation, graph generation, search, import/export, diff computation)
+  - [ ] Implement `services/project_service.py` with ProjectService class for project operations (management, collaborator handling, template instantiation, export/import)
+  - [ ] Implement `services/validation_service.py` with ValidationService consolidating scene validation, quality checks, reachability analysis, and integrity verification
+  - [ ] Implement `services/search_service.py` with SearchService for text search, filtering, and reference finding across scenes
+  - [ ] Implement `services/analytics_service.py` with AnalyticsService for complexity metrics, item flow analysis, and content distribution
+  - [ ] Implement `services/asset_service.py` with AssetService for asset inventory, upload/download, bundling, and cleanup
+  - [ ] Implement `services/playtest_service.py` with PlaytestService for session management, transcript recording, and replay
+  - [ ] Implement `services/marketplace_service.py` with MarketplaceService for publishing, listing, reviews, and ratings
+  - [ ] Refactor route handlers in `routes/` to delegate business logic to service classes instead of implementing inline
+  - [ ] Ensure services return domain objects/dicts and routes handle HTTP-specific concerns (status codes, response formatting)
+  - [ ] Write unit tests for each service class testing business logic independently of HTTP layer
+  - [ ] Run full integration test suite to verify end-to-end functionality
+  - [ ] Document service interfaces in docstrings with parameter types and return values
+
+- [ ] **Phase 1D: Extract Formatters and Validators** (~2-3 days)
+  - [ ] Create `src/textadventure/api/formatters/` directory with `__init__.py`
+  - [ ] Extract scene response formatting logic to `formatters/scene_formatter.py` (build scene resources, format transitions, format validation reports)
+  - [ ] Extract graph response formatting to `formatters/graph_formatter.py` (build node/edge representations, format layout data)
+  - [ ] Extract validation response formatting to `formatters/validation_formatter.py` (format error messages, quality summaries, reachability reports)
+  - [ ] Extract common formatting utilities to `formatters/common_formatters.py` (pagination formatting, timestamp formatting, diff formatting)
+  - [ ] Create `src/textadventure/api/validators/` directory with `__init__.py`
+  - [ ] Extract scene-specific validation helpers to `validators/scene_validator.py` (validate scene structure, command uniqueness, transition targets)
+  - [ ] Extract project-specific validation to `validators/project_validator.py` (validate project config, collaborator roles, asset paths)
+  - [ ] Extract common validation utilities to `validators/common_validators.py` (slug validation, ID validation, enum validation)
+  - [ ] Update services to use formatter and validator utilities instead of inline logic
+  - [ ] Write unit tests for formatters and validators with various input scenarios
+  - [ ] Run full test suite to verify refactoring preserves behavior
+
+- [ ] **Phase 1E: Implement Dependency Injection** (~2-3 days)
+  - [ ] Create `src/textadventure/api/dependencies/` directory with `__init__.py`
+  - [ ] Implement `dependencies/services.py` with service factory functions and dependency providers for FastAPI
+  - [ ] Implement `dependencies/auth.py` with authentication/authorization dependency functions (get_current_user, require_collaborator, etc.)
+  - [ ] Implement `dependencies/database.py` with repository/storage dependency providers (get_scene_store, get_project_registry, etc.)
+  - [ ] Refactor route handlers to accept service dependencies via FastAPI's Depends() mechanism instead of instantiating services directly
+  - [ ] Update service constructors to accept repository/store dependencies for better testability
+  - [ ] Create test fixtures for mocking services in API integration tests
+  - [ ] Update all API integration tests to use dependency override mechanism for mocking
+  - [ ] Document dependency injection patterns in `docs/api_layer_refactor.md`
+  - [ ] Verify `app.py` is now ~200-300 lines (down from 10,253) with clear structure
+
+### Phase 2: Frontend Page Component Refactoring (CRITICAL - 12-15 days)
+
+**Goal**: Decompose oversized page components into maintainable, focused components with custom hooks for business logic.
+
+- [ ] **Phase 2A: Refactor SceneGraphPage (2,547 lines → ~800 lines)** (~3-4 days)
+  - [ ] Create custom hook `useSceneGraph.ts` extracting graph data fetching, node/edge computation, layout management, and interaction state
+  - [ ] Create `components/scene-graph/SceneGraphView.tsx` as pure presentational component rendering the graph visualization
+  - [ ] Create `components/scene-graph/SceneGraphToolbar.tsx` for graph controls (layout, zoom, filters, search)
+  - [ ] Create `components/scene-graph/SceneGraphLegend.tsx` for legend and validation status indicators
+  - [ ] Create `components/scene-graph/SceneGraphNodeDetail.tsx` for detail panel/sidebar when node is selected
+  - [ ] Create `components/scene-graph/SceneGraphContainer.tsx` as smart container coordinating the page layout and data flow
+  - [ ] Refactor `pages/SceneGraphPage.tsx` to use the new components and hook, delegating concerns appropriately
+  - [ ] Extract graph-specific utilities to `utils/graphUtils.ts` (path finding, reachability, layout algorithms)
+  - [ ] Write unit tests for `useSceneGraph` hook testing state management and business logic
+  - [ ] Write component tests for presentational components (SceneGraphView, Toolbar, Legend)
+  - [ ] Verify SceneGraphPage is reduced to ~600-800 lines with improved readability
+
+- [ ] **Phase 2B: Refactor SceneDetailsPage (2,145 lines → ~800 lines)** (~3-4 days)
+  - [ ] Create custom hook `useSceneEditor.ts` extracting scene loading, edit state management, validation logic, and change tracking
+  - [ ] Create custom hook `useAutoSave.ts` extracting auto-save logic with debouncing and conflict detection
+  - [ ] Create `components/scene-editor/SceneDetailsForm.tsx` as main form component with sections for description, choices, transitions
+  - [ ] Create `components/scene-editor/SceneDetailsFormField.tsx` for individual field rendering with validation feedback
+  - [ ] Create `components/scene-editor/SceneDetailsContainer.tsx` coordinating form, sidebar, and action buttons
+  - [ ] Refactor `pages/SceneDetailsPage.tsx` to use new components and hooks
+  - [ ] Extract validation logic to `utils/sceneValidation.ts` for reusability
+  - [ ] Write unit tests for `useSceneEditor` and `useAutoSave` hooks with various editing scenarios
+  - [ ] Write component tests for form sections and field components
+  - [ ] Verify SceneDetailsPage is reduced to ~600-800 lines with clear separation of concerns
+
+- [ ] **Phase 2C: Refactor ChoiceMatrixPage (1,539 lines → ~600 lines)** (~2-3 days)
+  - [ ] Create custom hook `useChoiceMatrix.ts` extracting choice data aggregation, filtering, bulk operations, and selection state
+  - [ ] Create `components/choice-matrix/ChoiceMatrixView.tsx` as presentational component rendering the choice grid
+  - [ ] Create `components/choice-matrix/ChoiceMatrixToolbar.tsx` for filters, search, and bulk action controls
+  - [ ] Create `components/choice-matrix/ChoiceMatrixContainer.tsx` coordinating page layout
+  - [ ] Refactor `pages/ChoiceMatrixPage.tsx` to use new structure
+  - [ ] Extract choice consistency checking utilities to `utils/choiceUtils.ts`
+  - [ ] Write unit tests for `useChoiceMatrix` hook
+  - [ ] Write component tests for ChoiceMatrixView and toolbar
+  - [ ] Verify ChoiceMatrixPage is reduced to ~500-600 lines
+
+- [ ] **Phase 2D: Refactor FormField Component (1,019 lines → ~200 lines + focused components)** (~2-3 days)
+  - [ ] Create custom hook `useFormField.ts` extracting shared field state, validation, and accessibility logic
+  - [ ] Extract TextField rendering to dedicated `components/forms/TextField.tsx` (~100 lines)
+  - [ ] Extract TextAreaField to `components/forms/TextAreaField.tsx` (~100 lines)
+  - [ ] Extract SelectField to `components/forms/SelectField.tsx` (~120 lines)
+  - [ ] Extract AutocompleteField to `components/forms/AutocompleteField.tsx` (~150 lines)
+  - [ ] Extract MarkdownField to `components/forms/MarkdownField.tsx` (~150 lines)
+  - [ ] Extract DateField to `components/forms/DateField.tsx` (~80 lines)
+  - [ ] Refactor base `FormField.tsx` to contain only shared wrapper logic and field type routing (~200 lines)
+  - [ ] Update `components/forms/index.ts` to export all field types with a consistent API
+  - [ ] Update all form usages across the app to import from new structure
+  - [ ] Write unit tests for useFormField hook
+  - [ ] Write component tests for each field type
+  - [ ] Verify all forms still render and validate correctly
+
+### Phase 3: Frontend State Management Refactoring (HIGH - 4-5 days)
+
+**Goal**: Separate domain data from UI state in Zustand stores for better organization and testability.
+
+- [ ] **Phase 3A: Separate Domain and UI Stores** (~2-3 days)
+  - [ ] Create `state/domain/` directory for API data stores
+  - [ ] Implement `state/domain/sceneStore.ts` for scene data from API (scenes map, loading states, CRUD operations)
+  - [ ] Implement `state/domain/projectStore.ts` for project data (projects, active project, collaborators)
+  - [ ] Implement `state/domain/collaboratorsStore.ts` for real-time collaboration state (active sessions, presence)
+  - [ ] Create `state/ui/` directory for UI-only state
+  - [ ] Implement `state/ui/editorUIStore.ts` for editor UI state (active tabs, panels visibility, selected items)
+  - [ ] Implement `state/ui/navigationStore.ts` for navigation state (breadcrumbs, history, active routes)
+  - [ ] Implement `state/ui/toastStore.ts` for notification/toast state
+  - [ ] Refactor existing `sceneEditorStore.ts` to separate concerns into domain and UI stores
+  - [ ] Update store exports in `state/index.ts`
+
+- [ ] **Phase 3B: Create Coordinating Custom Hooks** (~2 days)
+  - [ ] Create `state/hooks/` directory for coordinating hooks
+  - [ ] Implement `hooks/useSceneData.ts` providing combined access to scene domain data with loading/error states
+  - [ ] Implement `hooks/useEditorUI.ts` providing UI state access with typed selectors
+  - [ ] Implement `hooks/useCoordination.ts` coordinating updates between domain and UI stores (e.g., auto-selecting scene in UI when loaded)
+  - [ ] Implement `hooks/useProjectData.ts` for project data access
+  - [ ] Implement `hooks/useCollaboration.ts` for collaboration features
+  - [ ] Update components to use coordinating hooks instead of direct store access
+  - [ ] Write tests for coordinating hooks
+  - [ ] Document new state management patterns in `docs/state_management.md`
+
+### Phase 4: Backend Analytics Module Refactoring (MEDIUM - 3-4 days)
+
+**Goal**: Break down large `analytics.py` module into focused analyzer modules.
+
+- [ ] **Phase 4: Modularize Analytics Module** (~3-4 days)
+  - [ ] Create `src/textadventure/analytics/` package directory with `__init__.py`
+  - [ ] Create `analytics/base.py` with shared types, protocols, and AnalysisResult base class
+  - [ ] Extract complexity analysis to `analytics/complexity_analyzer.py` (compute_adventure_complexity and helpers)
+  - [ ] Extract item flow analysis to `analytics/item_flow_analyzer.py` (analyse_item_flow, detect cycles, balance analysis)
+  - [ ] Extract reachability analysis to `analytics/reachability_analyzer.py` (compute_scene_reachability and helpers)
+  - [ ] Extract quality assessment to `analytics/quality_assessor.py` (assess_adventure_quality and heuristics)
+  - [ ] Extract content analysis to `analytics/content_analyzer.py` (compute_adventure_content_distribution)
+  - [ ] Extract variant comparison to `analytics/variant_analyzer.py` (compare_adventure_variants)
+  - [ ] Extract cycle detection to `analytics/cycle_detector.py` (detect_item_dependency_cycles)
+  - [ ] Extract formatting to `analytics/formatters.py` (report formatting functions)
+  - [ ] Update `analytics/__init__.py` to re-export public API for backward compatibility
+  - [ ] Update all imports in CLI, API, and tests to use new structure
+  - [ ] Run analytics test suite to verify no regressions
+  - [ ] Remove original monolithic `analytics.py` file
+
+### Phase 5: Test Organization Refactoring (MEDIUM - 5-7 days)
+
+**Goal**: Organize tests by layer and domain for better discoverability and maintenance.
+
+- [ ] **Phase 5A: Restructure Test Directories** (~2-3 days)
+  - [ ] Create `tests/unit/`, `tests/integration/`, `tests/api/` directory structure
+  - [ ] Move core unit tests to `tests/unit/` (test_world_state.py, test_story_engine.py, test_multi_agent.py, test_llm.py, test_persistence.py, test_memory.py, etc.)
+  - [ ] Move integration tests to `tests/integration/` (test_cli.py, test_llm_providers.py, test_playtest_flow.py, test_multi_agent_flow.py)
+  - [ ] Create `tests/fixtures/` directory and move shared fixtures (scene_fixtures.py, project_fixtures.py, transcript_fixtures.py)
+  - [ ] Create `tests/utils/` for test utilities and helpers
+  - [ ] Update all test imports to reflect new structure
+  - [ ] Update pytest configuration in `pytest.ini` to recognize new test paths
+  - [ ] Run full test suite to verify all tests are discovered and pass
+
+- [ ] **Phase 5B: Split Large API Test Files** (~3-4 days)
+  - [ ] Create `tests/api/conftest_api.py` with API-specific fixtures (test client, mock services)
+  - [ ] Split API route tests into focused files: `test_scenes_routes.py`, `test_projects_routes.py`, `test_marketplace_routes.py`, `test_forum_routes.py`, `test_collaboration_routes.py`, `test_assets_routes.py`, `test_playtest_routes.py`
+  - [ ] Create `tests/api/services/` directory for service layer tests
+  - [ ] Implement service tests: `test_scene_service.py`, `test_project_service.py`, `test_validation_service.py`, `test_search_service.py`, `test_analytics_service.py`
+  - [ ] Ensure service tests mock external dependencies and test business logic in isolation
+  - [ ] Update route tests to focus on HTTP-layer concerns (status codes, request validation, response formatting)
+  - [ ] Run API test suite and verify all tests pass with improved organization
+  - [ ] Update test documentation to explain new structure
+
+### Phase 6: Backend Utilities Organization (LOW - 2-3 days)
+
+**Goal**: Consolidate scattered helper functions into organized utility modules.
+
+- [ ] **Phase 6: Organize Utility Functions** (~2-3 days)
+  - [ ] Create `src/textadventure/utils/` package with `__init__.py`
+  - [ ] Create `utils/validation.py` and move common validation functions (_validate_*, _check_*, etc.)
+  - [ ] Create `utils/serialization.py` and move serialization helpers (_normalise_*, _parse_*, encoding/decoding utilities)
+  - [ ] Create `utils/text_processing.py` and move text utilities (truncation, wrapping, formatting)
+  - [ ] Create `utils/id_generation.py` and move ID/slug generation functions (_slugify_*, generate_id, etc.)
+  - [ ] Create `utils/pagination.py` and move pagination helpers (compute offsets, build metadata)
+  - [ ] Create `utils/imports.py` and move dynamic import helpers
+  - [ ] Update all imports across codebase to reference new utility locations
+  - [ ] Run test suite to verify no breakages
+  - [ ] Document utility modules in docstrings
+
+### Phase 7: Frontend Component Library Expansion (MEDIUM - 4-5 days)
+
+**Goal**: Create reusable component patterns to reduce duplication.
+
+- [ ] **Phase 7: Build Reusable Component Library** (~4-5 days)
+  - [ ] Create `components/dialogs/` with ConfirmDialog, AlertDialog, FormDialog components and useDialog hook
+  - [ ] Create `components/forms/` additions: FormSection, FormGrid wrappers for consistent form layouts
+  - [ ] Create `components/tables/` with BaseTable, useTableSort, useTablePagination, useTableSelection for table patterns
+  - [ ] Create `components/editors/` with generic ListEditor, useListEditor hook, ItemEditorDialog for CRUD list patterns
+  - [ ] Create `components/loaders/` with LoadingSpinner, SkeletonLoader, LoadingState wrapper for async states
+  - [ ] Create `components/patterns/` with AsyncBoundary, useAsync, useAsyncForm for common async patterns
+  - [ ] Update existing components to use new library components where applicable
+  - [ ] Write component tests for new library components
+  - [ ] Document component library usage patterns in `docs/component_patterns.md`
+
+### Phase 8: Frontend Custom Hooks Library (MEDIUM - 4-5 days)
+
+**Goal**: Extract common patterns into reusable custom hooks.
+
+- [ ] **Phase 8: Create Custom Hooks Library** (~4-5 days)
+  - [ ] Create `hooks/api/` directory for data-fetching hooks
+  - [ ] Implement API hooks: useSceneList, useScene, useSceneUpdate, useSceneDelete with caching and optimistic updates
+  - [ ] Create `hooks/forms/` for form-related hooks
+  - [ ] Implement form hooks: useFormState, useFormValidation, useAutoSave, useDebounce
+  - [ ] Create `hooks/ui/` for UI state hooks
+  - [ ] Implement UI hooks: useModal, useToast, useSort, useSearch
+  - [ ] Create `hooks/coordination/` for cross-cutting hooks
+  - [ ] Implement coordination hooks: useRouteNavigation, useBreadcrumbs
+  - [ ] Update components to use new hooks, removing duplicated logic
+  - [ ] Write unit tests for all custom hooks
+  - [ ] Document hooks in `docs/custom_hooks_guide.md`
+
+### Phase 9: Documentation Updates (LOW - 3-4 days)
+
+**Goal**: Document the refactored architecture and provide migration guides.
+
+- [ ] **Phase 9: Update Documentation** (~3-4 days)
+  - [ ] Create/update `docs/ARCHITECTURE.md` with high-level overview of refactored structure (layers, modules, data flow)
+  - [ ] Create `docs/API_LAYER_REFACTOR.md` documenting new API structure (routes, services, models, dependencies)
+  - [ ] Create `docs/COMPONENT_PATTERNS.md` documenting frontend component best practices (container/presentational, custom hooks, state management)
+  - [ ] Create `docs/STATE_MANAGEMENT.md` documenting Zustand store organization (domain vs UI, coordinating hooks)
+  - [ ] Create `docs/TESTING_STRATEGY.md` documenting testing guidelines by layer (unit, integration, API, component tests)
+  - [ ] Create `docs/EXTENSION_POINTS.md` documenting where and how to add new features (new endpoints, new components, new analytics)
+  - [ ] Update `README.md` to reference new documentation and architecture
+  - [ ] Update `docs/contributing.md` with refactored development workflow and guidelines
+  - [ ] Update `Agents.md` with new structure references for LLM agents
+  - [ ] Add inline code documentation (docstrings) to all new modules and complex functions
+  - [ ] Create migration guide for developers familiar with old structure
+
+### Success Criteria
+
+After completing this refactoring priority, the repository should demonstrate:
+
+- ✅ **No files exceeding 1,000 lines** (except potentially large test data files)
+- ✅ **Clear architectural layers**: Routes → Services → Domain → Storage
+- ✅ **Improved testability**: Business logic testable without HTTP/UI layers
+- ✅ **Better developer experience**: New developers can understand structure in <1 hour
+- ✅ **Faster feature development**: Adding new endpoints/components takes <30 minutes
+- ✅ **Reduced coupling**: Modules depend on clear interfaces, not implementations
+- ✅ **Comprehensive documentation**: Architecture, patterns, and extension points documented
+- ✅ **All tests passing**: 100% test passage maintained throughout refactoring
