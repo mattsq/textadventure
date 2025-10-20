@@ -501,17 +501,17 @@ The repository has grown organically and requires systematic refactoring to impr
 **Goal**: Break down the monolithic `api/app.py` file into focused, maintainable modules with clear separation of concerns.
 
 - [ ] **Phase 1A: Extract API Models from app.py** (~2-3 days)
-  - [ ] Create `src/textadventure/api/models/` directory structure with `__init__.py`
-  - [ ] Extract scene-related Pydantic models to `models/scene.py` (SceneResource, SceneCreateRequest, SceneUpdateRequest, etc.)
+  - [x] Create `src/textadventure/api/models/` directory structure with `__init__.py`
+  - [x] Extract scene-related Pydantic models to `models/scene.py` (SceneResource, SceneCreateRequest, SceneUpdateRequest, etc.)
   - [ ] Extract project-related models to `models/project.py` (ProjectResource, ProjectCreateRequest, etc.)
   - [ ] Extract marketplace models to `models/marketplace.py` (MarketplaceEntry, MarketplacePublishRequest, etc.)
   - [ ] Extract forum models to `models/forum.py` (ForumThread, ForumPost, etc.)
   - [ ] Extract collaboration models to `models/collaboration.py` (CollaborationSession, PresenceUpdate, etc.)
-  - [ ] Extract common/shared models to `models/common.py` (PaginationMetadata, ValidationStatus, ExportFormat enums, etc.)
+  - [x] Extract common/shared models to `models/common.py` (PaginationMetadata, ValidationStatus, ExportFormat enums, etc.)
   - [ ] Extract response wrapper models to `models/responses.py` (ErrorResponse, SuccessResponse, etc.)
-  - [ ] Update all imports in `app.py` to reference new model locations
-  - [ ] Run full test suite to verify no regressions (all tests must pass)
-  - [ ] Update `api/__init__.py` to export models from new locations for backward compatibility
+  - [x] Update all imports in `app.py` to reference new model locations
+  - [x] Run full test suite to verify no regressions (all tests must pass)
+  - [x] Update `api/__init__.py` to export models from new locations for backward compatibility
   - [ ] Verify `app.py` is reduced by ~2,500-3,000 lines
 
 - [ ] **Phase 1B: Extract Route Handlers from app.py** (~4-5 days)

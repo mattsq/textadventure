@@ -25,3 +25,5 @@ node_modules/
 # Model files
 models/
 *.gguf
+!src/textadventure/api/models/
+!src/textadventure/api/models/**
