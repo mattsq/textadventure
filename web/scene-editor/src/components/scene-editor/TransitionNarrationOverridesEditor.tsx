@@ -2,6 +2,7 @@ import React from "react";
 import type { NarrationOverrideResource } from "../../api";
 import { Card } from "../display";
 import { MarkdownEditorField, MultiSelectField } from "../forms";
+import { HistoryConditionBuilder } from "./HistoryConditionBuilder";
 
 type ClassValue = string | false | null | undefined;
 
@@ -158,47 +159,22 @@ export const TransitionNarrationOverridesEditor: React.FC<
                   minHeight={180}
                 />
                 <div className="flex flex-col gap-4 lg:col-span-1">
-                  <MultiSelectField
-                    label="History required (all)"
-                    description="Players must have recorded every listed history entry to see this narration."
-                    values={historyAll}
-                    onChange={(values) =>
+                  <HistoryConditionBuilder
+                    values={{
+                      requiresAll: historyAll,
+                      requiresAny: historyAny,
+                      forbidsAny: forbidsHistoryAny,
+                    }}
+                    options={historyOptions}
+                    disabled={disabled}
+                    onChange={(nextValues) =>
                       handleOverrideChange(index, {
                         ...override,
-                        requires_history_all: values,
+                        requires_history_all: nextValues.requiresAll,
+                        requires_history_any: nextValues.requiresAny,
+                        forbids_history_any: nextValues.forbidsAny,
                       })
                     }
-                    options={historyOptions}
-                    placeholder="Add required history entries"
-                    disabled={disabled}
-                  />
-                  <MultiSelectField
-                    label="History required (any)"
-                    description="Players need at least one of these history entries for the override to apply."
-                    values={historyAny}
-                    onChange={(values) =>
-                      handleOverrideChange(index, {
-                        ...override,
-                        requires_history_any: values,
-                      })
-                    }
-                    options={historyOptions}
-                    placeholder="Add optional history entries"
-                    disabled={disabled}
-                  />
-                  <MultiSelectField
-                    label="Forbidden history entries"
-                    description="Players must not have any of these history records for the override to apply."
-                    values={forbidsHistoryAny}
-                    onChange={(values) =>
-                      handleOverrideChange(index, {
-                        ...override,
-                        forbids_history_any: values,
-                      })
-                    }
-                    options={historyOptions}
-                    placeholder="Add forbidden history entries"
-                    disabled={disabled}
                   />
                   <MultiSelectField
                     label="Inventory required (all)"

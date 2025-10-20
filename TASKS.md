@@ -259,7 +259,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Command standardization tools *(Added kebab-case auto-renaming tools in the choice matrix with conflict detection and API-backed updates.)*
       - [x] Consistency checking *(Choice matrix surfaces command-level inconsistencies, highlights impacted scenes, and offers quick filters for review.)*
     - [ ] Build conditional logic visual editor:
-      - [ ] Drag-and-drop condition builder
+      - [x] Drag-and-drop condition builder *(Added a draggable history condition builder to narration overrides so authors can reorganise requirement buckets visually.)*
       - [ ] Support for `requires_history_any/all`
       - [ ] Visual representation of complex conditions
       - [ ] Testing interface for conditions
