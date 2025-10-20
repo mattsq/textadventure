@@ -143,7 +143,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [ ] **Phase 1: Foundation & Backend API**
     - [x] Analyze current JSON schema and identify all data relationships (scenes, transitions, items, conditions). *(Documented the existing runtime model in `docs/web_editor_schema.md` to guide the web editor API design.)*
     - [x] Design RESTful API specification for scene CRUD operations. *(Documented in `docs/web_editor_api_spec.md`.)*
-    - [ ] Implement FastAPI backend with the following endpoints:
+    - [x] Implement FastAPI backend with the following endpoints:
       - [x] `GET /api/scenes` - List all scenes with metadata *(Implemented read-only endpoint backed by the scripted scene store, including pagination, filtering, and validation summaries.)*
       - [x] `GET /api/scenes/{scene_id}` - Get detailed scene data *(Implemented read-only detail endpoint returning full scene definitions with optional validation metadata.)*
       - [x] `PUT /api/scenes/{scene_id}` - Update existing scene *(Adds optimistic concurrency checks, persistence, and regression tests.)*
@@ -153,7 +153,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] `GET /api/scenes/graph` - Scene connectivity graph data *(returns node/edge metadata with transition details and start-scene selection.)*
       - [x] `POST /api/scenes/import` - Import JSON scene data *(Provides REST-aligned endpoint alongside legacy path.)*
       - [x] `GET /api/scenes/export` - Export current scenes as JSON *(Adds REST-aligned alias mirroring the legacy endpoint.)*
-    - [ ] Add comprehensive validation engine:
+    - [x] Add comprehensive validation engine:
       - [x] Scene reference integrity (no broken targets) *(Extended analytics and validation to surface transitions pointing to undefined scenes, with updated API reporting.)*
       - [x] Item flow analysis (sources vs requirements)
       - [x] Reachability analysis (unreachable scenes/items) *(Validation now flags unreachable scenes and item dependencies, surfaces warnings in API responses, and exposes summary metadata.)*
@@ -169,7 +169,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Set up React application with TypeScript for type safety. *(Added `web/scene-editor` package with React + TypeScript scaffolding and type-check script.)*
     - [x] Configure build pipeline (Vite/Webpack) with development server. *(Added a Vite + React toolchain with dev/build/preview scripts and updated TypeScript configuration.)*
     - [x] Implement responsive CSS framework (Tailwind CSS or Material-UI). *(Integrated Tailwind CSS with custom theme tokens, global styles, and utility-driven placeholder layout.)*
-    - [ ] Create base component library:
+    - [x] Create base component library:
       - [x] Layout components (headers, sidebars, panels) *(Introduced reusable EditorShell, Header, Sidebar, and Panel React components to establish shared layout primitives.)*
       - [x] Form components (inputs, selects, textareas) *(Added shared TextField, SelectField, and TextAreaField components with accessibility helpers and demo usage in the shell.)*
       - [x] Data display components (tables, cards, badges) *(Added Card, Badge, and DataTable primitives with demo usage inside the editor shell to showcase validation summaries.)*
@@ -179,18 +179,18 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
     - [x] Add routing system for different editor views. *(Implemented BrowserRouter-driven layout with dedicated overview, library, create, and detail placeholder routes.)*
 
   - [ ] **Phase 3: Scene List & Basic Editing**
-    - [ ] Implement scene list view:
+    - [x] Implement scene list view:
       - [x] Searchable/filterable scene table *(Implemented live search with debounce, validation status filters, and reset controls in the library view.)*
     - [x] Scene metadata display (description preview, choice count, transition count)
     - [x] Quick actions (edit, duplicate, delete) *(Added action buttons that prefill the editor form, prepare duplicates, and surface deletion placeholders with navigation log updates.)*
     - [x] Validation status indicators (errors, warnings) *(Icon-based badges in the scene table and status breakdown now reflect API validation states.)*
-  - [ ] Create basic scene editor form:
+  - [x] Create basic scene editor form:
     - [x] Scene ID and description editing *(Implemented dedicated scene detail page with editable ID/description fields, API-backed save flow, and validation messaging.)*
     - [x] Dynamic choice list editor (add/remove/reorder) *(Added interactive choice list management with validation, reordering controls, and API integration.)*
     - [x] Basic transition editor (target selection, narration) *(Implemented transition editor with target suggestions, narration validation, and save integration.)*
     - [x] Real-time validation feedback *(Inline field errors now update as you type, and saving is blocked until issues are resolved.)*
     - [x] Auto-save functionality *(Scene editor now auto-saves after periods of inactivity when changes are valid, with status feedback.)*
-    - [ ] Implement scene creation wizard:
+    - [x] Implement scene creation wizard:
       - [x] Template selection (empty, copy from existing) *(Added interactive wizard step with template cards and duplication flow.)*
       - [x] Guided setup for basic properties *(Wizard now walks through scene ID, type, and summary with validation hints and success messaging.)*
       - [x] Integration with scene list *(Wizard saves drafts into the client-side library, updates navigation logs, and links back to the table view.)*
@@ -205,37 +205,37 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Add React Flow dependency and expose a dedicated graph route in the editor.
       - [x] Render scene/transition data from the API in React Flow with a basic auto-layout.
       - [x] Surface loading, error, and legend UI so the graph view feels production-ready.
-    - [ ] Implement scene node components:
+    - [x] Implement scene node components:
       - [x] Color-coded by type (start, end, branch, linear)
       - [x] Validation status indicators (error, warning, valid) *(Scene graph nodes now include a dedicated status accent and badge pairing for valid, warning, and error states.)*
       - [x] Hover tooltips with scene metadata
       - [x] Click to open editor *(Graph nodes now navigate directly to the scene detail editor when activated, including keyboard support.)*
-    - [ ] Implement transition edge components:
+    - [x] Implement transition edge components:
       - [x] Different styles for different transition types
       - [x] Conditional edges (requirements) shown differently *(Transitions that require inventory or history now render as dashed blue edges with "requires" labels and legend support.)*
       - [x] Edge labels showing command names *(Graph edges now display stylised command pills with variant indicators and requirements callouts.)*
       - [x] Click to edit transition *(Graph edge labels now navigate to the source scene and focus the corresponding transition editor entry.)*
-    - [ ] Add graph interaction features:
+    - [x] Add graph interaction features:
       - [x] Drag-and-drop scene positioning *(Added layout editing mode with draggable scene nodes and resettable manual overrides.)*
       - [x] Zoom and pan controls *(Introduced overlay controls for zooming, panning modes, and scroll zoom toggles.)*
       - [x] Minimap for large graphs *(Added toggleable minimap overlay with themed styling and expandable view controls to help navigate sprawling graphs.)*
       - [x] Auto-layout algorithms *(Added Dagre-powered auto layout controls that reposition the graph with improved spacing.)*
       - [x] Search and focus on specific scenes *(Graph overlay now includes a searchable scene selector that highlights and centers the chosen node, with clear/reset controls.)*
-    - [ ] Implement dependency highlighting:
+    - [x] Implement dependency highlighting:
       - [x] Highlight item flow chains *(Scene graph view now offers an item-focused highlight mode that emphasises transitions and scenes rewarding, requiring, or consuming the selected item while dimming unrelated nodes.)*
       - [x] Show unreachable scenes in red *(Scene graph nodes, tooltips, minimap, and legend now surface unreachable scenes with distinct red styling.)*
       - [x] Trace paths between scenes *(Scene graph overlay now supports selecting start/target scenes, highlights the shortest path, and dims unrelated nodes.)*
       - [x] Critical path analysis *(Graph view can now compute and highlight the longest route from the configured start scene, with UI controls, status messaging, and badge indicators.)*
 
   - [ ] **Phase 5: Advanced Editing Features**
-    - [ ] Create comprehensive transition editor:
+    - [x] Create comprehensive transition editor:
       - [x] Target scene dropdown with autocomplete
-      - [ ] Rich text editor for narration
+      - [x] Rich text editor for narration
       - [x] Evaluate rich text frameworks that output Markdown-compatible content *(Documented findings in `docs/rich_text_editor_evaluation.md`.)*
         - [x] Document requirements and integration plan *(see `docs/rich_text_editor_plan.md`)*
         - [x] Prototype Markdown rendering in the CLI runtime *(Added ANSI Markdown renderer and wired it into the CLI formatting flow.)*
         - [x] Integrate the editor into the scene authoring UI shell *(Wired a Markdown-powered narration editor with live preview, toolbar theming, and validation integration inside the scene detail form.)*
-        - [ ] Add collaborative enhancements (presence indicators, inline comments)
+        - [x] Add collaborative enhancements (presence indicators, inline comments)
         - [x] Surface live collaborator presence in the scene editor using the collaboration session API.
         - [x] Introduce inline comment threads for narration fields.
           - [x] Define backend storage model and REST endpoints for narration comment threads.
@@ -248,11 +248,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Item requirements multi-select *(Added tag-style multi-select controls in the transition editor so authors can manage required inventory items.)*
       - [x] Item consumption configuration *(Transition editor now includes multi-select controls for configuring consumed inventory items with inline validation feedback.)*
       - [x] Failure narration editor
-      - [ ] Conditional logic builder
+      - [x] Conditional logic builder
         - [x] Support editing narration overrides with history requirements inside the transition editor.
         - [x] Extend the builder to cover inventory-based requirements and forbid constraints. *(Narration override editor now supports configuring required/forbidden inventory and history values with multi-select controls.)*
         - [x] Provide a readable summary of active conditions for each transition.
-    - [ ] Implement choice matrix editor:
+    - [x] Implement choice matrix editor:
       - [x] Grid view of all choices across scenes *(Added a choice matrix page with filtering controls, coverage badges, and navigation into scene details.)*
       - [x] Handle pagination and large datasets in the choice matrix view *(Added configurable page sizing with navigation controls so large adventures remain responsive.)*
       - [x] Bulk editing capabilities *(Choice matrix now supports multi-select linking, terminal marking, and transition clearing with API-backed updates.)*
@@ -263,7 +263,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [ ] Support for `requires_history_any/all`
       - [ ] Visual representation of complex conditions
       - [ ] Testing interface for conditions
-    - [ ] Add item flow analyzer:
+    - [x] Add item flow analyzer:
       - [x] Visual item dependency graph *(Added an interactive item flow graph view in the web editor with filtering, stats, and scene navigation.)*
       - [x] Source tracking (where items come from) *(Added aggregated scene source panels in the item flow insights sidebar.)*
       - [x] Usage tracking (where items are required) *(Surfaced scene-level requirement summaries with quick navigation controls.)*
