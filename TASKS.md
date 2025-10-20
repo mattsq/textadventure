@@ -257,7 +257,7 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
       - [x] Handle pagination and large datasets in the choice matrix view *(Added configurable page sizing with navigation controls so large adventures remain responsive.)*
       - [x] Bulk editing capabilities *(Choice matrix now supports multi-select linking, terminal marking, and transition clearing with API-backed updates.)*
       - [x] Command standardization tools *(Added kebab-case auto-renaming tools in the choice matrix with conflict detection and API-backed updates.)*
-      - [ ] Consistency checking
+      - [x] Consistency checking *(Choice matrix surfaces command-level inconsistencies, highlights impacted scenes, and offers quick filters for review.)*
     - [ ] Build conditional logic visual editor:
       - [ ] Drag-and-drop condition builder
       - [ ] Support for `requires_history_any/all`
