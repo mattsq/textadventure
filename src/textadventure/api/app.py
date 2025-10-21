@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 import difflib
 import hashlib
 import io
@@ -18,7 +16,6 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from importlib import resources
-from enum import Enum
 from pathlib import Path
 from typing import (
     Any,
@@ -26,24 +23,16 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    Literal,
     Sequence,
     cast,
     get_args,
 )
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
-from functools import partial
 
-from starlette.background import BackgroundTask
-from starlette.responses import JSONResponse
 from pydantic import (
-    BaseModel,
     Field,
     ValidationError,
-    field_serializer,
-    field_validator,
-    model_validator,
 )
 
 from ..analytics import (
@@ -74,507 +63,137 @@ from ..memory import MemoryRequest
 from .backup import BackupUploadMetadata, BackupUploader, S3BackupUploader
 from .settings import SceneApiSettings
 
-ValidationStatus = Literal["valid", "warnings", "errors"]
-DiffStatus = Literal["added", "removed", "modified"]
-
-
-_DEFAULT_COLLABORATION_TTL_SECONDS = 120
-_MIN_COLLABORATION_TTL_SECONDS = 30
-_MAX_COLLABORATION_TTL_SECONDS = 3600
-
-
-class _UnsetType:
-    """Sentinel indicating that an optional field was not provided."""
-
-    __slots__ = ()
-
-    def __repr__(self) -> str:  # pragma: no cover - trivial representation
-        return "_UNSET"
-
-
-_UNSET = _UnsetType()
-
-
-class ExportFormat(str, Enum):
-    """Available formatting styles for exported scene JSON."""
-
-    MINIFIED = "minified"
-    PRETTY = "pretty"
-
-
-class CollaboratorRole(str, Enum):
-    """Enumerated permission levels for project collaborators."""
-
-    OWNER = "owner"
-    EDITOR = "editor"
-    VIEWER = "viewer"
-
-
-class ProjectPermissionError(RuntimeError):
-    """Raised when a collaborator attempts an unauthorised project mutation."""
-
-    def __init__(self, project_id: str, message: str) -> None:
-        super().__init__(message)
-        self.project_id = project_id
-
-
-class FormattedJSONResponse(JSONResponse):
-    """JSON response that respects minified vs pretty-print formatting styles."""
-
-    def __init__(
-        self,
-        content: Any,
-        *,
-        export_format: ExportFormat,
-        status_code: int = 200,
-        headers: Mapping[str, str] | None = None,
-        media_type: str | None = "application/json",
-        background: BackgroundTask | None = None,
-    ) -> None:
-        self._export_format = export_format
-        super().__init__(
-            content=content,
-            status_code=status_code,
-            headers=headers,
-            media_type=media_type,
-            background=background,
-        )
-
-    def render(self, content: Any) -> bytes:
-        dumps = _dumps_for_export_format(self._export_format)
-        return dumps(content).encode("utf-8")
-
-
-class Pagination(BaseModel):
-    """Pagination metadata returned alongside collection responses."""
-
-    page: int = Field(..., ge=1)
-    page_size: int = Field(..., ge=1)
-    total_items: int = Field(..., ge=0)
-    total_pages: int = Field(..., ge=0)
-
-
-class SceneSummary(BaseModel):
-    """Lightweight representation of a scene for overview lists."""
-
-    id: str
-    description: str
-    choice_count: int
-    transition_count: int
-    has_terminal_transition: bool
-    validation_status: ValidationStatus
-    updated_at: datetime
-
-    @field_serializer("updated_at")
-    def _serialise_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class SceneListResponse(BaseModel):
-    """Response envelope for the scene collection endpoint."""
-
-    data: list[SceneSummary]
-    pagination: Pagination
-
-
-class SceneGraphNodeResource(BaseModel):
-    """Node metadata describing a scene within the adventure graph."""
-
-    id: str
-    description: str
-    choice_count: int
-    transition_count: int
-    has_terminal_transition: bool
-    validation_status: ValidationStatus
-
-
-class SceneGraphEdgeResource(BaseModel):
-    """Edge metadata describing a transition between scenes."""
-
-    id: str
-    source: str
-    command: str
-    target: str | None = None
-    narration: str
-    is_terminal: bool
-    item: str | None = None
-    requires: list[str] = Field(default_factory=list)
-    consumes: list[str] = Field(default_factory=list)
-    records: list[str] = Field(default_factory=list)
-    failure_narration: str | None = None
-    override_count: int = Field(default=0, ge=0)
-
-
-class SceneGraphResponse(BaseModel):
-    """Response payload describing the connectivity graph for scenes."""
-
-    generated_at: datetime
-    start_scene: str
-    nodes: list[SceneGraphNodeResource] = Field(default_factory=list)
-    edges: list[SceneGraphEdgeResource] = Field(default_factory=list)
-
-    @field_serializer("generated_at")
-    def _serialise_generated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class TextSpanResource(BaseModel):
-    """Range describing where a search hit occurred within text."""
-
-    start: int = Field(..., ge=0)
-    end: int = Field(..., ge=0)
-
-
-class FieldMatchResource(BaseModel):
-    """Description of an individual field that matched a search query."""
-
-    field_type: FieldType
-    path: str
-    text: str
-    spans: list[TextSpanResource]
-    match_count: int
-
-
-class SceneSearchResultResource(BaseModel):
-    """Aggregated search matches for a single scene."""
-
-    scene_id: str
-    match_count: int
-    matches: list[FieldMatchResource]
-
-
-class SceneSearchResponse(BaseModel):
-    """Response payload describing search results across scenes."""
-
-    query: str
-    total_results: int
-    total_matches: int
-    results: list[SceneSearchResultResource]
-
-
-class SceneCommandIssueResource(BaseModel):
-    """Issue descriptor referencing a scene command."""
-
-    scene_id: str
-    command: str
-
-
-class SceneTargetIssueResource(BaseModel):
-    """Issue descriptor referencing a command targeting another scene."""
-
-    scene_id: str
-    command: str
-    target: str
-
-
-class SceneOverrideIssueResource(BaseModel):
-    """Issue descriptor referencing a conditional narration override."""
-
-    scene_id: str
-    command: str
-    index: int = Field(..., ge=0)
-
-
-class QualityIssuesResource(BaseModel):
-    """Aggregated quality issues detected across the adventure."""
-
-    issue_count: int
-    scenes_missing_description: list[str] = Field(default_factory=list)
-    duplicate_choice_commands: list[SceneCommandIssueResource] = Field(
-        default_factory=list
-    )
-    choices_missing_description: list[SceneCommandIssueResource] = Field(
-        default_factory=list
-    )
-    transitions_missing_narration: list[SceneCommandIssueResource] = Field(
-        default_factory=list
-    )
-    gated_transitions_missing_failure: list[SceneCommandIssueResource] = Field(
-        default_factory=list
-    )
-    conditional_overrides_missing_narration: list[SceneOverrideIssueResource] = Field(
-        default_factory=list
-    )
-    transitions_with_unknown_target: list[SceneTargetIssueResource] = Field(
-        default_factory=list
-    )
-
-
-class SceneReachabilityResource(BaseModel):
-    """Summary describing which scenes are reachable from the start."""
-
-    start_scene: str
-    reachable_scenes: list[str]
-    unreachable_scenes: list[str]
-    reachable_count: int
-    unreachable_count: int
-    total_scene_count: int
-    fully_reachable: bool
-
-
-class ItemReferenceResource(BaseModel):
-    """Location where an item is referenced within a scene."""
-
-    scene_id: str
-    command: str
-
-
-class ItemFlowDetailsResource(BaseModel):
-    """Summary describing how a specific item flows through the adventure."""
-
-    item: str
-    sources: list[ItemReferenceResource] = Field(default_factory=list)
-    requirements: list[ItemReferenceResource] = Field(default_factory=list)
-    consumptions: list[ItemReferenceResource] = Field(default_factory=list)
-    is_orphaned: bool
-    is_missing_source: bool
-    has_surplus_awards: bool
-    has_consumption_deficit: bool
-
-
-class ItemFlowSummaryResource(BaseModel):
-    """Aggregate view of item flow issues across the adventure."""
-
-    items: list[ItemFlowDetailsResource] = Field(default_factory=list)
-    orphaned_items: list[str] = Field(default_factory=list)
-    items_missing_sources: list[str] = Field(default_factory=list)
-    items_with_surplus_awards: list[str] = Field(default_factory=list)
-    items_with_consumption_deficit: list[str] = Field(default_factory=list)
-    items_with_unreachable_sources: list[str] = Field(default_factory=list)
-
-
-class SceneValidationReport(BaseModel):
-    """Combined validation output for the current adventure dataset."""
-
-    generated_at: datetime
-    quality: QualityIssuesResource
-    reachability: SceneReachabilityResource
-    item_flow: ItemFlowSummaryResource
-
-    @field_serializer("generated_at")
-    def _serialise_generated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class SceneValidationResponse(BaseModel):
-    """Response envelope for the validation endpoint."""
-
-    data: SceneValidationReport
-
-
-class SceneExportMetadata(BaseModel):
-    """Versioning and backup metadata for exported scene datasets."""
-
-    version_id: str
-    checksum: str
-    suggested_filename: str
-
-
-class SceneExportResponse(BaseModel):
-    """Payload containing a full export of the current scene dataset."""
-
-    generated_at: datetime
-    scenes: dict[str, Any]
-    metadata: SceneExportMetadata
-
-    @field_serializer("generated_at")
-    def _serialise_generated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class SceneImportRequest(BaseModel):
-    """Request payload for validating uploaded scene definitions."""
-
-    scenes: dict[str, Any] = Field(
-        ...,
-        description=(
-            "Mapping of scene identifiers to their definitions mirroring the export format."
-        ),
-    )
-    schema_version: int | None = Field(
-        None,
-        ge=1,
-        description=(
-            "Optional schema version identifier for the uploaded dataset. "
-            "Legacy versions are automatically migrated when supported."
-        ),
-    )
-    start_scene: str | None = Field(
-        None,
-        description=(
-            "Optional scene identifier to use as the reachability starting point. "
-            "Defaults to the first scene in the payload when omitted."
-        ),
-    )
-
-
-class ImportStrategy(str, Enum):
-    """Supported strategies for applying uploaded scene datasets."""
-
-    MERGE = "merge"
-    REPLACE = "replace"
-
-
-class SceneImportPlan(BaseModel):
-    """Summary of the changes that would occur for a given import strategy."""
-
-    strategy: ImportStrategy
-    new_scene_ids: list[str] = Field(
-        default_factory=list,
-        description="Scenes that are only present in the uploaded dataset.",
-    )
-    updated_scene_ids: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Scenes that exist in both datasets but whose definitions would change."
-        ),
-    )
-    unchanged_scene_ids: list[str] = Field(
-        default_factory=list,
-        description="Scenes that exist in both datasets with identical definitions.",
-    )
-    removed_scene_ids: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Scenes from the current dataset that would be removed when applying the"
-            " strategy."
-        ),
-    )
-
-
-class SceneImportResponse(BaseModel):
-    """Response describing the outcome of validating an uploaded dataset."""
-
-    scene_count: int = Field(..., ge=0)
-    start_scene: str
-    validation: SceneValidationReport
-    plans: list[SceneImportPlan] = Field(
-        default_factory=list,
-        description=(
-            "Summaries of how the uploaded dataset would affect the existing scenes"
-            " when applying supported import strategies."
-        ),
-    )
-
-
-class SceneUpdateRequest(BaseModel):
-    """Request payload for updating an existing scene definition."""
-
-    scene: dict[str, Any] = Field(
-        ...,
-        description="Scene definition matching the export format.",
-    )
-    schema_version: int | None = Field(
-        None,
-        ge=1,
-        description=(
-            "Optional schema version for the uploaded scene. Legacy formats are "
-            "migrated automatically when supported."
-        ),
-    )
-    expected_version_id: str | None = Field(
-        None,
-        description=(
-            "Optional optimistic concurrency token derived from the current "
-            "dataset version. When provided, updates are rejected if the dataset "
-            "has changed."
-        ),
-    )
-
-
-class SceneCreateRequest(BaseModel):
-    """Request payload for creating a new scene definition."""
-
-    id: str = Field(
-        ...,
-        description="Identifier for the new scene.",
-    )
-    scene: dict[str, Any] = Field(
-        ...,
-        description="Scene definition matching the export format.",
-    )
-    schema_version: int | None = Field(
-        None,
-        ge=1,
-        description=(
-            "Optional schema version for the uploaded scene. Legacy formats are "
-            "migrated automatically when supported."
-        ),
-    )
-    expected_version_id: str | None = Field(
-        None,
-        description=(
-            "Optional optimistic concurrency token derived from the current "
-            "dataset version. When provided, creation is rejected if the dataset "
-            "has changed."
-        ),
-    )
-
-
-class SceneDiffRequest(BaseModel):
-    """Request payload for computing a diff against the current dataset."""
-
-    scenes: dict[str, Any] = Field(
-        ...,
-        description=(
-            "Mapping of scene identifiers to their definitions mirroring the export format."
-        ),
-    )
-    schema_version: int | None = Field(
-        None,
-        ge=1,
-        description=(
-            "Optional schema version identifier for the uploaded dataset. "
-            "Legacy versions are automatically migrated when supported."
-        ),
-    )
-
-
-class SceneDiffEntry(BaseModel):
-    """Diff output for a single scene compared against the current dataset."""
-
-    scene_id: str
-    status: DiffStatus
-    diff: str = Field(
-        ...,
-        description="Unified diff describing the changes for the scene in Git-style format.",
-    )
-    diff_html: str = Field(
-        ...,
-        description=(
-            "HTML table representing the scene diff for visual rendering in UIs."
-        ),
-    )
-
-
-class SceneDiffSummary(BaseModel):
-    """High-level summary of scene-level differences."""
-
-    added_scene_ids: list[str] = Field(default_factory=list)
-    removed_scene_ids: list[str] = Field(default_factory=list)
-    modified_scene_ids: list[str] = Field(default_factory=list)
-    unchanged_scene_ids: list[str] = Field(default_factory=list)
-
-
-class SceneDiffResponse(BaseModel):
-    """Response payload containing scene diff output."""
-
-    summary: SceneDiffSummary
-    entries: list[SceneDiffEntry] = Field(default_factory=list)
-
-
-class SceneReferenceResource(BaseModel):
-    """Reference indicating another scene points at the target scene."""
-
-    scene_id: str
-    command: str
-
-
-class SceneReferenceListResponse(BaseModel):
-    """Listing of references for a particular scene identifier."""
-
-    scene_id: str
-    data: tuple[SceneReferenceResource, ...]
+# Import models from the models package
+from .models import (
+    # Common models
+    ExportFormat,
+    CollaboratorRole,
+    ValidationStatus,
+    Pagination,
+    ProjectPermissionError,
+    FormattedJSONResponse,
+    # Scene models
+    SceneSummary,
+    SceneListResponse,
+    SceneGraphNodeResource,
+    SceneGraphEdgeResource,
+    SceneGraphResponse,
+    TextSpanResource,
+    FieldMatchResource,
+    SceneSearchResultResource,
+    SceneSearchResponse,
+    SceneCommandIssueResource,
+    SceneTargetIssueResource,
+    SceneOverrideIssueResource,
+    QualityIssuesResource,
+    SceneReachabilityResource,
+    ItemReferenceResource,
+    ItemFlowDetailsResource,
+    ItemFlowSummaryResource,
+    SceneValidationReport,
+    SceneValidationResponse,
+    SceneExportMetadata,
+    SceneExportResponse,
+    SceneImportRequest,
+    SceneImportPlan,
+    SceneImportResponse,
+    SceneUpdateRequest,
+    SceneCreateRequest,
+    SceneDiffRequest,
+    SceneDiffEntry,
+    SceneDiffSummary,
+    SceneDiffResponse,
+    SceneReferenceResource,
+    SceneReferenceListResponse,
+    SceneVersionInfo,
+    SceneRollbackRequest,
+    SceneRollbackResponse,
+    SceneBranchPlanRequest,
+    SceneBranchPlanResponse,
+    SceneBranchResource,
+    SceneBranchListResponse,
+    ChoiceResource,
+    TransitionResource,
+    NarrationOverrideResource,
+    ValidationIssue,
+    SceneValidation,
+    SceneResource,
+    SceneDetailResponse,
+    SceneMutationResponse,
+    SceneDeleteResponse,
+    SceneCommentLocation,
+    SceneCommentResource,
+    SceneCommentThreadResource,
+    SceneCommentThreadListResponse,
+    SceneCommentThreadCreateRequest,
+    SceneCommentReplyRequest,
+    SceneCommentResolveRequest,
+    # Project models
+    AdventureProjectResource,
+    AdventureProjectListResponse,
+    AdventureProjectTemplateResource,
+    AdventureProjectTemplateListResponse,
+    ProjectTemplateInstantiateRequest,
+    AdventureProjectDetailResponse,
+    ProjectAssetResource,
+    ProjectAssetListResponse,
+    ProjectAssetUploadRequest,
+    ProjectCollaboratorResource,
+    ProjectCollaboratorListResponse,
+    ProjectCollaboratorUpdateRequest,
+    ProjectCollaborationSessionResource,
+    ProjectCollaborationSessionListResponse,
+    ProjectCollaborationSessionRequest,
+    # Marketplace models
+    MarketplaceEntrySummary,
+    MarketplaceReview,
+    MarketplaceEntryListResponse,
+    MarketplaceReviewCreateRequest,
+    MarketplaceReviewListResponse,
+    MarketplaceEntryPublishRequest,
+    # Forum models
+    ForumPostResource,
+    ForumThreadSummary,
+    ForumThreadListResponse,
+    ForumThreadCreateRequest,
+    ForumPostCreateRequest,
+    # User models
+    UserProfileResource,
+    UserProfileListResponse,
+    UserProfileCreateRequest,
+    UserProfileUpdateRequest,
+    # Playtest models
+    PlaytestWorldStateResource,
+    PlaytestEventResource,
+    PlaytestEventMessage,
+    PlaytestErrorMessage,
+    PlaytestTranscriptEntryResource,
+    PlaytestTranscriptMessage,
+    PlaytestTranscriptResponse,
+    MemoryRequestResource,
+    QueuedMessageResource,
+)
+from .models.common import (
+    _UNSET,
+    _UnsetType,
+    _DEFAULT_COLLABORATION_TTL_SECONDS,
+    _MIN_COLLABORATION_TTL_SECONDS,
+    _MAX_COLLABORATION_TTL_SECONDS,
+    _dumps_for_export_format,
+)
+from .models.scene import (
+    ImportStrategy,
+    SceneBranchCreateRequest,
+    SceneBranchDetailResponse,
+    SceneCommentLocationType,
+)
+from .models.project import (
+    ProjectAssetType,
+    ProjectAssetContent,
+    ProjectExportArchive,
+)
+from .models.forum import ForumThreadDetail
+from .models.playtest import ChoiceResource as PlaytestChoiceResource
 
 
 @dataclass(frozen=True)
@@ -585,340 +204,6 @@ class SceneBackupResult:
     version_id: str
     checksum: str
     generated_at: datetime
-
-
-class SceneVersionInfo(BaseModel):
-    """Metadata describing a concrete scene dataset version."""
-
-    generated_at: datetime
-    version_id: str
-    checksum: str
-
-    @field_serializer("generated_at")
-    def _serialise_generated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class SceneRollbackRequest(BaseModel):
-    """Request payload describing the backup dataset to restore."""
-
-    scenes: dict[str, Any] = Field(
-        ...,
-        description="Mapping of scene identifiers mirroring the export format.",
-    )
-    schema_version: int | None = Field(
-        None,
-        ge=1,
-        description=(
-            "Optional schema version for the uploaded dataset. Legacy payloads are"
-            " migrated automatically when supported."
-        ),
-    )
-    generated_at: datetime | None = Field(
-        None,
-        description=(
-            "Timestamp associated with the backup snapshot. When omitted, the"
-            " current time is used in the rollback plan metadata."
-        ),
-    )
-
-
-class SceneRollbackResponse(BaseModel):
-    """Response payload summarising how to revert to a backup dataset."""
-
-    current: SceneVersionInfo = Field(
-        ..., description="Metadata about the currently bundled dataset."
-    )
-    target: SceneVersionInfo = Field(
-        ..., description="Metadata about the backup dataset being restored."
-    )
-    summary: SceneDiffSummary
-    entries: list[SceneDiffEntry] = Field(default_factory=list)
-    plan: SceneImportPlan = Field(
-        ..., description="Change summary for replacing the current dataset."
-    )
-
-
-class SceneBranchPlanRequest(BaseModel):
-    """Request payload describing a proposed storyline branch dataset."""
-
-    branch_name: str = Field(
-        ..., min_length=1, description="Human readable name for the new branch."
-    )
-    scenes: dict[str, Any] = Field(
-        ...,
-        description="Mapping of scene identifiers mirroring the export format.",
-    )
-    schema_version: int | None = Field(
-        None,
-        ge=1,
-        description=(
-            "Optional schema version for the uploaded dataset. Legacy payloads are"
-            " migrated automatically when supported."
-        ),
-    )
-    generated_at: datetime | None = Field(
-        None,
-        description=(
-            "Timestamp associated with the branch dataset. When omitted, the"
-            " current time is used in the plan metadata."
-        ),
-    )
-    base_version_id: str | None = Field(
-        None,
-        description=(
-            "Optional version identifier clients expect the branch to diverge"
-            " from. Allows the service to flag if the bundled dataset has"
-            " changed since the client exported it."
-        ),
-    )
-
-
-class SceneBranchPlanResponse(BaseModel):
-    """Response payload summarising how to spin off a new storyline branch."""
-
-    branch_name: str = Field(
-        ..., description="Normalised name that will identify the branch."
-    )
-    base: SceneVersionInfo = Field(
-        ..., description="Metadata describing the current bundled dataset."
-    )
-    target: SceneVersionInfo = Field(
-        ..., description="Metadata for the proposed branch dataset."
-    )
-    expected_base_version_id: str | None = Field(
-        None,
-        description=(
-            "Version id supplied by the client when preparing the branch plan."
-        ),
-    )
-    base_version_matches: bool = Field(
-        ..., description="Whether the expected base matches the bundled dataset."
-    )
-    summary: SceneDiffSummary
-    entries: list[SceneDiffEntry] = Field(default_factory=list)
-    plans: list[SceneImportPlan] = Field(
-        ..., description="Available import strategies for applying the branch."
-    )
-
-
-class SceneBranchResource(BaseModel):
-    """Persisted branch definition metadata returned by the API."""
-
-    id: str = Field(..., description="Stable identifier for the branch definition.")
-    name: str = Field(..., description="Display name for the branch definition.")
-    created_at: datetime = Field(
-        ..., description="Timestamp when the branch definition was saved."
-    )
-    base: SceneVersionInfo = Field(
-        ...,
-        description="Metadata describing the base dataset the branch diverges from.",
-    )
-    target: SceneVersionInfo = Field(
-        ..., description="Metadata describing the branch dataset that was saved."
-    )
-    expected_base_version_id: str | None = Field(
-        None,
-        description="Version identifier supplied by the client when saving the branch.",
-    )
-    base_version_matches: bool = Field(
-        ...,
-        description=(
-            "Whether the expected base version matched the bundled dataset when the "
-            "branch was saved."
-        ),
-    )
-    summary: SceneDiffSummary = Field(
-        ...,
-        description="High-level change summary between the base and branch datasets.",
-    )
-    scene_count: int = Field(
-        ..., ge=0, description="Number of scene definitions contained in the branch."
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class SceneBranchListResponse(BaseModel):
-    """Response envelope describing persisted branch definitions."""
-
-    data: list[SceneBranchResource] = Field(
-        default_factory=list,
-        description="Collection of saved branch definitions ordered by recency.",
-    )
-
-
-class SceneBranchCreateRequest(SceneBranchPlanRequest):
-    """Request payload for persisting a branch definition."""
-
-
-class SceneBranchDetailResponse(SceneBranchResource):
-    """Full branch definition payload including diff metadata and scenes."""
-
-    entries: list[SceneDiffEntry] = Field(
-        default_factory=list,
-        description="Detailed diff entries between the base and branch datasets.",
-    )
-    plans: list[SceneImportPlan] = Field(
-        default_factory=list,
-        description="Import strategies computed when the branch was saved.",
-    )
-    scenes: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Scene definitions contained within the saved branch.",
-    )
-
-
-class AdventureProjectResource(BaseModel):
-    """Metadata describing an adventure project and its scene dataset."""
-
-    id: str = Field(..., description="Stable identifier for the project.")
-    name: str = Field(..., description="Display name for the project.")
-    description: str | None = Field(
-        None, description="Optional human readable project summary."
-    )
-    scene_count: int = Field(
-        ..., ge=0, description="Number of scene definitions contained in the project."
-    )
-    collaborator_count: int = Field(
-        ..., ge=0, description="Number of collaborators with access to the project."
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp when the project metadata was last updated."
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp when the scene dataset was last updated."
-    )
-    version_id: str = Field(
-        ...,
-        description="Version identifier derived from the dataset timestamp and checksum.",
-    )
-    checksum: str = Field(
-        ..., description="SHA-256 checksum of the serialised scene dataset."
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("updated_at")
-    def _serialise_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class AdventureProjectListResponse(BaseModel):
-    """Response envelope describing available adventure projects."""
-
-    data: list[AdventureProjectResource] = Field(
-        default_factory=list,
-        description="Collection of registered projects ordered by identifier.",
-    )
-
-
-class AdventureProjectTemplateResource(BaseModel):
-    """Metadata describing an adventure project template."""
-
-    id: str = Field(..., description="Stable identifier for the template.")
-    name: str = Field(..., description="Display name for the template.")
-    description: str | None = Field(
-        None, description="Optional summary of the template adventure."
-    )
-    scene_count: int = Field(
-        ..., ge=0, description="Number of scene definitions contained in the template."
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp when the template metadata was last updated."
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp when the template dataset was last updated."
-    )
-    version_id: str = Field(
-        ...,
-        description="Version identifier derived from the template timestamp and checksum.",
-    )
-    checksum: str = Field(
-        ..., description="SHA-256 checksum of the serialised template scene dataset."
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("updated_at")
-    def _serialise_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class AdventureProjectTemplateListResponse(BaseModel):
-    """Response envelope describing available project templates."""
-
-    data: list[AdventureProjectTemplateResource] = Field(
-        default_factory=list,
-        description="Collection of registered project templates ordered by identifier.",
-    )
-
-
-class MarketplaceEntrySummary(BaseModel):
-    """Summary metadata describing a published marketplace entry."""
-
-    id: str = Field(..., description="Stable identifier for the marketplace entry.")
-    title: str = Field(..., description="Display title for the shared adventure.")
-    description: str | None = Field(
-        None,
-        description="Optional short description supplied by the publisher.",
-    )
-    author: str | None = Field(
-        None,
-        description="Optional credit or author name provided by the publisher.",
-    )
-    tags: list[str] = Field(
-        default_factory=list,
-        description="Normalised discovery tags associated with the entry.",
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp indicating when the entry was published."
-    )
-    scene_count: int = Field(
-        ..., ge=0, description="Number of scene definitions contained in the entry."
-    )
-    average_rating: float | None = Field(
-        None,
-        ge=1.0,
-        le=5.0,
-        description="Average rating for the entry if any reviews have been submitted.",
-    )
-    review_count: int = Field(
-        0,
-        ge=0,
-        description="Number of reviews that have been recorded for the entry.",
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class MarketplaceReview(BaseModel):
-    """Representation of a marketplace review visible through the API."""
-
-    reviewer: str | None = Field(
-        None,
-        description="Optional reviewer name supplied alongside the rating.",
-    )
-    rating: int = Field(..., ge=1, le=5, description="Rating value between 1 and 5.")
-    comment: str | None = Field(
-        None,
-        description="Optional free-form feedback accompanying the rating.",
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp describing when the review was submitted."
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
 
 
 class MarketplaceEntryResponse(MarketplaceEntrySummary):
@@ -937,431 +222,6 @@ class MarketplaceEntryResponse(MarketplaceEntrySummary):
     )
 
 
-class MarketplaceEntryListResponse(BaseModel):
-    """Response envelope describing marketplace entries."""
-
-    data: list[MarketplaceEntrySummary] = Field(
-        default_factory=list,
-        description="Collection of marketplace entries ordered by recency.",
-    )
-    pagination: Pagination
-
-
-class MarketplaceReviewCreateRequest(BaseModel):
-    """Request payload for submitting a review for a marketplace entry."""
-
-    reviewer: str | None = Field(
-        None,
-        description="Optional reviewer name that will be displayed alongside the review.",
-    )
-    rating: int = Field(..., ge=1, le=5, description="Rating value between 1 and 5.")
-    comment: str | None = Field(
-        None,
-        description="Optional free-form comment providing additional feedback.",
-    )
-
-    @field_validator("reviewer", "comment", mode="before")
-    @classmethod
-    def _normalise_optional_text_field(cls, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            stripped = value.strip()
-            return stripped or None
-        raise TypeError("Value must be a string or null.")
-
-
-class MarketplaceReviewListResponse(BaseModel):
-    """Response envelope describing reviews for a marketplace entry."""
-
-    data: list[MarketplaceReview] = Field(
-        default_factory=list,
-        description="Collection of reviews ordered by submission time (newest first).",
-    )
-    average_rating: float | None = Field(
-        None,
-        ge=1.0,
-        le=5.0,
-        description="Average rating across all submitted reviews.",
-    )
-    review_count: int = Field(
-        0,
-        ge=0,
-        description="Number of reviews that have been submitted.",
-    )
-
-
-class ForumPostResource(BaseModel):
-    """Representation of a post within a forum thread exposed via the API."""
-
-    id: str = Field(..., description="Stable identifier for the forum post.")
-    author: str | None = Field(
-        None,
-        description="Optional display name associated with the post author.",
-    )
-    body: str = Field(..., description="Rendered message content for the post.")
-    created_at: datetime = Field(
-        ..., description="Timestamp describing when the post was created."
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class ForumThreadSummary(BaseModel):
-    """Lightweight overview of a forum discussion thread."""
-
-    id: str = Field(..., description="Stable identifier for the forum thread.")
-    title: str = Field(..., description="Title describing the discussion topic.")
-    author: str | None = Field(
-        None,
-        description="Optional display name associated with the thread creator.",
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp indicating when the thread was created."
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp of the most recent activity within the thread."
-    )
-    post_count: int = Field(
-        ...,
-        ge=0,
-        description="Number of posts currently recorded for the thread.",
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("updated_at")
-    def _serialise_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class ForumThreadDetail(ForumThreadSummary):
-    """Detailed representation of a forum thread including individual posts."""
-
-    posts: list[ForumPostResource] = Field(
-        default_factory=list,
-        description="Collection of posts ordered chronologically within the thread.",
-    )
-
-
-class ForumThreadListResponse(BaseModel):
-    """Response envelope describing paginated forum threads."""
-
-    data: list[ForumThreadSummary] = Field(
-        default_factory=list,
-        description="Collection of forum threads ordered by recent activity.",
-    )
-    pagination: Pagination
-
-
-class ForumThreadCreateRequest(BaseModel):
-    """Request payload for creating a new forum discussion thread."""
-
-    title: str = Field(..., description="Title describing the discussion topic.")
-    body: str = Field(..., description="Initial post content for the new thread.")
-    author: str | None = Field(
-        None,
-        description="Optional display name associated with the thread creator.",
-    )
-    identifier: str | None = Field(
-        None,
-        description="Optional custom identifier for the thread. Slugified when provided.",
-    )
-
-    @field_validator("title")
-    @classmethod
-    def _validate_title(cls, value: Any) -> str:
-        if not isinstance(value, str):
-            raise TypeError("Thread title must be provided as a string.")
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Thread title must be a non-empty string.")
-        return trimmed
-
-    @field_validator("body")
-    @classmethod
-    def _validate_body(cls, value: Any) -> str:
-        if not isinstance(value, str):
-            raise TypeError("Thread body must be provided as a string.")
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Thread body must be a non-empty string.")
-        return trimmed
-
-    @field_validator("author", mode="before")
-    @classmethod
-    def _normalise_author(cls, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            trimmed = value.strip()
-            return trimmed or None
-        raise TypeError("Author must be a string or null.")
-
-    @field_validator("identifier")
-    @classmethod
-    def _validate_identifier(cls, value: Any) -> Any:
-        if value is None:
-            return None
-        if not isinstance(value, str):
-            raise TypeError("Thread identifier must be provided as a string.")
-        return _normalise_forum_identifier(value)
-
-
-class ForumPostCreateRequest(BaseModel):
-    """Request payload for adding a reply to an existing forum thread."""
-
-    body: str = Field(..., description="Content of the reply post.")
-    author: str | None = Field(
-        None,
-        description="Optional display name associated with the post author.",
-    )
-
-    @field_validator("body")
-    @classmethod
-    def _validate_body(cls, value: Any) -> str:
-        if not isinstance(value, str):
-            raise TypeError("Post body must be provided as a string.")
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Post body must be a non-empty string.")
-        return trimmed
-
-    @field_validator("author", mode="before")
-    @classmethod
-    def _normalise_author(cls, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            trimmed = value.strip()
-            return trimmed or None
-        raise TypeError("Author must be a string or null.")
-
-
-class MarketplaceEntryPublishRequest(BaseModel):
-    """Request payload for publishing an adventure to the marketplace."""
-
-    identifier: str | None = Field(
-        None,
-        description=(
-            "Optional identifier to assign to the entry. If omitted, an identifier "
-            "is generated from the title."
-        ),
-    )
-    title: str = Field(..., description="Display title for the shared adventure.")
-    description: str | None = Field(
-        None, description="Optional short description of the adventure."
-    )
-    author: str | None = Field(
-        None, description="Optional credit or author name for the adventure."
-    )
-    tags: list[str] = Field(
-        default_factory=list,
-        description="Optional discovery tags to associate with the entry.",
-    )
-    scenes: Mapping[str, Any] = Field(
-        ...,
-        description=(
-            "Scene definitions that should be bundled with the marketplace entry."
-        ),
-    )
-    schema_version: int = Field(
-        ..., ge=1, description="Scene schema version describing the dataset."
-    )
-
-    @field_validator("identifier")
-    @classmethod
-    def _normalise_identifier(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return _normalise_marketplace_identifier(value)
-
-    @field_validator("title")
-    @classmethod
-    def _normalise_title(cls, value: str) -> str:
-        if not isinstance(value, str):
-            raise ValueError("Title must be provided as a string.")
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Title must be a non-empty string.")
-        return trimmed
-
-    @field_validator("description")
-    @classmethod
-    def _normalise_description(cls, value: str | None) -> str | None:
-        return _normalise_optional_text(value)
-
-    @field_validator("author")
-    @classmethod
-    def _normalise_author(cls, value: str | None) -> str | None:
-        return _normalise_optional_text(value)
-
-    @field_validator("tags")
-    @classmethod
-    def _normalise_tags(cls, value: Sequence[str]) -> list[str]:
-        if isinstance(value, str):
-            raise ValueError("Tags must be provided as an iterable of strings.")
-        if value is None:
-            return []
-        seen: set[str] = set()
-        normalised: list[str] = []
-        for tag in value:
-            if not isinstance(tag, str):
-                raise ValueError("Tags must be provided as strings.")
-            candidate = _normalise_optional_text(tag) or ""
-            if not candidate:
-                continue
-            slug = candidate.casefold()
-            if slug in seen:
-                continue
-            seen.add(slug)
-            normalised.append(slug)
-        return normalised
-
-    @field_validator("scenes")
-    @classmethod
-    def _validate_scenes(cls, value: Mapping[str, Any]) -> Mapping[str, Any]:
-        if not isinstance(value, Mapping):
-            raise ValueError("Scenes must be provided as a mapping.")
-        return value
-
-    @model_validator(mode="after")
-    def _validate_schema_version(self) -> "MarketplaceEntryPublishRequest":
-        if self.schema_version != CURRENT_SCENE_SCHEMA_VERSION:
-            raise ValueError(
-                "schema_version must match the current scene schema version."
-            )
-        return self
-
-
-class ProjectTemplateInstantiateRequest(BaseModel):
-    """Request payload for instantiating a project template."""
-
-    project_id: str = Field(..., description="Identifier to assign to the new project.")
-    name: str | None = Field(
-        None,
-        description="Optional display name to persist for the newly created project.",
-    )
-    description: str | None = Field(
-        None, description="Optional summary describing the newly created project."
-    )
-
-
-class AdventureProjectDetailResponse(BaseModel):
-    """Full project payload including the bundled scene dataset."""
-
-    data: AdventureProjectResource = Field(
-        ..., description="Metadata describing the requested project."
-    )
-    scenes: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Scene definitions contained within the project dataset.",
-    )
-
-
-class ProjectAssetType(str, Enum):
-    """Enumerated asset kinds surfaced by the project API."""
-
-    FILE = "file"
-    DIRECTORY = "directory"
-
-
-class ProjectAssetResource(BaseModel):
-    """Metadata describing an individual asset within a project."""
-
-    path: str = Field(
-        ..., description="Path relative to the project's assets directory."
-    )
-    name: str = Field(..., description="Basename of the asset entry.")
-    type: ProjectAssetType = Field(
-        ..., description="Indicates whether the entry is a file or directory."
-    )
-    size: int | None = Field(
-        default=None,
-        ge=0,
-        description="File size in bytes when the asset is a file.",
-    )
-    content_type: str | None = Field(
-        default=None,
-        description="Best-effort MIME type derived from the filename.",
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp when the asset was last modified."
-    )
-
-    @field_serializer("updated_at")
-    def _serialise_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class ProjectAssetListResponse(BaseModel):
-    """Response payload enumerating assets registered under a project."""
-
-    project_id: str = Field(..., description="Identifier for the requested project.")
-    root: str = Field(
-        ..., description="Directory anchoring asset lookups for the project."
-    )
-    generated_at: datetime = Field(
-        ..., description="Timestamp when the asset listing was generated."
-    )
-    assets: list[ProjectAssetResource] = Field(
-        default_factory=list, description="Ordered collection of project assets."
-    )
-
-    @field_serializer("generated_at")
-    def _serialise_generated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-@dataclass(frozen=True)
-class ProjectAssetContent:
-    """Binary payload representing an asset stored alongside a project."""
-
-    filename: str
-    content: bytes
-    content_type: str | None
-
-
-@dataclass(frozen=True)
-class ProjectExportArchive:
-    """ZIP archive containing a project's dataset, metadata, and assets."""
-
-    project_id: str
-    filename: str
-    content: bytes
-    content_type: str
-    size: int
-    generated_at: datetime
-    version_id: str
-    checksum: str
-
-
-class ProjectAssetUploadRequest(BaseModel):
-    """Payload describing the contents of an uploaded project asset."""
-
-    content: str = Field(
-        ..., description="Base64-encoded binary payload for the asset."
-    )
-
-    @field_validator("content")
-    @classmethod
-    def _validate_content(cls, value: str) -> str:
-        try:
-            base64.b64decode(value, validate=True)
-        except (binascii.Error, ValueError) as exc:
-            raise ValueError(
-                "Asset content must be provided as base64-encoded data."
-            ) from exc
-        return value
-
-    def decoded_content(self) -> bytes:
-        return base64.b64decode(self.content)
-
-
 class BinaryResponse:
     """Minimal response object for returning binary payloads in tests."""
 
@@ -1375,418 +235,6 @@ class BinaryResponse:
         self.body = content
         self.media_type = media_type
         self.headers = dict(headers or {})
-
-
-class ProjectCollaboratorResource(BaseModel):
-    """Representation of a collaborator's access level for a project."""
-
-    user_id: str = Field(
-        ..., description="Unique identifier for the collaborator (e.g. email)."
-    )
-    role: CollaboratorRole = Field(
-        ..., description="Permission level granted to the collaborator."
-    )
-    display_name: str | None = Field(
-        None,
-        description="Optional human readable label for the collaborator.",
-    )
-
-    @field_validator("user_id")
-    @classmethod
-    def _validate_user_id(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Collaborator user_id must not be empty.")
-        return trimmed
-
-    @field_validator("display_name")
-    @classmethod
-    def _normalise_display_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        trimmed = value.strip()
-        return trimmed or None
-
-
-class ProjectCollaboratorListResponse(BaseModel):
-    """Response payload enumerating collaborators for a project."""
-
-    project_id: str = Field(..., description="Identifier for the requested project.")
-    collaborators: list[ProjectCollaboratorResource] = Field(
-        default_factory=list,
-        description="Ordered list of collaborators with access to the project.",
-    )
-
-
-class ProjectCollaboratorUpdateRequest(BaseModel):
-    """Request body for replacing a project's collaborator roster."""
-
-    collaborators: list[ProjectCollaboratorResource] = Field(
-        default_factory=list,
-        description="Complete collaborator list to persist for the project.",
-    )
-
-
-class ProjectCollaborationSessionResource(BaseModel):
-    """Active collaboration session metadata exposed via the API."""
-
-    session_id: str = Field(
-        ..., description="Unique identifier representing the collaboration session."
-    )
-    user_id: str = Field(
-        ..., description="Identifier of the collaborator associated with the session."
-    )
-    role: CollaboratorRole = Field(
-        ..., description="Permission level granted to the collaborator."
-    )
-    display_name: str | None = Field(
-        None, description="Optional display name resolved for the collaborator."
-    )
-    scene_id: str | None = Field(
-        None,
-        description="Optional scene identifier the collaborator is currently editing.",
-    )
-    started_at: datetime = Field(
-        ..., description="Timestamp indicating when the session was created."
-    )
-    last_heartbeat: datetime = Field(
-        ..., description="Timestamp for the most recent heartbeat received."
-    )
-    expires_at: datetime = Field(
-        ..., description="Timestamp when the session will automatically expire."
-    )
-
-    @field_serializer("started_at")
-    def _serialise_started_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("last_heartbeat")
-    def _serialise_last_heartbeat(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("expires_at")
-    def _serialise_expires_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class ProjectCollaborationSessionListResponse(BaseModel):
-    """Response payload listing active collaboration sessions for a project."""
-
-    project_id: str = Field(..., description="Identifier for the requested project.")
-    sessions: list[ProjectCollaborationSessionResource] = Field(
-        default_factory=list,
-        description="Collection of active collaboration sessions.",
-    )
-
-
-class ProjectCollaborationSessionRequest(BaseModel):
-    """Request body for joining or heartbeating a collaboration session."""
-
-    session_id: str | None = Field(
-        None,
-        description="Existing session identifier to refresh. Omit to create a new session.",
-    )
-    scene_id: str | None = Field(
-        None,
-        description="Optional scene identifier describing the collaborator's focus.",
-    )
-    ttl_seconds: int | None = Field(
-        None,
-        ge=_MIN_COLLABORATION_TTL_SECONDS,
-        le=_MAX_COLLABORATION_TTL_SECONDS,
-        description=(
-            "Requested inactivity timeout in seconds before the session expires."
-        ),
-    )
-
-
-class SceneCommentLocation(BaseModel):
-    """Location metadata describing where an inline comment is anchored."""
-
-    type: SceneCommentLocationType = Field(
-        ..., description="Semantic identifier describing the comment target."
-    )
-    choice_command: str = Field(
-        ..., description="Player command associated with the transition narration."
-    )
-
-    @field_validator("choice_command")
-    @classmethod
-    def _validate_choice_command(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("choice_command must not be empty.")
-        return trimmed
-
-
-class SceneCommentResource(BaseModel):
-    """Representation of an individual inline comment."""
-
-    id: str = Field(..., description="Stable identifier for the comment entry.")
-    author_id: str | None = Field(
-        None, description="Optional collaborator identifier for the author."
-    )
-    author_display_name: str | None = Field(
-        None, description="Optional display name resolved for the author."
-    )
-    body: str = Field(..., description="Markdown formatted comment body.")
-    created_at: datetime = Field(
-        ..., description="Timestamp indicating when the comment was created."
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_validator("body")
-    @classmethod
-    def _validate_body(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Comment body must not be empty.")
-        return trimmed
-
-
-class SceneCommentThreadResource(BaseModel):
-    """Inline comment thread with associated discussion entries."""
-
-    id: str = Field(..., description="Stable identifier for the comment thread.")
-    scene_id: str = Field(
-        ..., description="Scene identifier the comment thread is associated with."
-    )
-    status: Literal["open", "resolved"] = Field(
-        ..., description="Current resolution status for the thread."
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp indicating when the thread was created."
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp for the most recent change within the thread."
-    )
-    resolved_at: datetime | None = Field(
-        None, description="Timestamp when the thread was resolved, if applicable."
-    )
-    resolved_by: str | None = Field(
-        None, description="Optional collaborator identifier that resolved the thread."
-    )
-    location: SceneCommentLocation = Field(
-        ..., description="Location metadata describing the thread anchor."
-    )
-    comments: list[SceneCommentResource] = Field(
-        default_factory=list,
-        description="Chronologically ordered list of comments within the thread.",
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("updated_at")
-    def _serialise_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("resolved_at")
-    def _serialise_resolved_at(self, value: datetime | None) -> str | None:
-        return value.isoformat() if value is not None else None
-
-
-class SceneCommentThreadListResponse(BaseModel):
-    """Response payload enumerating inline comment threads for a scene."""
-
-    project_id: str = Field(..., description="Identifier for the requested project.")
-    scene_id: str = Field(
-        ..., description="Scene identifier the comment threads were filtered against."
-    )
-    threads: list[SceneCommentThreadResource] = Field(
-        default_factory=list,
-        description="Ordered collection of comment threads for the scene.",
-    )
-
-
-class SceneCommentThreadCreateRequest(BaseModel):
-    """Request body for creating a new inline comment thread."""
-
-    location: SceneCommentLocation = Field(
-        ...,
-        description="Location metadata describing where the thread should be anchored.",
-    )
-    body: str = Field(
-        ..., description="Markdown formatted body for the initial comment."
-    )
-    author_id: str | None = Field(
-        None, description="Optional collaborator identifier for the author."
-    )
-    author_display_name: str | None = Field(
-        None, description="Optional display name resolved for the author."
-    )
-
-    @field_validator("body")
-    @classmethod
-    def _validate_body(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Comment body must not be empty.")
-        return trimmed
-
-
-class SceneCommentReplyRequest(BaseModel):
-    """Request body for appending a comment to an existing thread."""
-
-    body: str = Field(..., description="Markdown formatted reply body.")
-    author_id: str | None = Field(
-        None, description="Optional collaborator identifier for the author."
-    )
-    author_display_name: str | None = Field(
-        None, description="Optional display name resolved for the author."
-    )
-
-    @field_validator("body")
-    @classmethod
-    def _validate_body(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Comment body must not be empty.")
-        return trimmed
-
-
-class SceneCommentResolveRequest(BaseModel):
-    """Request payload for toggling the resolution state of a thread."""
-
-    resolved: bool = Field(
-        ..., description="Set to true to resolve the thread or false to reopen it."
-    )
-
-
-class UserProfileResource(BaseModel):
-    """Representation of a user account exposed through the API."""
-
-    id: str = Field(..., description="Stable identifier for the user profile.")
-    display_name: str = Field(
-        ..., description="Human readable label to present in user interfaces."
-    )
-    email: str | None = Field(
-        None, description="Optional contact email address associated with the user."
-    )
-    bio: str | None = Field(
-        None, description="Optional free-form biography or profile summary."
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp indicating when the profile was created."
-    )
-    updated_at: datetime = Field(
-        ..., description="Timestamp indicating when the profile was last updated."
-    )
-
-    @field_serializer("created_at")
-    def _serialise_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("updated_at")
-    def _serialise_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class UserProfileListResponse(BaseModel):
-    """Response envelope listing registered user profiles."""
-
-    data: list[UserProfileResource] = Field(
-        default_factory=list,
-        description="Collection of user profiles ordered by identifier.",
-    )
-
-
-class UserProfileCreateRequest(BaseModel):
-    """Request payload for creating a new user profile."""
-
-    id: str = Field(..., description="Identifier to persist for the new profile.")
-    display_name: str = Field(
-        ..., description="Human readable name to associate with the profile."
-    )
-    email: str | None = Field(
-        None, description="Optional contact email address for the profile."
-    )
-    bio: str | None = Field(
-        None, description="Optional free-form biography to associate with the user."
-    )
-
-    @field_validator("display_name")
-    @classmethod
-    def _normalise_display_name(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Display name must be a non-empty string.")
-        return trimmed
-
-    @field_validator("email")
-    @classmethod
-    def _normalise_email(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        trimmed = value.strip()
-        if not trimmed:
-            return None
-        if "@" not in trimmed:
-            raise ValueError("Email address must contain an '@' symbol.")
-        return trimmed
-
-    @field_validator("bio")
-    @classmethod
-    def _normalise_bio(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        trimmed = value.strip()
-        return trimmed or None
-
-
-class UserProfileUpdateRequest(BaseModel):
-    """Request payload for updating an existing user profile."""
-
-    display_name: str | None = Field(
-        None,
-        description="Optional replacement for the human readable profile name.",
-    )
-    email: str | None = Field(
-        None, description="Optional replacement contact email for the profile."
-    )
-    bio: str | None = Field(
-        None, description="Optional replacement biography to persist for the user."
-    )
-
-    @field_validator("display_name")
-    @classmethod
-    def _normalise_display_name(cls, value: str | None) -> str | None:
-        if value is None:
-            raise ValueError("Display name cannot be null when provided.")
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("Display name must be a non-empty string when provided.")
-        return trimmed
-
-    @field_validator("email")
-    @classmethod
-    def _normalise_email(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        trimmed = value.strip()
-        if not trimmed:
-            return None
-        if "@" not in trimmed:
-            raise ValueError("Email address must contain an '@' symbol.")
-        return trimmed
-
-    @field_validator("bio")
-    @classmethod
-    def _normalise_bio(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        trimmed = value.strip()
-        return trimmed or None
-
-    @model_validator(mode="after")
-    def _ensure_fields_provided(self) -> "UserProfileUpdateRequest":
-        if not self.model_fields_set:
-            raise ValueError("At least one field must be provided to update a profile.")
-        return self
 
 
 @dataclass(frozen=True)
@@ -1956,13 +404,6 @@ class ProjectCollaborationSessionRecord:
     started_at: datetime
     last_heartbeat: datetime
     expires_at: datetime
-
-
-class SceneCommentLocationType(str, Enum):
-    """Enumerated locations where inline scene comments can be attached."""
-
-    TRANSITION_NARRATION = "transition_narration"
-    TRANSITION_FAILURE_NARRATION = "transition_failure_narration"
 
 
 @dataclass(frozen=True)
@@ -9154,13 +7595,6 @@ def _load_json(path: Path) -> Any:
         return json.load(handle)
 
 
-def _dumps_for_export_format(export_format: ExportFormat) -> Callable[[Any], str]:
-    if export_format is ExportFormat.PRETTY:
-        return partial(json.dumps, indent=2, ensure_ascii=False)
-
-    return partial(json.dumps, separators=(",", ":"), ensure_ascii=False)
-
-
 def _timestamp_for(path: Path) -> datetime:
     try:
         mtime = path.stat().st_mtime
@@ -9713,7 +8147,9 @@ def _build_playtest_event_resource(event: StoryEvent) -> PlaytestEventResource:
     return PlaytestEventResource(
         narration=event.narration,
         choices=[
-            ChoiceResource(command=choice.command, description=choice.description)
+            PlaytestChoiceResource(
+                command=choice.command, description=choice.description
+            )
             for choice in event.choices
         ],
         metadata=dict(cast(Mapping[str, str], event.metadata)),
@@ -9762,172 +8198,6 @@ def _build_playtest_transcript_message(
 
 def _build_playtest_error_message(code: str, message: str) -> PlaytestErrorMessage:
     return PlaytestErrorMessage(type="error", code=str(code), message=str(message))
-
-
-class ChoiceResource(BaseModel):
-    """Representation of a single scene choice."""
-
-    command: str
-    description: str
-
-
-class MemoryRequestResource(BaseModel):
-    """Description of a queued agent memory request."""
-
-    action_limit: int | None = None
-    observation_limit: int | None = None
-
-
-class QueuedMessageResource(BaseModel):
-    """Metadata describing a queued coordinator message."""
-
-    origin_agent: str
-    trigger_kind: str
-    player_input: str | None = None
-    metadata: dict[str, str] = Field(default_factory=dict)
-    memory_request: MemoryRequestResource | None = None
-
-
-class PlaytestWorldStateResource(BaseModel):
-    """Summary of the playtest world state surfaced via WebSocket."""
-
-    location: str
-    inventory: list[str] = Field(default_factory=list)
-    history: list[str] = Field(default_factory=list)
-    recent_actions: list[str] = Field(default_factory=list)
-    recent_observations: list[str] = Field(default_factory=list)
-    queued_messages: list[QueuedMessageResource] = Field(default_factory=list)
-
-
-class PlaytestEventResource(BaseModel):
-    """Narrative event broadcast to live preview clients."""
-
-    narration: str
-    choices: list[ChoiceResource] = Field(default_factory=list)
-    metadata: dict[str, str] = Field(default_factory=dict)
-    has_choices: bool
-
-
-class PlaytestEventMessage(BaseModel):
-    """Envelope describing an event message pushed over the WebSocket."""
-
-    type: Literal["event"]
-    session_id: str
-    event: PlaytestEventResource
-    world: PlaytestWorldStateResource
-
-
-class PlaytestErrorMessage(BaseModel):
-    """Error payload returned for invalid playtest commands."""
-
-    type: Literal["error"]
-    code: str
-    message: str
-
-
-class PlaytestTranscriptEntryResource(BaseModel):
-    """Serialized transcript entry for HTTP and WebSocket responses."""
-
-    turn: int
-    player_input: str | None = None
-    event: PlaytestEventResource
-
-
-class PlaytestTranscriptMessage(BaseModel):
-    """WebSocket payload returning the current transcript entries."""
-
-    type: Literal["transcript"]
-    session_id: str
-    entries: list[PlaytestTranscriptEntryResource] = Field(default_factory=list)
-
-
-class PlaytestTranscriptResponse(BaseModel):
-    """HTTP response returning the recorded playtest transcript."""
-
-    session_id: str
-    entries: list[PlaytestTranscriptEntryResource] = Field(default_factory=list)
-
-
-class NarrationOverrideResource(BaseModel):
-    """Conditional narration override description."""
-
-    narration: str
-    requires_history_all: list[str] = Field(default_factory=list)
-    requires_history_any: list[str] = Field(default_factory=list)
-    forbids_history_any: list[str] = Field(default_factory=list)
-    requires_inventory_all: list[str] = Field(default_factory=list)
-    requires_inventory_any: list[str] = Field(default_factory=list)
-    forbids_inventory_any: list[str] = Field(default_factory=list)
-    records: list[str] = Field(default_factory=list)
-
-
-class TransitionResource(BaseModel):
-    """Serialized representation of a transition."""
-
-    narration: str
-    target: str | None = None
-    item: str | None = None
-    requires: list[str] = Field(default_factory=list)
-    consumes: list[str] = Field(default_factory=list)
-    records: list[str] = Field(default_factory=list)
-    failure_narration: str | None = None
-    narration_overrides: list[NarrationOverrideResource] = Field(default_factory=list)
-
-
-class SceneResource(BaseModel):
-    """Full scene definition returned by the API."""
-
-    id: str
-    description: str
-    choices: list[ChoiceResource]
-    transitions: dict[str, TransitionResource]
-    created_at: datetime
-    updated_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_created_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-    @field_serializer("updated_at")
-    def _serialize_updated_at(self, value: datetime) -> str:
-        return value.isoformat()
-
-
-class ValidationIssue(BaseModel):
-    """Description of a validation issue detected for a scene."""
-
-    severity: Literal["error", "warning"]
-    code: str
-    message: str
-    path: str
-
-
-class SceneValidation(BaseModel):
-    """Collection of validation issues for a scene."""
-
-    issues: list[ValidationIssue]
-
-
-class SceneDetailResponse(BaseModel):
-    """Response envelope for a single scene detail request."""
-
-    data: SceneResource
-    validation: SceneValidation | None = None
-
-
-class SceneMutationResponse(BaseModel):
-    """Response payload describing the outcome of a scene mutation."""
-
-    data: SceneResource
-    validation: SceneValidation | None = None
-    version: SceneVersionInfo
-
-
-class SceneDeleteResponse(BaseModel):
-    """Response payload returned after deleting a scene definition."""
-
-    scene_id: str
-    version: SceneVersionInfo
 
 
 def _build_scene_resource(
