@@ -14,18 +14,14 @@ from ..models import (
 )
 
 # Import services (type hints only - actual instances passed at runtime)
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..app import (
-        MarketplaceService,
-        MarketplaceEntryRecord,
-        MarketplaceReviewRecord,
-    )
+    from ..app import MarketplaceEntryRecord, MarketplaceReviewRecord
 
 
 def create_marketplace_router(
-    marketplace_service: "MarketplaceService",
+    marketplace_service: Any,
 ) -> APIRouter:
     """Create the marketplace router with injected service dependencies.
 
@@ -39,7 +35,9 @@ def create_marketplace_router(
 
     # Helper functions (would ideally be in a formatters module)
     def _compute_average_rating(
-        reviews: list["MarketplaceReviewRecord"],
+        reviews: (
+            tuple["MarketplaceReviewRecord", ...] | list["MarketplaceReviewRecord"]
+        ),
     ) -> float | None:
         """Compute average rating from reviews."""
         if not reviews:
@@ -48,7 +46,9 @@ def create_marketplace_router(
         return total / len(reviews)
 
     def _sort_reviews_newest_first(
-        reviews: list["MarketplaceReviewRecord"],
+        reviews: (
+            tuple["MarketplaceReviewRecord", ...] | list["MarketplaceReviewRecord"]
+        ),
     ) -> list["MarketplaceReviewRecord"]:
         """Sort reviews by creation date, newest first."""
         return sorted(reviews, key=lambda r: r.created_at, reverse=True)
@@ -58,7 +58,7 @@ def create_marketplace_router(
     ) -> MarketplaceReview:
         """Build marketplace review resource from record."""
         return MarketplaceReview(
-            reviewer_id=record.reviewer_id,
+            reviewer=record.reviewer,
             rating=record.rating,
             comment=record.comment,
             created_at=record.created_at,
@@ -71,12 +71,12 @@ def create_marketplace_router(
         from ..models import MarketplaceEntryResponse as Response
 
         return Response(
-            identifier=record.identifier,
+            id=record.identifier,
             title=record.title,
             description=record.description,
-            author_id=record.author_id,
-            tags=record.tags,
-            published_at=record.published_at,
+            author=record.author,
+            tags=list(record.tags),
+            created_at=record.created_at,
             schema_version=record.schema_version,
             scenes=record.scenes,
             reviews=[_build_marketplace_review(r) for r in record.reviews],

@@ -13,15 +13,9 @@ from ..models import (
     UserProfileUpdateRequest,
 )
 
-# Import services (type hints only - actual instances passed at runtime)
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..app import UserService
-
 
 def create_users_router(
-    user_service: "UserService | None" = None,
+    user_service: Any | None = None,
 ) -> APIRouter:
     """Create the users router with injected service dependencies.
 

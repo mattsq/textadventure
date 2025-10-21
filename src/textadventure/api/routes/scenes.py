@@ -45,14 +45,7 @@ from ..models import (
 )
 
 # Import services (type hints only - actual instances passed at runtime)
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..services import (
-        SceneService,
-        SceneCommentService,
-        ProjectService,
-    )
+from typing import Any
 
 
 # Helper functions (standalone, can be used by routes)
@@ -167,9 +160,9 @@ def _build_search_response(
 
 
 def create_scenes_router(
-    scene_service: "SceneService",
-    comment_service: "SceneCommentService | None" = None,
-    project_service: "ProjectService | None" = None,
+    scene_service: Any,
+    comment_service: Any | None = None,
+    project_service: Any | None = None,
     *,
     active_scene_path: Path | None = None,
 ) -> APIRouter:

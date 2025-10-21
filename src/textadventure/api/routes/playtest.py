@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Callable, Any
+from typing import Callable, Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
@@ -11,13 +11,10 @@ from ..models import (
     PlaytestTranscriptResponse,
 )
 
-if TYPE_CHECKING:
-    from ..app import PlaytestManager, PlaytestSession
-
 
 def create_playtest_router(
-    playtest_manager: "PlaytestManager",
-    active_sessions: dict[str, "PlaytestSession"],
+    playtest_manager: Any,
+    active_sessions: dict[str, Any],
     *,
     build_transcript_entries_fn: Callable[..., Any],
     build_error_message_fn: Callable[..., Any],

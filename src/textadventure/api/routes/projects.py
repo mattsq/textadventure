@@ -18,15 +18,12 @@ from ..models import (
 )
 
 # Import services (type hints only - actual instances passed at runtime)
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..services import ProjectService, ProjectTemplateService
+from typing import Any
 
 
 def create_projects_router(
-    project_service: "ProjectService | None" = None,
-    template_service: "ProjectTemplateService | None" = None,
+    project_service: Any | None = None,
+    template_service: Any | None = None,
 ) -> APIRouter:
     """Create the projects router with injected service dependencies.
 

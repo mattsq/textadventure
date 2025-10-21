@@ -13,14 +13,14 @@ from ..models import (
 )
 
 # Import services (type hints only - actual instances passed at runtime)
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..app import ForumService, ForumThreadRecord, ForumPostRecord
+    from ..app import ForumThreadRecord, ForumPostRecord
 
 
 def create_forum_router(
-    forum_service: "ForumService",
+    forum_service: Any,
 ) -> APIRouter:
     """Create the forum router with injected service dependencies.
 
@@ -36,9 +36,9 @@ def create_forum_router(
     def _build_forum_post(record: "ForumPostRecord") -> ForumPostResource:
         """Build forum post resource from record."""
         return ForumPostResource(
-            post_id=record.post_id,
-            author_id=record.author_id,
-            text=record.text,
+            id=record.identifier,
+            author=record.author,
+            body=record.body,
             created_at=record.created_at,
         )
 
@@ -46,10 +46,11 @@ def create_forum_router(
         """Build forum thread detail from record."""
         posts = [_build_forum_post(post) for post in record.posts]
         return ForumThreadDetail(
-            thread_id=record.thread_id,
+            id=record.identifier,
             title=record.title,
-            author_id=record.author_id,
+            author=record.author,
             created_at=record.created_at,
+            updated_at=record.updated_at,
             post_count=len(record.posts),
             posts=posts,
         )
