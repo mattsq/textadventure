@@ -474,7 +474,9 @@ def create_scenes_router(
         tags=["Search"],
     )
     def search_scenes(
-        query: str = Query(..., description="The search phrase to locate in scene text."),
+        query: str = Query(
+            ..., description="The search phrase to locate in scene text."
+        ),
         field_types: str | None = Query(
             None,
             description=(
@@ -485,8 +487,7 @@ def create_scenes_router(
         validation_statuses: str | None = Query(
             None,
             description=(
-                "Comma-separated validation status filters "
-                "(e.g., 'valid,warning')."
+                "Comma-separated validation status filters " "(e.g., 'valid,warning')."
             ),
         ),
         limit: int = Query(100, ge=1, le=500),

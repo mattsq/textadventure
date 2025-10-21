@@ -44,7 +44,6 @@ def create_forum_router(
 
     def _build_forum_thread_detail(record: "ForumThreadRecord") -> ForumThreadDetail:
         """Build forum thread detail from record."""
-        from ..models import ForumThreadSummary
         posts = [_build_forum_post(post) for post in record.posts]
         return ForumThreadDetail(
             thread_id=record.thread_id,

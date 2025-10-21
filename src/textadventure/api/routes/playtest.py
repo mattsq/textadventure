@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Any
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
@@ -19,9 +19,9 @@ def create_playtest_router(
     playtest_manager: "PlaytestManager",
     active_sessions: dict[str, "PlaytestSession"],
     *,
-    build_transcript_entries_fn: callable,
-    build_error_message_fn: callable,
-    build_event_message_fn: callable,
+    build_transcript_entries_fn: Callable[..., Any],
+    build_error_message_fn: Callable[..., Any],
+    build_event_message_fn: Callable[..., Any],
 ) -> APIRouter:
     """Create the playtest router with injected dependencies.
 
@@ -80,17 +80,17 @@ def create_playtest_router(
                 initial_event = session.reset()
             except FileNotFoundError as exc:
                 await websocket.send_json(
-                    build_error_message_fn(
-                        "project-not-found", str(exc)
-                    ).model_dump(mode="json")
+                    build_error_message_fn("project-not-found", str(exc)).model_dump(
+                        mode="json"
+                    )
                 )
                 await websocket.close(code=4404)
                 return
             except ValueError as exc:
                 await websocket.send_json(
-                    build_error_message_fn(
-                        "invalid-project", str(exc)
-                    ).model_dump(mode="json")
+                    build_error_message_fn("invalid-project", str(exc)).model_dump(
+                        mode="json"
+                    )
                 )
                 await websocket.close(code=4400)
                 return
@@ -107,7 +107,9 @@ def create_playtest_router(
 
             await websocket.send_json(
                 build_event_message_fn(
-                    initial_event, session_id=session_id, instruction_hint="send_command"
+                    initial_event,
+                    session_id=session_id,
+                    instruction_hint="send_command",
                 ).model_dump(mode="json")
             )
 
@@ -138,7 +140,9 @@ def create_playtest_router(
 
                     await websocket.send_json(
                         build_event_message_fn(
-                            event, session_id=session_id, instruction_hint="send_command"
+                            event,
+                            session_id=session_id,
+                            instruction_hint="send_command",
                         ).model_dump(mode="json")
                     )
 
@@ -147,15 +151,17 @@ def create_playtest_router(
                         event = session.reset()
                     except RuntimeError as exc:
                         await websocket.send_json(
-                            build_error_message_fn(
-                                "reset-error", str(exc)
-                            ).model_dump(mode="json")
+                            build_error_message_fn("reset-error", str(exc)).model_dump(
+                                mode="json"
+                            )
                         )
                         continue
 
                     await websocket.send_json(
                         build_event_message_fn(
-                            event, session_id=session_id, instruction_hint="send_command"
+                            event,
+                            session_id=session_id,
+                            instruction_hint="send_command",
                         ).model_dump(mode="json")
                     )
 

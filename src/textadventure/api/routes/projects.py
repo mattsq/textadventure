@@ -8,7 +8,6 @@ from ..models import (
     AdventureProjectDetailResponse,
     AdventureProjectListResponse,
     AdventureProjectTemplateListResponse,
-    CollaboratorRole,
     ProjectAssetListResponse,
     ProjectAssetUploadRequest,
     ProjectCollaborationSessionListResponse,
@@ -173,9 +172,7 @@ def create_projects_router(
         payload: ProjectAssetUploadRequest,
         acting_user_id: str | None = Query(
             None,
-            description=(
-                "Identifier of the collaborator performing the asset upload."
-            ),
+            description=("Identifier of the collaborator performing the asset upload."),
         ),
     ) -> ProjectAssetListResponse:
         if project_service is None:
@@ -267,9 +264,7 @@ def create_projects_router(
         payload: ProjectCollaboratorUpdateRequest,
         acting_user_id: str | None = Query(
             None,
-            description=(
-                "Identifier of the collaborator performing the update."
-            ),
+            description=("Identifier of the collaborator performing the update."),
         ),
     ) -> ProjectCollaboratorListResponse:
         if project_service is None:

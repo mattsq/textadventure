@@ -17,7 +17,11 @@ from ..models import (
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..app import MarketplaceService, MarketplaceEntryRecord, MarketplaceReviewRecord
+    from ..app import (
+        MarketplaceService,
+        MarketplaceEntryRecord,
+        MarketplaceReviewRecord,
+    )
 
 
 def create_marketplace_router(
@@ -34,7 +38,9 @@ def create_marketplace_router(
     router = APIRouter()
 
     # Helper functions (would ideally be in a formatters module)
-    def _compute_average_rating(reviews: list["MarketplaceReviewRecord"]) -> float | None:
+    def _compute_average_rating(
+        reviews: list["MarketplaceReviewRecord"],
+    ) -> float | None:
         """Compute average rating from reviews."""
         if not reviews:
             return None
@@ -47,7 +53,9 @@ def create_marketplace_router(
         """Sort reviews by creation date, newest first."""
         return sorted(reviews, key=lambda r: r.created_at, reverse=True)
 
-    def _build_marketplace_review(record: "MarketplaceReviewRecord") -> MarketplaceReview:
+    def _build_marketplace_review(
+        record: "MarketplaceReviewRecord",
+    ) -> MarketplaceReview:
         """Build marketplace review resource from record."""
         return MarketplaceReview(
             reviewer_id=record.reviewer_id,
@@ -56,9 +64,12 @@ def create_marketplace_router(
             created_at=record.created_at,
         )
 
-    def _build_marketplace_response(record: "MarketplaceEntryRecord") -> MarketplaceEntryResponse:
+    def _build_marketplace_response(
+        record: "MarketplaceEntryRecord",
+    ) -> MarketplaceEntryResponse:
         """Build marketplace entry response from record."""
         from ..models import MarketplaceEntryResponse as Response
+
         return Response(
             identifier=record.identifier,
             title=record.title,
