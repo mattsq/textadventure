@@ -4,7 +4,7 @@ from .app import create_app
 from .settings import SceneApiSettings
 
 # Re-export all models for backward compatibility
-from .models import *
+from .models import *  # noqa: F403
 
 __all__ = [
     "create_app",

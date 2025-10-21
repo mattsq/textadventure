@@ -485,6 +485,11 @@ Revisit this backlog as soon as the initial scaffolding is in place so we can re
   - [x] Provide a copyable checklist contributors can drop into PR descriptions.
 - [ ] Capture the Part 4 playtest console screenshot for `docs/tutorials/playtesting_publishing.md` once refreshed assets are available.
 - [ ] Establish a documentation feedback channel (survey or issue label) and reference it from `Agents.md` and `docs/contributing.md`.
+- [ ] Investigate and fix WebSocket playtest test failures
+  - [ ] Review `tests/test_api_playtest.py::test_playtest_websocket_basic_flow` failure
+  - [ ] Review `tests/test_api_playtest.py::test_playtest_http_transcript_endpoints` failure
+  - [ ] Determine if issue is in test setup or actual WebSocket handling
+  - [ ] Fix or document the expected behavior
 
 ## Priority 14: Repository Refactoring
 

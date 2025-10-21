@@ -21,7 +21,6 @@ from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from .common import (
     CollaboratorRole,
-    Pagination,
     _MIN_COLLABORATION_TTL_SECONDS,
     _MAX_COLLABORATION_TTL_SECONDS,
 )

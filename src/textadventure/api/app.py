@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 import difflib
 import hashlib
 import io
@@ -18,7 +16,6 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from importlib import resources
-from enum import Enum
 from pathlib import Path
 from typing import (
     Any,
@@ -26,24 +23,16 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    Literal,
     Sequence,
     cast,
     get_args,
 )
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
-from functools import partial
 
-from starlette.background import BackgroundTask
-from starlette.responses import JSONResponse
 from pydantic import (
-    BaseModel,
     Field,
     ValidationError,
-    field_serializer,
-    field_validator,
-    model_validator,
 )
 
 from ..analytics import (
@@ -74,8 +63,116 @@ from ..memory import MemoryRequest
 from .backup import BackupUploadMetadata, BackupUploader, S3BackupUploader
 from .settings import SceneApiSettings
 
-# Import all models from the models package
-from .models import *
+# Import models from the models package
+from .models import (
+    # Common models
+    ExportFormat,
+    CollaboratorRole,
+    ValidationStatus,
+    Pagination,
+    ProjectPermissionError,
+    FormattedJSONResponse,
+    # Scene models
+    SceneSummary,
+    SceneListResponse,
+    SceneGraphNodeResource,
+    SceneGraphEdgeResource,
+    SceneGraphResponse,
+    TextSpanResource,
+    FieldMatchResource,
+    SceneSearchResultResource,
+    SceneSearchResponse,
+    SceneCommandIssueResource,
+    SceneTargetIssueResource,
+    SceneOverrideIssueResource,
+    QualityIssuesResource,
+    SceneReachabilityResource,
+    ItemReferenceResource,
+    ItemFlowDetailsResource,
+    ItemFlowSummaryResource,
+    SceneValidationReport,
+    SceneValidationResponse,
+    SceneExportMetadata,
+    SceneExportResponse,
+    SceneImportRequest,
+    SceneImportPlan,
+    SceneImportResponse,
+    SceneUpdateRequest,
+    SceneCreateRequest,
+    SceneDiffRequest,
+    SceneDiffEntry,
+    SceneDiffSummary,
+    SceneDiffResponse,
+    SceneReferenceResource,
+    SceneReferenceListResponse,
+    SceneVersionInfo,
+    SceneRollbackRequest,
+    SceneRollbackResponse,
+    SceneBranchPlanRequest,
+    SceneBranchPlanResponse,
+    SceneBranchResource,
+    SceneBranchListResponse,
+    ChoiceResource,
+    TransitionResource,
+    NarrationOverrideResource,
+    ValidationIssue,
+    SceneValidation,
+    SceneResource,
+    SceneDetailResponse,
+    SceneMutationResponse,
+    SceneDeleteResponse,
+    SceneCommentLocation,
+    SceneCommentResource,
+    SceneCommentThreadResource,
+    SceneCommentThreadListResponse,
+    SceneCommentThreadCreateRequest,
+    SceneCommentReplyRequest,
+    SceneCommentResolveRequest,
+    # Project models
+    AdventureProjectResource,
+    AdventureProjectListResponse,
+    AdventureProjectTemplateResource,
+    AdventureProjectTemplateListResponse,
+    ProjectTemplateInstantiateRequest,
+    AdventureProjectDetailResponse,
+    ProjectAssetResource,
+    ProjectAssetListResponse,
+    ProjectAssetUploadRequest,
+    ProjectCollaboratorResource,
+    ProjectCollaboratorListResponse,
+    ProjectCollaboratorUpdateRequest,
+    ProjectCollaborationSessionResource,
+    ProjectCollaborationSessionListResponse,
+    ProjectCollaborationSessionRequest,
+    # Marketplace models
+    MarketplaceEntrySummary,
+    MarketplaceReview,
+    MarketplaceEntryListResponse,
+    MarketplaceReviewCreateRequest,
+    MarketplaceReviewListResponse,
+    MarketplaceEntryPublishRequest,
+    # Forum models
+    ForumPostResource,
+    ForumThreadSummary,
+    ForumThreadListResponse,
+    ForumThreadCreateRequest,
+    ForumPostCreateRequest,
+    # User models
+    UserProfileResource,
+    UserProfileListResponse,
+    UserProfileCreateRequest,
+    UserProfileUpdateRequest,
+    # Playtest models
+    PlaytestWorldStateResource,
+    PlaytestEventResource,
+    PlaytestEventMessage,
+    PlaytestErrorMessage,
+    PlaytestTranscriptEntryResource,
+    PlaytestTranscriptMessage,
+    PlaytestTranscriptResponse,
+    MemoryRequestResource,
+    QueuedMessageResource,
+)
 from .models.common import (
     _UNSET,
     _UnsetType,
