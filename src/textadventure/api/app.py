@@ -193,6 +193,7 @@ from .models.project import (
     ProjectExportArchive,
 )
 from .models.forum import ForumThreadDetail
+from .models.playtest import ChoiceResource as PlaytestChoiceResource
 
 
 @dataclass(frozen=True)
@@ -8146,7 +8147,9 @@ def _build_playtest_event_resource(event: StoryEvent) -> PlaytestEventResource:
     return PlaytestEventResource(
         narration=event.narration,
         choices=[
-            ChoiceResource(command=choice.command, description=choice.description)
+            PlaytestChoiceResource(
+                command=choice.command, description=choice.description
+            )
             for choice in event.choices
         ],
         metadata=dict(cast(Mapping[str, str], event.metadata)),
