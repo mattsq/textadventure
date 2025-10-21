@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Sequence, cast, get_args
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query  # type: ignore[attr-defined]
 
 from ...search import FieldType, SearchResults
 from ..models import (

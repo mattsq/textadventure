@@ -5,11 +5,20 @@ from __future__ import annotations
 import uuid
 from typing import Callable, Any
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (  # type: ignore[attr-defined]
+    APIRouter,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+)
 
 from ..models import (
     PlaytestTranscriptResponse,
 )
+
+# Disable func-returns-value error for WebSocket async methods
+# which mypy incorrectly flags as returning values when they return None
+# mypy: disable-error-code="func-returns-value"
 
 
 def create_playtest_router(

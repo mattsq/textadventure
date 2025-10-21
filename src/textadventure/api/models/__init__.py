@@ -53,6 +53,7 @@ from .scene import (
     SceneBranchPlanResponse,
     SceneBranchResource,
     SceneBranchListResponse,
+    SceneBranchDetailResponse,
     ChoiceResource,
     TransitionResource,
     NarrationOverrideResource,
@@ -98,6 +99,7 @@ from .marketplace import (
 from .forum import (
     ForumPostResource,
     ForumThreadSummary,
+    ForumThreadDetail,
     ForumThreadListResponse,
     ForumThreadCreateRequest,
     ForumPostCreateRequest,
@@ -169,6 +171,7 @@ __all__ = [
     "SceneBranchPlanResponse",
     "SceneBranchResource",
     "SceneBranchListResponse",
+    "SceneBranchDetailResponse",
     "ChoiceResource",
     "TransitionResource",
     "NarrationOverrideResource",
@@ -211,6 +214,7 @@ __all__ = [
     # Forum models
     "ForumPostResource",
     "ForumThreadSummary",
+    "ForumThreadDetail",
     "ForumThreadListResponse",
     "ForumThreadCreateRequest",
     "ForumPostCreateRequest",

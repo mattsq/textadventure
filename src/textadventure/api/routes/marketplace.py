@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query  # type: ignore[attr-defined]
 
 from ..models import (
     MarketplaceEntryListResponse,
     MarketplaceEntryPublishRequest,
-    MarketplaceEntryResponse,
     MarketplaceReview,
     MarketplaceReviewCreateRequest,
     MarketplaceReviewListResponse,
@@ -17,7 +16,11 @@ from ..models import (
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..app import MarketplaceEntryRecord, MarketplaceReviewRecord
+    from ..app import (
+        MarketplaceEntryRecord,
+        MarketplaceEntryResponse,
+        MarketplaceReviewRecord,
+    )
 
 
 def create_marketplace_router(
@@ -66,11 +69,11 @@ def create_marketplace_router(
 
     def _build_marketplace_response(
         record: "MarketplaceEntryRecord",
-    ) -> MarketplaceEntryResponse:
+    ) -> "MarketplaceEntryResponse":
         """Build marketplace entry response from record."""
-        from ..models import MarketplaceEntryResponse as Response
+        from ..app import MarketplaceEntryResponse
 
-        return Response(
+        return MarketplaceEntryResponse(
             id=record.identifier,
             title=record.title,
             description=record.description,

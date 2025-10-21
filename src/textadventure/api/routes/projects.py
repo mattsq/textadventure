@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Response  # type: ignore[attr-defined]
 
 from ..models import (
     AdventureProjectDetailResponse,
