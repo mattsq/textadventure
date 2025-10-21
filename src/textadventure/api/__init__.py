@@ -3,4 +3,11 @@
 from .app import create_app
 from .settings import SceneApiSettings
 
-__all__ = ["create_app", "SceneApiSettings"]
+# Re-export all models for backward compatibility
+from .models import *
+
+__all__ = [
+    "create_app",
+    "SceneApiSettings",
+    # Models are exported via star import from .models
+]
