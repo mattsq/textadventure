@@ -62,7 +62,11 @@ from ..multi_agent import (
 from ..memory import MemoryRequest
 from .backup import BackupUploadMetadata, BackupUploader, S3BackupUploader
 from .settings import SceneApiSettings
-from .routes import create_health_router, create_marketplace_router
+from .routes import (
+    create_assets_router,
+    create_health_router,
+    create_marketplace_router,
+)
 
 # Import models from the models package
 from .models import (
@@ -141,7 +145,6 @@ from .models import (
     AdventureProjectDetailResponse,
     ProjectAssetResource,
     ProjectAssetListResponse,
-    ProjectAssetUploadRequest,
     ProjectCollaboratorResource,
     ProjectCollaboratorListResponse,
     ProjectCollaboratorUpdateRequest,
@@ -6081,6 +6084,12 @@ def create_app(
         )
     )
 
+    app.include_router(  # type: ignore[attr-defined]
+        create_assets_router(
+            project_service=project,
+        )
+    )
+
     @app.get(
         "/api/scenes",
         response_model=SceneListResponse,
@@ -6696,116 +6705,6 @@ def create_app(
             media_type=archive.content_type,
             headers=headers,
         )
-
-    @app.get(
-        "/api/projects/{project_id}/assets",
-        response_model=ProjectAssetListResponse,
-        tags=["Projects"],
-    )
-    def list_project_assets(project_id: str) -> ProjectAssetListResponse:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            return project.list_project_assets(project_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/projects/{project_id}/assets/{asset_path:path}",
-        tags=["Projects"],
-    )
-    def get_project_asset(project_id: str, asset_path: str) -> BinaryResponse:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            asset = project.fetch_project_asset(project_id, asset_path)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        headers = {"content-disposition": f'attachment; filename="{asset.filename}"'}
-        media_type = asset.content_type or "application/octet-stream"
-        return BinaryResponse(
-            content=asset.content, media_type=media_type, headers=headers
-        )
-
-    @app.put(
-        "/api/projects/{project_id}/assets/{asset_path:path}",
-        response_model=ProjectAssetResource,
-        tags=["Projects"],
-    )
-    def upload_project_asset(
-        project_id: str,
-        asset_path: str,
-        payload: ProjectAssetUploadRequest,
-        acting_user_id: str | None = Query(
-            None,
-            description=("Identifier of the collaborator performing the upload."),
-        ),
-    ) -> ProjectAssetResource:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            content = payload.decoded_content()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        try:
-            return project.store_project_asset(
-                project_id,
-                asset_path,
-                content,
-                acting_user_id=acting_user_id,
-            )
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except ProjectPermissionError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.delete(
-        "/api/projects/{project_id}/assets/{asset_path:path}",
-        status_code=204,
-        tags=["Projects"],
-    )
-    def delete_project_asset(
-        project_id: str,
-        asset_path: str,
-        acting_user_id: str | None = Query(
-            None,
-            description=("Identifier of the collaborator performing the deletion."),
-        ),
-    ) -> None:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            project.delete_project_asset(
-                project_id,
-                asset_path,
-                acting_user_id=acting_user_id,
-            )
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except ProjectPermissionError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.get(
         "/api/projects/{project_id}/collaborators",

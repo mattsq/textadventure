@@ -521,7 +521,7 @@ The repository has grown organically and requires systematic refactoring to impr
   - [x] Extract marketplace routes to `routes/marketplace.py` (list, get, publish, reviews, search)
   - [x] Extract forum routes to `routes/forum.py` (list threads, create thread, create post, search)
   - [ ] Extract collaboration routes to `routes/collaboration.py` (sessions, presence, heartbeat, comments)
-  - [ ] Extract asset management routes to `routes/assets.py` (list, upload, download, delete)
+  - [x] Extract asset management routes to `routes/assets.py` (list, upload, download, delete)
   - [ ] Extract playtest/testing routes to `routes/playtest.py` (websocket, transcript, replay)
 - [x] Extract health check routes to `routes/health.py` (health, readiness endpoints)
   - [ ] Refactor `app.py` to register APIRouter instances from route modules instead of defining routes directly
