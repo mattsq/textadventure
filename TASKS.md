@@ -523,7 +523,7 @@ The repository has grown organically and requires systematic refactoring to impr
   - [ ] Extract collaboration routes to `routes/collaboration.py` (sessions, presence, heartbeat, comments)
   - [ ] Extract asset management routes to `routes/assets.py` (list, upload, download, delete)
   - [ ] Extract playtest/testing routes to `routes/playtest.py` (websocket, transcript, replay)
-  - [ ] Extract health check routes to `routes/health.py` (health, readiness endpoints)
+- [x] Extract health check routes to `routes/health.py` (health, readiness endpoints)
   - [ ] Refactor `app.py` to register APIRouter instances from route modules instead of defining routes directly
   - [ ] Ensure each route module properly handles dependencies, error responses, and request validation
   - [ ] Run full test suite and verify all API endpoints still function correctly

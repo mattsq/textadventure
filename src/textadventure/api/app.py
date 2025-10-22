@@ -62,6 +62,7 @@ from ..multi_agent import (
 from ..memory import MemoryRequest
 from .backup import BackupUploadMetadata, BackupUploader, S3BackupUploader
 from .settings import SceneApiSettings
+from .routes import create_health_router
 
 # Import models from the models package
 from .models import (
@@ -72,6 +73,9 @@ from .models import (
     Pagination,
     ProjectPermissionError,
     FormattedJSONResponse,
+    HealthCheckResult,
+    HealthResponse,
+    ReadinessResponse,
     # Scene models
     SceneSummary,
     SceneListResponse,
@@ -5931,6 +5935,44 @@ def create_app(
 
     active_scene_path = repository.path
 
+    def _build_health_response() -> HealthResponse:
+        dataset_detail = (
+            f"Scene dataset located at {active_scene_path.as_posix()}"
+            if isinstance(active_scene_path, Path)
+            else "Bundled read-only scene dataset available."
+        )
+
+        checks: dict[str, HealthCheckResult] = {
+            "scene_repository": HealthCheckResult(
+                status="ok",
+                detail=dataset_detail,
+            )
+        }
+
+        if project_store is not None:
+            checks["project_store"] = HealthCheckResult(
+                status="ok",
+                detail="Project workspace configured for editing.",
+            )
+
+        return HealthResponse(status="ok", checks=checks)
+
+    def _check_readiness() -> ReadinessResponse:
+        _, updated_at = repository.load()
+
+        return ReadinessResponse(
+            status="ready",
+            checks={
+                "scene_repository": HealthCheckResult(
+                    status="ok",
+                    detail=(
+                        "Scene dataset accessible (last updated "
+                        f"{updated_at.isoformat()})."
+                    ),
+                )
+            },
+        )
+
     def _enforce_scene_permission(
         acting_user_id: str | None,
         *,
@@ -6031,6 +6073,13 @@ def create_app(
             "reports, search, project assets, and template management."
         ),
         openapi_tags=tags_metadata,
+    )
+
+    app.include_router(  # type: ignore[attr-defined]
+        create_health_router(
+            health_check=_build_health_response,
+            readiness_check=_check_readiness,
+        )
     )
 
     @app.get(
