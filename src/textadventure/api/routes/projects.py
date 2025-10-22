@@ -1,4 +1,4 @@
-"""Project management routes for projects, assets, collaborators, and templates."""
+"""Project management routes for projects, collaborators, and templates."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ from ..models import (
     AdventureProjectDetailResponse,
     AdventureProjectListResponse,
     AdventureProjectTemplateListResponse,
-    ProjectAssetListResponse,
-    ProjectAssetUploadRequest,
     ProjectCollaborationSessionListResponse,
     ProjectCollaborationSessionRequest,
     ProjectCollaboratorListResponse,
@@ -105,125 +103,6 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    # Asset Routes
-
-    @router.get(
-        "/api/projects/{project_id}/assets",
-        response_model=ProjectAssetListResponse,
-        tags=["Projects"],
-    )
-    def list_project_assets(project_id: str) -> ProjectAssetListResponse:
-        if project_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Project service is not configured.",
-            )
-        try:
-            return project_service.list_project_assets(project_id=project_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.get(
-        "/api/projects/{project_id}/assets/{asset_path:path}",
-        response_model=None,
-        tags=["Projects"],
-    )
-    def get_project_asset(project_id: str, asset_path: str) -> Response:
-        if project_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Project service is not configured.",
-            )
-        try:
-            asset = project_service.fetch_project_asset(
-                project_id=project_id,
-                asset_path=asset_path,
-            )
-            return Response(
-                content=asset.content,
-                media_type=asset.media_type,
-                headers=asset.headers,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.put(
-        "/api/projects/{project_id}/assets/{asset_path:path}",
-        response_model=ProjectAssetListResponse,
-        tags=["Projects"],
-    )
-    def upload_project_asset(
-        project_id: str,
-        asset_path: str,
-        payload: ProjectAssetUploadRequest,
-        acting_user_id: str | None = Query(
-            None,
-            description=("Identifier of the collaborator performing the asset upload."),
-        ),
-    ) -> ProjectAssetListResponse:
-        if project_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Project service is not configured.",
-            )
-        try:
-            content = payload.decoded_content()
-            project_service.store_project_asset(
-                project_id=project_id,
-                asset_path=asset_path,
-                content=content,
-                acting_user_id=acting_user_id,
-            )
-            return project_service.list_project_assets(project_id=project_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.delete(
-        "/api/projects/{project_id}/assets/{asset_path:path}",
-        response_model=ProjectAssetListResponse,
-        tags=["Projects"],
-    )
-    def delete_project_asset(
-        project_id: str,
-        asset_path: str,
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the asset deletion."
-            ),
-        ),
-    ) -> ProjectAssetListResponse:
-        if project_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Project service is not configured.",
-            )
-        try:
-            project_service.delete_project_asset(
-                project_id=project_id,
-                asset_path=asset_path,
-                acting_user_id=acting_user_id,
-            )
-            return project_service.list_project_assets(project_id=project_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
