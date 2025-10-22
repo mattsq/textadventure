@@ -330,11 +330,10 @@ def create_scenes_router(
         )
         try:
             return scene_service.create_scene(
-                scene_id=payload.scene_id,
-                scene_type=payload.scene_type,
-                description=payload.description,
-                choices=payload.choices,
-                transitions=payload.transitions,
+                scene_id=payload.id,
+                scene=payload.scene,
+                schema_version=payload.schema_version,
+                expected_version_id=payload.expected_version_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -366,11 +365,9 @@ def create_scenes_router(
         try:
             return scene_service.update_scene(
                 scene_id=scene_id,
-                description=payload.description,
-                scene_type=payload.scene_type,
-                choices=payload.choices,
-                transitions=payload.transitions,
-                expected_version=payload.expected_version,
+                scene=payload.scene,
+                schema_version=payload.schema_version,
+                expected_version_id=payload.expected_version_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -399,13 +396,7 @@ def create_scenes_router(
             action="delete scenes",
         )
         try:
-            deleted_metadata = scene_service.delete_scene(scene_id=scene_id)
-            return SceneDeleteResponse(
-                deleted=True,
-                scene_id=deleted_metadata.scene_id,
-                version=deleted_metadata.version,
-                message=f"Scene '{scene_id}' has been deleted.",
-            )
+            return scene_service.delete_scene(scene_id=scene_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -594,8 +585,9 @@ def create_scenes_router(
     def plan_rollback(payload: SceneRollbackRequest) -> SceneRollbackResponse:
         try:
             return scene_service.plan_rollback(
-                target_version=payload.target_version,
-                replace_strategy=payload.replace_strategy,
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
+                generated_at=payload.generated_at,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -610,8 +602,8 @@ def create_scenes_router(
     def diff_scenes(payload: SceneDiffRequest) -> SceneDiffResponse:
         try:
             return scene_service.diff_scenes(
-                left=payload.left,
-                right=payload.right,
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -670,9 +662,11 @@ def create_scenes_router(
         )
         try:
             return scene_service.create_branch(
-                name=payload.name,
+                branch_name=payload.branch_name,
                 scenes=payload.scenes,
-                start_scene=payload.start_scene,
+                schema_version=payload.schema_version,
+                generated_at=payload.generated_at,
+                expected_base_version=payload.base_version_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -717,7 +711,11 @@ def create_scenes_router(
     def plan_branch(payload: SceneBranchPlanRequest) -> SceneBranchPlanResponse:
         try:
             return scene_service.plan_branch(
-                scenes=payload.scenes, start_scene=payload.start_scene
+                branch_name=payload.branch_name,
+                scenes=payload.scenes,
+                schema_version=payload.schema_version,
+                generated_at=payload.generated_at,
+                expected_base_version=payload.base_version_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -784,8 +782,9 @@ def create_scenes_router(
                 project_id=project_id,
                 scene_id=scene_id,
                 location=payload.location,
+                body=payload.body,
                 author_id=payload.author_id,
-                text=payload.text,
+                author_display_name=payload.author_display_name,
             )
             return comment_service.list_threads(
                 project_id=project_id,
@@ -822,8 +821,9 @@ def create_scenes_router(
                 project_id=project_id,
                 scene_id=scene_id,
                 thread_id=thread_id,
+                body=payload.body,
                 author_id=payload.author_id,
-                text=payload.text,
+                author_display_name=payload.author_display_name,
             )
             return comment_service.list_threads(
                 project_id=project_id,
