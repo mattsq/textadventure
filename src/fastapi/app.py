@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from datetime import datetime
 from inspect import Parameter, Signature, signature
 from types import NoneType, UnionType
@@ -20,6 +21,38 @@ class HTTPException(Exception):
         super().__init__(detail)
         self.status_code = status_code
         self.detail = detail
+
+
+class Response:
+    """Simplified HTTP response used by the FastAPI shim."""
+
+    def __init__(
+        self,
+        content: bytes | str,
+        *,
+        status_code: int = 200,
+        media_type: str | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
+        body = content.encode("utf-8") if isinstance(content, str) else content
+        self.content = body
+        self.body = body
+        provided_headers = {
+            str(key).lower(): str(value) for key, value in (headers or {}).items()
+        }
+        if media_type is not None:
+            provided_headers.setdefault("content-type", media_type)
+        elif "content-type" in provided_headers:
+            media_type = provided_headers["content-type"]
+
+        self.media_type = media_type
+        self.headers = provided_headers
+        self.status_code = status_code
+
+    def json(self) -> Any:
+        """Decode the response body as JSON."""
+
+        return json.loads(self.content.decode("utf-8"))
 
 
 def Query(default: Any = None, **_: Any) -> Any:
@@ -42,6 +75,126 @@ class _Route:
 class _WebSocketRoute:
     path: str
     endpoint: Callable[..., Any]
+
+
+class APIRouter:
+    """Subset of FastAPI's APIRouter supporting REST and WebSocket routes."""
+
+    def __init__(self) -> None:
+        self._routes: list[_Route] = []
+        self._websocket_routes: list[_WebSocketRoute] = []
+
+    def _register_route(
+        self,
+        method: str,
+        path: str,
+        response_model: Any | None,
+        *,
+        status_code: int | None = None,
+        tags: Sequence[str] | None = None,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        normalised_tags = tuple(str(tag) for tag in tags or ())
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            self._routes.append(
+                _Route(
+                    method=method,
+                    path=path,
+                    endpoint=func,
+                    response_model=response_model,
+                    status_code=status_code,
+                    tags=normalised_tags,
+                )
+            )
+            return func
+
+        return decorator
+
+    def get(
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
+        tags: Sequence[str] | None = None,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        return self._register_route(
+            "GET",
+            path,
+            response_model,
+            status_code=status_code,
+            tags=tags,
+        )
+
+    def post(
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
+        tags: Sequence[str] | None = None,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        return self._register_route(
+            "POST",
+            path,
+            response_model,
+            status_code=status_code,
+            tags=tags,
+        )
+
+    def put(
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
+        tags: Sequence[str] | None = None,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        return self._register_route(
+            "PUT",
+            path,
+            response_model,
+            status_code=status_code,
+            tags=tags,
+        )
+
+    def delete(
+        self,
+        path: str,
+        response_model: Any | None = None,
+        *,
+        status_code: int | None = None,
+        tags: Sequence[str] | None = None,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        return self._register_route(
+            "DELETE",
+            path,
+            response_model,
+            status_code=status_code,
+            tags=tags,
+        )
+
+    def websocket(
+        self,
+        path: str,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            self._websocket_routes.append(_WebSocketRoute(path=path, endpoint=func))
+            return func
+
+        return decorator
+
+    @property
+    def routes(self) -> tuple[_Route, ...]:
+        """Return registered HTTP routes."""
+
+        return tuple(self._routes)
+
+    @property
+    def websocket_routes(self) -> tuple[_WebSocketRoute, ...]:
+        """Return registered WebSocket routes."""
+
+        return tuple(self._websocket_routes)
 
 
 @dataclass
@@ -159,6 +312,14 @@ class FastAPI:
             return self.openapi()
 
         self.get("/openapi.json", status_code=200)(_openapi_handler)
+
+    def include_router(self, router: APIRouter) -> None:
+        """Register routes from ``router`` with the application."""
+
+        for route in router.routes:
+            self._routes[(route.method, route.path)] = route
+
+        self._websocket_routes.extend(router.websocket_routes)
 
     def get(
         self,

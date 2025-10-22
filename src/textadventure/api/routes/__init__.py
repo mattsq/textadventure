@@ -8,6 +8,7 @@ from .marketplace import create_marketplace_router
 from .forum import create_forum_router
 from .users import create_users_router
 from .playtest import create_playtest_router
+from .health import create_health_router
 
 __all__ = [
     "create_scenes_router",
@@ -16,4 +17,5 @@ __all__ = [
     "create_forum_router",
     "create_users_router",
     "create_playtest_router",
+    "create_health_router",
 ]
