@@ -62,7 +62,7 @@ from ..multi_agent import (
 from ..memory import MemoryRequest
 from .backup import BackupUploadMetadata, BackupUploader, S3BackupUploader
 from .settings import SceneApiSettings
-from .routes import create_forum_router, create_health_router
+from .routes import create_health_router, create_marketplace_router
 
 # Import models from the models package
 from .models import (
@@ -153,9 +153,9 @@ from .models import (
     MarketplaceReview,
     MarketplaceEntryListResponse,
     MarketplaceReviewCreateRequest,
-    MarketplaceReviewListResponse,
     MarketplaceEntryPublishRequest,
     # Forum models
+    ForumPostResource,
     ForumThreadSummary,
     ForumThreadListResponse,
     ForumThreadCreateRequest,
@@ -195,6 +195,7 @@ from .models.project import (
     ProjectAssetContent,
     ProjectExportArchive,
 )
+from .models.forum import ForumThreadDetail
 from .models.playtest import ChoiceResource as PlaytestChoiceResource
 
 
@@ -3792,6 +3793,15 @@ def _build_marketplace_review(
     )
 
 
+def _build_forum_post(record: ForumPostRecord) -> ForumPostResource:
+    return ForumPostResource(
+        id=record.identifier,
+        author=record.author,
+        body=record.body,
+        created_at=record.created_at,
+    )
+
+
 def _build_forum_thread_summary(record: ForumThreadRecord) -> ForumThreadSummary:
     return ForumThreadSummary(
         id=record.identifier,
@@ -3800,6 +3810,20 @@ def _build_forum_thread_summary(record: ForumThreadRecord) -> ForumThreadSummary
         created_at=record.created_at,
         updated_at=record.updated_at,
         post_count=len(record.posts),
+    )
+
+
+def _build_forum_thread_detail(record: ForumThreadRecord) -> ForumThreadDetail:
+    ordered_posts = sorted(record.posts, key=lambda post: post.created_at)
+    resources = [_build_forum_post(post) for post in ordered_posts]
+    return ForumThreadDetail(
+        id=record.identifier,
+        title=record.title,
+        author=record.author,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        post_count=len(resources),
+        posts=resources,
     )
 
 
@@ -6057,12 +6081,6 @@ def create_app(
         )
     )
 
-    app.include_router(  # type: ignore[attr-defined]
-        create_forum_router(
-            forum_service=forum,
-        )
-    )
-
     @app.get(
         "/api/scenes",
         response_model=SceneListResponse,
@@ -7080,116 +7098,62 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @app.get(
-        "/api/marketplace/entries",
-        response_model=MarketplaceEntryListResponse,
-        tags=["Marketplace"],
+    app.include_router(  # type: ignore[attr-defined]
+        create_marketplace_router(
+            marketplace_service=marketplace,
+            entry_response_model=MarketplaceEntryResponse,
+        )
     )
-    def list_marketplace_entries(
-        search: str | None = Query(
-            None,
-            description=(
-                "Optional case-insensitive substring to filter by identifier, "
-                "title, or description."
-            ),
-        ),
-        tag: str | None = Query(
-            None,
-            description="Restrict results to entries tagged with the provided value.",
-        ),
-        page: int = Query(1, ge=1, description="Page number (1-indexed)."),
+
+    @app.get(
+        "/api/forums/threads",
+        response_model=ForumThreadListResponse,
+        tags=["Forums"],
+    )
+    def list_forum_threads(
+        page: int = Query(1, ge=1),
         page_size: int = Query(
             20,
             ge=1,
             le=100,
-            description="Number of entries to include per page (maximum 100).",
+            description="Number of threads to return per page (maximum 100).",
         ),
-    ) -> MarketplaceEntryListResponse:
+    ) -> ForumThreadListResponse:
         try:
-            return marketplace.list_entries(
-                search=search,
-                tag=tag,
-                page=page,
-                page_size=page_size,
-            )
+            return forum.list_threads(page=page, page_size=page_size)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/marketplace/entries/{entry_id}",
-        response_model=MarketplaceEntryResponse,
-        tags=["Marketplace"],
-    )
-    def get_marketplace_entry(entry_id: str) -> MarketplaceEntryResponse:
-        try:
-            record = marketplace.get_entry(entry_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return _build_marketplace_response(record)
-
-    @app.get(
-        "/api/marketplace/entries/{entry_id}/reviews",
-        response_model=MarketplaceReviewListResponse,
-        tags=["Marketplace"],
-    )
-    def list_marketplace_entry_reviews(
-        entry_id: str,
-    ) -> MarketplaceReviewListResponse:
-        try:
-            record = marketplace.get_entry(entry_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        ordered = _sort_reviews_newest_first(record.reviews)
-        reviews = [_build_marketplace_review(review) for review in ordered]
-        return MarketplaceReviewListResponse(
-            data=reviews,
-            average_rating=_compute_average_rating(record.reviews),
-            review_count=len(record.reviews),
-        )
 
     @app.post(
-        "/api/marketplace/entries",
-        response_model=MarketplaceEntryResponse,
+        "/api/forums/threads",
+        response_model=ForumThreadDetail,
         status_code=201,
-        tags=["Marketplace"],
+        tags=["Forums"],
     )
-    def publish_marketplace_entry(
-        payload: MarketplaceEntryPublishRequest,
-    ) -> MarketplaceEntryResponse:
+    def create_forum_thread(
+        payload: ForumThreadCreateRequest,
+    ) -> ForumThreadDetail:
         try:
-            record = marketplace.publish_entry(payload)
-        except MarketplaceEntryAlreadyExistsError as exc:
+            record = forum.create_thread(payload)
+        except ForumThreadAlreadyExistsError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-        return _build_marketplace_response(record)
+        return _build_forum_thread_detail(record)
 
-    @app.post(
-        "/api/marketplace/entries/{entry_id}/reviews",
-        response_model=MarketplaceReview,
-        status_code=201,
-        tags=["Marketplace"],
+    @app.get(
+        "/api/forums/threads/{thread_id}",
+        response_model=ForumThreadDetail,
+        tags=["Forums"],
     )
-    def create_marketplace_entry_review(
-        entry_id: str, payload: MarketplaceReviewCreateRequest
-    ) -> MarketplaceReview:
+    def get_forum_thread(thread_id: str) -> ForumThreadDetail:
         try:
-            _, review = marketplace.add_review(entry_id, payload)
+            record = forum.get_thread(thread_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -7197,7 +7161,27 @@ def create_app(
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-        return _build_marketplace_review(review)
+        return _build_forum_thread_detail(record)
+
+    @app.post(
+        "/api/forums/threads/{thread_id}/posts",
+        response_model=ForumPostResource,
+        status_code=201,
+        tags=["Forums"],
+    )
+    def create_forum_post(
+        thread_id: str, payload: ForumPostCreateRequest
+    ) -> ForumPostResource:
+        try:
+            post = forum.add_post(thread_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        return _build_forum_post(post)
 
     @app.get(
         "/api/users",

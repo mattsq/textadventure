@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 def create_marketplace_router(
     marketplace_service: Any,
+    *,
+    entry_response_model: type[Any],
 ) -> APIRouter:
     """Create the marketplace router with injected service dependencies.
 
@@ -71,13 +73,13 @@ def create_marketplace_router(
         record: "MarketplaceEntryRecord",
     ) -> "MarketplaceEntryResponse":
         """Build marketplace entry response from record."""
-        from ..app import MarketplaceEntryResponse
-
         reviews = list(record.reviews)
         average_rating = _compute_average_rating(reviews)
         review_count = len(reviews)
 
-        return MarketplaceEntryResponse(
+        ordered_reviews = _sort_reviews_newest_first(reviews)
+
+        return entry_response_model(
             id=record.identifier,
             title=record.title,
             description=record.description,
@@ -89,7 +91,7 @@ def create_marketplace_router(
             review_count=review_count,
             schema_version=record.schema_version,
             scenes=dict(record.scenes),
-            reviews=[_build_marketplace_review(review) for review in reviews],
+            reviews=[_build_marketplace_review(review) for review in ordered_reviews],
         )
 
     # Marketplace Routes
@@ -133,10 +135,10 @@ def create_marketplace_router(
 
     @router.get(
         "/api/marketplace/entries/{entry_id}",
-        response_model=MarketplaceEntryResponse,
+        response_model=entry_response_model,
         tags=["Marketplace"],
     )
-    def get_marketplace_entry(entry_id: str) -> MarketplaceEntryResponse:
+    def get_marketplace_entry(entry_id: str) -> Any:
         try:
             record = marketplace_service.get_entry(entry_id)
         except KeyError as exc:
@@ -175,13 +177,13 @@ def create_marketplace_router(
 
     @router.post(
         "/api/marketplace/entries",
-        response_model=MarketplaceEntryResponse,
+        response_model=entry_response_model,
         status_code=201,
         tags=["Marketplace"],
     )
     def publish_marketplace_entry(
         payload: MarketplaceEntryPublishRequest,
-    ) -> MarketplaceEntryResponse:
+    ) -> Any:
         try:
             record = marketplace_service.publish_entry(payload)
         except Exception as exc:

@@ -518,7 +518,7 @@ The repository has grown organically and requires systematic refactoring to impr
   - [ ] Create `src/textadventure/api/routes/` directory structure with `__init__.py`
   - [ ] Extract scene CRUD routes to `routes/scenes.py` (list, get, create, update, delete, validate, graph, search, export, import, diff, rollback)
   - [ ] Extract project management routes to `routes/projects.py` (list, get, create, update, delete, collaborators, templates, export)
-  - [ ] Extract marketplace routes to `routes/marketplace.py` (list, get, publish, reviews, search)
+  - [x] Extract marketplace routes to `routes/marketplace.py` (list, get, publish, reviews, search)
   - [x] Extract forum routes to `routes/forum.py` (list threads, create thread, create post, search)
   - [ ] Extract collaboration routes to `routes/collaboration.py` (sessions, presence, heartbeat, comments)
   - [ ] Extract asset management routes to `routes/assets.py` (list, upload, download, delete)
