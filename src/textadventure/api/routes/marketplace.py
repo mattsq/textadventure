@@ -91,9 +91,7 @@ def create_marketplace_router(
             review_count=review_count,
             schema_version=record.schema_version,
             scenes=dict(record.scenes),
-            reviews=[
-                _build_marketplace_review(review) for review in ordered_reviews
-            ],
+            reviews=[_build_marketplace_review(review) for review in ordered_reviews],
         )
 
     # Marketplace Routes
