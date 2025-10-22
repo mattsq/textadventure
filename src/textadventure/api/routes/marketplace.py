@@ -73,6 +73,10 @@ def create_marketplace_router(
         """Build marketplace entry response from record."""
         from ..app import MarketplaceEntryResponse
 
+        reviews = list(record.reviews)
+        average_rating = _compute_average_rating(reviews)
+        review_count = len(reviews)
+
         return MarketplaceEntryResponse(
             id=record.identifier,
             title=record.title,
@@ -80,9 +84,12 @@ def create_marketplace_router(
             author=record.author,
             tags=list(record.tags),
             created_at=record.created_at,
+            scene_count=len(record.scenes),
+            average_rating=average_rating,
+            review_count=review_count,
             schema_version=record.schema_version,
-            scenes=record.scenes,
-            reviews=[_build_marketplace_review(r) for r in record.reviews],
+            scenes=dict(record.scenes),
+            reviews=[_build_marketplace_review(review) for review in reviews],
         )
 
     # Marketplace Routes
