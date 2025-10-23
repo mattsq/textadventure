@@ -20,7 +20,7 @@ This document captures the current layout of the React-based scene editor shippe
 - `api/client.ts` defines the REST contracts (`SceneSummary`, transition resources, collaboration sessions, graph payloads) plus an error wrapper consumed by the store and routed pages through `createSceneEditorApiClient`.
 
 ## Backend Integration Seams
-- The scene library view consumes `createSceneEditorApiClient` to fetch paginated `SceneSummary` collections, mirroring the FastAPI `SceneListResponse` schema in `src/textadventure/api/app.py`.
+- The scene library view consumes `createSceneEditorApiClient` to fetch paginated `SceneSummary` collections, mirroring the FastAPI `SceneListResponse` schema in `src/textadventure/api/models/scene.py`.【F:src/textadventure/api/models/scene.py†L20-L67】
 - Graph components expect `SceneGraphNodeResource` and `SceneGraphEdgeResource` payloads that align with the backend graph endpoints defined in the FastAPI app.
 - Deletion dialogs and collaboration indicators rely on reference lookups and session listings surfaced through `SceneReferenceListResponse` and `ProjectCollaborationSessionListResponse`, which in turn map to backend utilities for transition inspection and collaborator tracking.
 

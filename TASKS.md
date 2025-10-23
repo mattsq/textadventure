@@ -515,19 +515,19 @@ The repository has grown organically and requires systematic refactoring to impr
   - [x] Verify `app.py` is reduced from 10,253 to 8,423 lines (1,830 lines removed, 17.8%)
 
 - [ ] **Phase 1B: Extract Route Handlers from app.py** (~4-5 days)
-  - [ ] Create `src/textadventure/api/routes/` directory structure with `__init__.py`
-  - [ ] Extract scene CRUD routes to `routes/scenes.py` (list, get, create, update, delete, validate, graph, search, export, import, diff, rollback)
-  - [ ] Extract project management routes to `routes/projects.py` (list, get, create, update, delete, collaborators, templates, export)
+- [x] Create `src/textadventure/api/routes/` directory structure with `__init__.py` *(Confirmed existing router package with exported factory helpers.)*
+  - [x] Extract scene CRUD routes to `routes/scenes.py` (list, get, create, update, delete, validate, graph, search, export, import, diff, rollback)
+  - [x] Extract project management routes to `routes/projects.py` (list, get, create, update, delete, collaborators, templates, export)
   - [x] Extract marketplace routes to `routes/marketplace.py` (list, get, publish, reviews, search)
   - [x] Extract forum routes to `routes/forum.py` (list threads, create thread, create post, search)
   - [x] Extract collaboration routes to `routes/collaboration.py` (sessions, presence, heartbeat, comments)
   - [x] Extract asset management routes to `routes/assets.py` (list, upload, download, delete)
   - [x] Extract playtest/testing routes to `routes/playtest.py` (websocket, transcript, replay)
 - [x] Extract health check routes to `routes/health.py` (health, readiness endpoints)
-  - [ ] Refactor `app.py` to register APIRouter instances from route modules instead of defining routes directly
-  - [ ] Ensure each route module properly handles dependencies, error responses, and request validation
-  - [ ] Run full test suite and verify all API endpoints still function correctly
-  - [ ] Update API documentation/OpenAPI spec generation to reflect new structure
+  - [x] Refactor `app.py` to register APIRouter instances from route modules instead of defining routes directly
+  - [x] Ensure each route module properly handles dependencies, error responses, and request validation
+  - [x] Run full test suite and verify all API endpoints still function correctly
+  - [x] Update API documentation/OpenAPI spec generation to reflect new structure *(Docs now describe router modules and refreshed forum references.)*
   - [ ] Verify `app.py` is reduced by an additional ~3,000-4,000 lines
 
 - [ ] **Phase 1C: Extract Service Layer from Route Handlers** (~5-7 days)

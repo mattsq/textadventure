@@ -83,32 +83,30 @@ services.
   power editor experiences and automated audits.
 
 ## HTTP API Surface
-- **FastAPI application (`textadventure.api.app`)** – Offers programmatic access to
-  bundled scene data and analytics. `SceneService` returns paginated summaries with
-  validation metadata, produces Git-style diffs for uploaded datasets, `SceneSearchResponse`
-  powers full-text queries, and helper parsers validate query parameters for
-  field-type and validation filters. The API also exposes project-management
-  endpoints backed by `ProjectService`, allowing tooling to discover registered
-  adventure datasets, retrieve their scene payloads alongside checksum and
-  version metadata, enumerate project assets through structured listings, and
-  download individual asset files with appropriate content headers for editor
-  previews.
-  `ProjectTemplateService` lists reusable project templates and provides an
-  instantiation endpoint that materialises a new project directory by copying the
-  template scenes and metadata.
-- **Marketplace publishing (`MarketplaceService`)** – Backs the marketplace endpoints
-  that allow tooling to publish new adventures, list community contributions, and
-  retrieve scene datasets alongside descriptive metadata such as tags, author
-  credits, and creation timestamps. Entries are persisted to a filesystem-backed
-  directory so the catalogue can be versioned or synchronised across deployments.
-  The service also exposes review endpoints that collect 1–5 star ratings,
-  optional reviewer names, and feedback comments, aggregating the results into
-  average scores surfaced alongside marketplace listings.
-- **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`, and
-  supporting models normalise the API payloads consumed by prospective web tools or
-  external services. Recent additions include `ProjectAssetResource` and
-  `ProjectAssetListResponse`, which document the assets bundled with a project so
-  editors can surface file metadata, MIME types, and modification timestamps.
+- **FastAPI application (`textadventure.api.app`)** – Builds the core services
+  (scene, project, marketplace, forum, user, and playtest) from configuration and
+  registers dedicated router modules from `textadventure.api.routes` so each
+  domain is isolated behind its own `APIRouter`. This keeps the OpenAPI tags and
+  dependency wiring consistent while dramatically shrinking `app.py`.【F:src/textadventure/api/app.py†L5750-L6027】【F:src/textadventure/api/routes/__init__.py†L1-L21】
+- **Scenes router (`textadventure.api.routes.scenes`)** – Exposes the
+  high-traffic endpoints for scene CRUD, validation, search, import/export,
+  diffs, and branch management while enforcing collaborator permissions and
+  mapping service exceptions to HTTP responses.【F:src/textadventure/api/routes/scenes.py†L281-L844】
+- **Projects router (`textadventure.api.routes.projects`)** – Provides project
+  discovery, detail, export, collaborator management, and template
+  instantiation endpoints with proper 403/404 handling and download headers so
+  tooling can mirror the legacy behaviour.【F:src/textadventure/api/routes/projects.py†L38-L200】
+- **Marketplace router (`textadventure.api.routes.marketplace`)** – Handles
+  marketplace listings, entry retrieval, publishing, and review management with
+  helper formatters to compute aggregate scores for responses.【F:src/textadventure/api/routes/marketplace.py†L26-L199】
+- **Forum router (`textadventure.api.routes.forum`)** – Implements thread CRUD
+  and reply endpoints, converts service records into Pydantic resources, and
+  translates storage/service errors into HTTP exceptions consistent with the
+  legacy API.【F:src/textadventure/api/routes/forum.py†L18-L111】
+- **Pydantic response models** – `SceneSummary`, `SceneSearchResultResource`,
+  `ProjectAssetListResponse`, and related models live under
+  `textadventure.api.models`, providing typed schemas that the routers return to
+  clients.【F:src/textadventure/api/models/scene.py†L20-L160】【F:src/textadventure/api/models/project.py†L16-L215】
 - **Deployment settings (`textadventure.api.settings.SceneApiSettings`)** – Reads
   environment variables such as `TEXTADVENTURE_SCENE_PATH`,
   `TEXTADVENTURE_SCENE_PACKAGE`, `TEXTADVENTURE_SCENE_RESOURCE`,
@@ -119,7 +117,7 @@ services.
   `TEXTADVENTURE_PROJECT_TEMPLATE_ROOT`, and `TEXTADVENTURE_MARKETPLACE_ROOT` so the
   API can target custom scene datasets, branch storage directories, automatic backup
   locations, optional cloud mirrors, a project registry, a template catalogue, and a
-  filesystem-backed marketplace without code changes.
+  filesystem-backed marketplace without code changes.【F:src/textadventure/api/settings.py†L23-L168】
 
 Use this reference alongside the architecture overview to dive deeper into specific
 modules when extending the engine or integrating new agent capabilities.
