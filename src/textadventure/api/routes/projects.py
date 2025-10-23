@@ -8,8 +8,6 @@ from ..models import (
     AdventureProjectDetailResponse,
     AdventureProjectListResponse,
     AdventureProjectTemplateListResponse,
-    ProjectCollaborationSessionListResponse,
-    ProjectCollaborationSessionRequest,
     ProjectCollaboratorListResponse,
     ProjectCollaboratorUpdateRequest,
     ProjectTemplateInstantiateRequest,
@@ -154,100 +152,6 @@ def create_projects_router(
                 collaborators=payload.collaborators,
                 acting_user_id=acting_user_id,
             )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    # Collaboration Session Routes
-
-    @router.get(
-        "/api/projects/{project_id}/collaboration/sessions",
-        response_model=ProjectCollaborationSessionListResponse,
-        tags=["Projects"],
-    )
-    def list_project_collaboration_sessions(
-        project_id: str,
-    ) -> ProjectCollaborationSessionListResponse:
-        if project_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Project service is not configured.",
-            )
-        try:
-            return project_service.list_collaboration_sessions(project_id=project_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.post(
-        "/api/projects/{project_id}/collaboration/sessions",
-        response_model=ProjectCollaborationSessionListResponse,
-        tags=["Projects"],
-    )
-    def touch_project_collaboration_session(
-        project_id: str,
-        payload: ProjectCollaborationSessionRequest,
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the session update."
-            ),
-        ),
-    ) -> ProjectCollaborationSessionListResponse:
-        if project_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Project service is not configured.",
-            )
-        try:
-            project_service.touch_collaboration_session(
-                project_id=project_id,
-                acting_user_id=acting_user_id,
-                session_id=payload.session_id,
-                scene_id=payload.scene_id,
-                ttl_seconds=payload.ttl_seconds,
-            )
-            return project_service.list_collaboration_sessions(project_id=project_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.delete(
-        "/api/projects/{project_id}/collaboration/sessions/{session_id}",
-        response_model=ProjectCollaborationSessionListResponse,
-        tags=["Projects"],
-    )
-    def delete_project_collaboration_session(
-        project_id: str,
-        session_id: str,
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the session deletion."
-            ),
-        ),
-    ) -> ProjectCollaborationSessionListResponse:
-        if project_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Project service is not configured.",
-            )
-        try:
-            project_service.end_collaboration_session(
-                project_id=project_id,
-                session_id=session_id,
-                acting_user_id=acting_user_id,
-            )
-            return project_service.list_collaboration_sessions(project_id=project_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
