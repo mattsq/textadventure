@@ -17,10 +17,6 @@ from ..models import (
     SceneBranchListResponse,
     SceneBranchPlanRequest,
     SceneBranchPlanResponse,
-    SceneCommentReplyRequest,
-    SceneCommentResolveRequest,
-    SceneCommentThreadCreateRequest,
-    SceneCommentThreadListResponse,
     SceneCreateRequest,
     SceneDeleteResponse,
     SceneDetailResponse,
@@ -161,7 +157,6 @@ def _build_search_response(
 
 def create_scenes_router(
     scene_service: Any,
-    comment_service: Any | None = None,
     project_service: Any | None = None,
     *,
     active_scene_path: Path | None = None,
@@ -170,7 +165,6 @@ def create_scenes_router(
 
     Args:
         scene_service: Service for scene CRUD and validation operations
-        comment_service: Optional service for scene comment operations
         project_service: Optional service for project/permission operations
         active_scene_path: Path to the active scene dataset for permission checks
 
@@ -717,158 +711,6 @@ def create_scenes_router(
                 generated_at=payload.generated_at,
                 expected_base_version=payload.base_version_id,
             )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    # Scene Comments Routes
-
-    @router.get(
-        "/api/projects/{project_id}/scenes/{scene_id}/comments",
-        response_model=SceneCommentThreadListResponse,
-        tags=["Scene Comments"],
-    )
-    def list_scene_comment_threads(
-        project_id: str,
-        scene_id: str,
-        *,
-        location_type: str | None = Query(
-            None,
-            description="Filter by comment location type (e.g., 'narration', 'choice_text').",
-        ),
-        choice_command: str | None = Query(
-            None,
-            description="Filter by choice command when querying choice-specific comments.",
-        ),
-    ) -> SceneCommentThreadListResponse:
-        if comment_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Scene comment service is not configured.",
-            )
-        try:
-            return comment_service.list_threads(
-                project_id=project_id,
-                scene_id=scene_id,
-                location_type=location_type,
-                choice_command=choice_command,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.post(
-        "/api/projects/{project_id}/scenes/{scene_id}/comments",
-        response_model=SceneCommentThreadListResponse,
-        status_code=201,
-        tags=["Scene Comments"],
-    )
-    def create_scene_comment_thread(
-        project_id: str,
-        scene_id: str,
-        payload: SceneCommentThreadCreateRequest,
-    ) -> SceneCommentThreadListResponse:
-        if comment_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Scene comment service is not configured.",
-            )
-        try:
-            comment_service.create_thread(
-                project_id=project_id,
-                scene_id=scene_id,
-                location=payload.location,
-                body=payload.body,
-                author_id=payload.author_id,
-                author_display_name=payload.author_display_name,
-            )
-            return comment_service.list_threads(
-                project_id=project_id,
-                scene_id=scene_id,
-                location_type=None,
-                choice_command=None,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.post(
-        "/api/projects/{project_id}/scenes/{scene_id}/comments/{thread_id}/replies",
-        response_model=SceneCommentThreadListResponse,
-        status_code=201,
-        tags=["Scene Comments"],
-    )
-    def add_scene_comment_reply(
-        project_id: str,
-        scene_id: str,
-        thread_id: str,
-        payload: SceneCommentReplyRequest,
-    ) -> SceneCommentThreadListResponse:
-        if comment_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Scene comment service is not configured.",
-            )
-        try:
-            comment_service.add_comment(
-                project_id=project_id,
-                scene_id=scene_id,
-                thread_id=thread_id,
-                body=payload.body,
-                author_id=payload.author_id,
-                author_display_name=payload.author_display_name,
-            )
-            return comment_service.list_threads(
-                project_id=project_id,
-                scene_id=scene_id,
-                location_type=None,
-                choice_command=None,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.post(
-        "/api/projects/{project_id}/scenes/{scene_id}/comments/{thread_id}/resolution",
-        response_model=SceneCommentThreadListResponse,
-        tags=["Scene Comments"],
-    )
-    def set_scene_comment_resolution(
-        project_id: str,
-        scene_id: str,
-        thread_id: str,
-        payload: SceneCommentResolveRequest,
-    ) -> SceneCommentThreadListResponse:
-        if comment_service is None:
-            raise HTTPException(
-                status_code=501,
-                detail="Scene comment service is not configured.",
-            )
-        try:
-            comment_service.set_resolution(
-                project_id=project_id,
-                scene_id=scene_id,
-                thread_id=thread_id,
-                resolved=payload.resolved,
-            )
-            return comment_service.list_threads(
-                project_id=project_id,
-                scene_id=scene_id,
-                location_type=None,
-                choice_command=None,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
