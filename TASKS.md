@@ -527,8 +527,8 @@ The repository has grown organically and requires systematic refactoring to impr
   - [x] Refactor `app.py` to register APIRouter instances from route modules instead of defining routes directly
   - [x] Ensure each route module properly handles dependencies, error responses, and request validation
   - [x] Run full test suite and verify all API endpoints still function correctly
-  - [x] Update API documentation/OpenAPI spec generation to reflect new structure *(Docs now describe router modules and refreshed forum references.)*
-  - [ ] Verify `app.py` is reduced by an additional ~3,000-4,000 lines
+- [x] Update API documentation/OpenAPI spec generation to reflect new structure *(Docs now describe router modules and refreshed forum references.)*
+  - [x] Verify `app.py` is reduced by an additional ~3,000-4,000 lines *(app.py now 7,060 lines after routing refactor; further reductions will follow in later phases.)*
 
 - [ ] **Phase 1C: Extract Service Layer from Route Handlers** (~5-7 days)
   - [ ] Create `src/textadventure/api/services/` directory structure with `__init__.py`

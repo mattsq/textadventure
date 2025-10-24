@@ -27,6 +27,7 @@ from ..models import (
     SceneListResponse,
     SceneMutationResponse,
     SceneReferenceListResponse,
+    SceneReferenceResource,
     SceneRollbackRequest,
     SceneRollbackResponse,
     SceneSearchResponse,
@@ -171,6 +172,12 @@ def create_scenes_router(
     Returns:
         Configured APIRouter instance with all scene-related routes
     """
+    from ..app import (
+        SceneAlreadyExistsError,
+        SceneDependencyError,
+        SceneVersionConflictError,
+    )
+
     router = APIRouter()
 
     def _enforce_scene_permission(
@@ -329,10 +336,18 @@ def create_scenes_router(
                 schema_version=payload.schema_version,
                 expected_version_id=payload.expected_version_id,
             )
+        except SceneAlreadyExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except SceneVersionConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "current_version_id": exc.current_version_id,
+                },
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except KeyError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -363,6 +378,14 @@ def create_scenes_router(
                 schema_version=payload.schema_version,
                 expected_version_id=payload.expected_version_id,
             )
+        except SceneVersionConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "current_version_id": exc.current_version_id,
+                },
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except KeyError as exc:
@@ -391,10 +414,32 @@ def create_scenes_router(
         )
         try:
             return scene_service.delete_scene(scene_id=scene_id)
+        except SceneVersionConflictError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": str(exc),
+                    "current_version_id": exc.current_version_id,
+                },
+            ) from exc
+        except SceneDependencyError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": str(exc),
+                    "references": [
+                        {
+                            "scene_id": reference.scene_id,
+                            "command": reference.command,
+                        }
+                        for reference in exc.references
+                    ],
+                },
+            ) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -405,13 +450,24 @@ def create_scenes_router(
     )
     def list_scene_references(scene_id: str) -> SceneReferenceListResponse:
         try:
-            return scene_service.list_scene_references(scene_id=scene_id)
+            normalised_id, references = scene_service.list_scene_references(
+                scene_id=scene_id
+            )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        resources = tuple(
+            SceneReferenceResource(
+                scene_id=reference.scene_id, command=reference.command
+            )
+            for reference in references
+        )
+
+        return SceneReferenceListResponse(scene_id=normalised_id, data=resources)
 
     # Scene Graph and Validation Routes
 
@@ -440,7 +496,7 @@ def create_scenes_router(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -499,11 +555,15 @@ def create_scenes_router(
         ),
     ) -> SceneValidationResponse:
         try:
-            return scene_service.validate_scenes(start_scene=start_scene)
+            if start_scene is None:
+                report = scene_service.validate_scenes()
+            else:
+                report = scene_service.validate_scenes(start_scene=start_scene)
+            return SceneValidationResponse(data=report)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -627,6 +687,8 @@ def create_scenes_router(
     def get_branch(branch_id: str) -> SceneBranchDetailResponse:
         try:
             return scene_service.get_branch(identifier=branch_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -652,7 +714,7 @@ def create_scenes_router(
         _enforce_scene_permission(
             acting_user_id,
             allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
-            action="create scene branches",
+            action="create branches",
         )
         try:
             return scene_service.create_branch(
@@ -664,8 +726,10 @@ def create_scenes_router(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except KeyError as exc:
+        except FileExistsError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -686,10 +750,12 @@ def create_scenes_router(
         _enforce_scene_permission(
             acting_user_id,
             allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
-            action="delete scene branches",
+            action="delete branches",
         )
         try:
             scene_service.delete_branch(identifier=branch_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
