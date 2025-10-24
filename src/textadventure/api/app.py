@@ -28,7 +28,8 @@ from typing import (
     get_args,
 )
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
+
 
 from pydantic import (
     Field,
@@ -65,9 +66,13 @@ from .settings import SceneApiSettings
 from .routes import (
     create_assets_router,
     create_collaboration_router,
-    create_playtest_router,
+    create_forum_router,
     create_health_router,
     create_marketplace_router,
+    create_playtest_router,
+    create_projects_router,
+    create_scenes_router,
+    create_users_router,
 )
 
 # Import models from the models package
@@ -78,7 +83,6 @@ from .models import (
     ValidationStatus,
     Pagination,
     ProjectPermissionError,
-    FormattedJSONResponse,
     HealthCheckResult,
     HealthResponse,
     ReadinessResponse,
@@ -101,24 +105,15 @@ from .models import (
     ItemFlowDetailsResource,
     ItemFlowSummaryResource,
     SceneValidationReport,
-    SceneValidationResponse,
     SceneExportMetadata,
     SceneExportResponse,
-    SceneImportRequest,
     SceneImportPlan,
     SceneImportResponse,
-    SceneUpdateRequest,
-    SceneCreateRequest,
-    SceneDiffRequest,
     SceneDiffEntry,
     SceneDiffSummary,
     SceneDiffResponse,
-    SceneReferenceResource,
-    SceneReferenceListResponse,
     SceneVersionInfo,
-    SceneRollbackRequest,
     SceneRollbackResponse,
-    SceneBranchPlanRequest,
     SceneBranchPlanResponse,
     SceneBranchResource,
     SceneBranchListResponse,
@@ -140,13 +135,11 @@ from .models import (
     AdventureProjectListResponse,
     AdventureProjectTemplateResource,
     AdventureProjectTemplateListResponse,
-    ProjectTemplateInstantiateRequest,
     AdventureProjectDetailResponse,
     ProjectAssetResource,
     ProjectAssetListResponse,
     ProjectCollaboratorResource,
     ProjectCollaboratorListResponse,
-    ProjectCollaboratorUpdateRequest,
     ProjectCollaborationSessionResource,
     ProjectCollaborationSessionListResponse,
     # Marketplace models
@@ -164,8 +157,6 @@ from .models import (
     # User models
     UserProfileResource,
     UserProfileListResponse,
-    UserProfileCreateRequest,
-    UserProfileUpdateRequest,
     # Playtest models
     PlaytestWorldStateResource,
     PlaytestEventResource,
@@ -186,7 +177,6 @@ from .models.common import (
 )
 from .models.scene import (
     ImportStrategy,
-    SceneBranchCreateRequest,
     SceneBranchDetailResponse,
     SceneCommentLocationType,
 )
@@ -5972,25 +5962,6 @@ def create_app(
             },
         )
 
-    def _enforce_scene_permission(
-        acting_user_id: str | None,
-        *,
-        allowed_roles: Sequence[CollaboratorRole],
-        action: str,
-    ) -> None:
-        if project is None or active_scene_path is None:
-            return
-
-        try:
-            project.require_scene_dataset_permission(
-                scene_path=active_scene_path,
-                acting_user_id=acting_user_id,
-                allowed_roles=allowed_roles,
-                action=action,
-            )
-        except ProjectPermissionError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-
     tags_metadata = [
         {
             "name": "Scenes",
@@ -6094,672 +6065,20 @@ def create_app(
         )
     )
 
-    @app.get(
-        "/api/scenes",
-        response_model=SceneListResponse,
-        tags=["Scenes"],
-    )
-    def get_scenes(
-        *,
-        search: str | None = Query(
-            None, description="Filter by id or description substring."
-        ),
-        updated_after: datetime | None = Query(
-            None, description="Return scenes updated after the provided ISO timestamp."
-        ),
-        include_validation: bool = Query(
-            True,
-            description="Include aggregated validation status metadata.",
-        ),
-        page: int = Query(1, ge=1),
-        page_size: int = Query(
-            50,
-            ge=1,
-            le=200,
-            description="Number of results to return per page (max 200).",
-        ),
-    ) -> SceneListResponse:
-        try:
-            return service.list_scene_summaries(
-                search=search,
-                updated_after=updated_after,
-                include_validation=include_validation,
-                page=page,
-                page_size=page_size,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/scenes/{scene_id}",
-        response_model=SceneDetailResponse,
-        tags=["Scenes"],
-    )
-    def get_scene(
-        scene_id: str,
-        *,
-        include_validation: bool = Query(
-            False,
-            description="Include inline validation issues for the requested scene.",
-        ),
-    ) -> SceneDetailResponse:
-        try:
-            return service.get_scene_detail(
-                scene_id=scene_id, include_validation=include_validation
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.post(
-        "/api/scenes",
-        response_model=SceneMutationResponse,
-        status_code=201,
-        tags=["Scenes"],
-    )
-    def create_scene_endpoint(
-        payload: SceneCreateRequest,
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the scene mutation."
-            ),
-        ),
-    ) -> SceneMutationResponse:
-        _enforce_scene_permission(
-            acting_user_id,
-            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
-            action="create scenes",
+    app.include_router(  # type: ignore[attr-defined]
+        create_scenes_router(
+            scene_service=service,
+            project_service=project,
+            active_scene_path=active_scene_path,
         )
-        try:
-            return service.create_scene(
-                scene_id=payload.id,
-                scene=payload.scene,
-                schema_version=payload.schema_version,
-                expected_version_id=payload.expected_version_id,
-            )
-        except SceneAlreadyExistsError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except SceneVersionConflictError as exc:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": str(exc),
-                    "current_version_id": exc.current_version_id,
-                },
-            ) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.put(
-        "/api/scenes/{scene_id}",
-        response_model=SceneMutationResponse,
-        tags=["Scenes"],
     )
-    def update_scene_endpoint(
-        scene_id: str,
-        payload: SceneUpdateRequest,
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the scene mutation."
-            ),
-        ),
-    ) -> SceneMutationResponse:
-        _enforce_scene_permission(
-            acting_user_id,
-            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
-            action="update scenes",
+
+    app.include_router(  # type: ignore[attr-defined]
+        create_projects_router(
+            project_service=project,
+            template_service=template_service,
         )
-        try:
-            return service.update_scene(
-                scene_id=scene_id,
-                scene=payload.scene,
-                schema_version=payload.schema_version,
-                expected_version_id=payload.expected_version_id,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except SceneVersionConflictError as exc:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": str(exc),
-                    "current_version_id": exc.current_version_id,
-                },
-            ) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.delete(
-        "/api/scenes/{scene_id}",
-        response_model=SceneDeleteResponse,
-        tags=["Scenes"],
     )
-    def delete_scene_endpoint(
-        scene_id: str,
-        expected_version_id: str | None = Query(
-            None,
-            description=(
-                "Optional scene dataset version identifier used for optimistic "
-                "concurrency checks."
-            ),
-        ),
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the scene mutation."
-            ),
-        ),
-    ) -> SceneDeleteResponse:
-        _enforce_scene_permission(
-            acting_user_id,
-            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
-            action="delete scenes",
-        )
-        try:
-            return service.delete_scene(
-                scene_id=scene_id, expected_version_id=expected_version_id
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except SceneVersionConflictError as exc:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": str(exc),
-                    "current_version_id": exc.current_version_id,
-                },
-            ) from exc
-        except SceneDependencyError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "message": str(exc),
-                    "references": [
-                        {"scene_id": ref.scene_id, "command": ref.command}
-                        for ref in exc.references
-                    ],
-                },
-            ) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/scenes/{scene_id}/references",
-        response_model=SceneReferenceListResponse,
-        tags=["Scenes"],
-    )
-    def list_scene_references(scene_id: str) -> SceneReferenceListResponse:
-        try:
-            normalised_id, references = service.list_scene_references(scene_id=scene_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        resources = (
-            SceneReferenceResource(scene_id=ref.scene_id, command=ref.command)
-            for ref in references
-        )
-        return SceneReferenceListResponse(scene_id=normalised_id, data=tuple(resources))
-
-    @app.get(
-        "/api/scenes/graph",
-        response_model=SceneGraphResponse,
-        tags=["Scenes"],
-    )
-    @app.get(
-        "/scenes/graph",
-        response_model=SceneGraphResponse,
-        tags=["Scenes"],
-        include_in_schema=False,
-    )
-    def get_scene_graph(
-        start_scene: str | None = Query(
-            None,
-            description=(
-                "Optional scene identifier to treat as the starting node when "
-                "deriving graph metadata."
-            ),
-        ),
-    ) -> SceneGraphResponse:
-        try:
-            return service.get_scene_graph(start_scene=start_scene)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/search",
-        response_model=SceneSearchResponse,
-        tags=["Search"],
-    )
-    def search_scenes(
-        query: str = Query(
-            ..., min_length=1, description="Case-insensitive text to search for."
-        ),
-        field_types: str | None = Query(
-            None,
-            description="Restrict matches to specific narrative fields (comma-separated).",
-        ),
-        validation_statuses: str | None = Query(
-            None,
-            description=(
-                "Limit results to scenes matching the provided validation states "
-                "(comma-separated)."
-            ),
-        ),
-        limit: int = Query(
-            50,
-            ge=1,
-            le=200,
-            description="Maximum number of scenes to return (max 200).",
-        ),
-    ) -> SceneSearchResponse:
-        try:
-            results = service.search_scene_text(
-                query=query,
-                field_types=_parse_field_type_filters(field_types),
-                validation_statuses=_parse_validation_filters(validation_statuses),
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return _build_search_response(results, limit=limit)
-
-    @app.get(
-        "/api/scenes/validate",
-        response_model=SceneValidationResponse,
-        tags=["Scenes"],
-    )
-    def validate_scenes(
-        start_scene: str = Query(
-            "starting-area",
-            description="Scene identifier to use as the starting point for reachability analysis.",
-        ),
-    ) -> SceneValidationResponse:
-        try:
-            report = service.validate_scenes(start_scene=start_scene)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return SceneValidationResponse(data=report)
-
-    def _handle_scene_export(
-        ids_param: str | None, format_param: ExportFormat
-    ) -> FormattedJSONResponse:
-        try:
-            parsed_ids = _parse_scene_id_filter(ids_param)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        try:
-            export_format = (
-                format_param
-                if isinstance(format_param, ExportFormat)
-                else ExportFormat(format_param)
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        try:
-            export = service.export_scenes(ids=parsed_ids)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return FormattedJSONResponse(
-            content=export.model_dump(),
-            export_format=export_format,
-        )
-
-    def _handle_scene_import(payload: SceneImportRequest) -> SceneImportResponse:
-        try:
-            return service.validate_import_payload(
-                scenes=payload.scenes,
-                schema_version=payload.schema_version,
-                start_scene=payload.start_scene,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/export/scenes",
-        response_model=None,
-        tags=["Scenes"],
-    )
-    def export_scenes_legacy(
-        ids: str | None = Query(
-            None,
-            description=(
-                "Comma-separated list of scene identifiers to export. "
-                "When omitted, the full dataset is returned."
-            ),
-        ),
-        format: ExportFormat = Query(
-            ExportFormat.MINIFIED,
-            description=(
-                "Serialisation style for the JSON payload. "
-                "Use 'pretty' for indented output or 'minified' for compact output."
-            ),
-        ),
-    ) -> FormattedJSONResponse:
-        return _handle_scene_export(ids, format)
-
-    @app.get(
-        "/api/scenes/export",
-        response_model=None,
-        tags=["Scenes"],
-    )
-    def export_scenes(
-        ids: str | None = Query(
-            None,
-            description=(
-                "Comma-separated list of scene identifiers to export. "
-                "When omitted, the full dataset is returned."
-            ),
-        ),
-        format: ExportFormat = Query(
-            ExportFormat.MINIFIED,
-            description=(
-                "Serialisation style for the JSON payload. "
-                "Use 'pretty' for indented output or 'minified' for compact output."
-            ),
-        ),
-    ) -> FormattedJSONResponse:
-        return _handle_scene_export(ids, format)
-
-    @app.post(
-        "/api/import/scenes",
-        response_model=SceneImportResponse,
-        tags=["Scenes"],
-    )
-    def import_scenes_legacy(payload: SceneImportRequest) -> SceneImportResponse:
-        return _handle_scene_import(payload)
-
-    @app.post(
-        "/api/scenes/import",
-        response_model=SceneImportResponse,
-        tags=["Scenes"],
-    )
-    def import_scenes(payload: SceneImportRequest) -> SceneImportResponse:
-        return _handle_scene_import(payload)
-
-    @app.post(
-        "/api/scenes/rollback",
-        response_model=SceneRollbackResponse,
-        tags=["Scenes"],
-    )
-    def plan_rollback(payload: SceneRollbackRequest) -> SceneRollbackResponse:
-        try:
-            return service.plan_rollback(
-                scenes=payload.scenes,
-                schema_version=payload.schema_version,
-                generated_at=payload.generated_at,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/scenes/branches",
-        response_model=SceneBranchListResponse,
-        tags=["Scene Branches"],
-    )
-    def list_branches() -> SceneBranchListResponse:
-        try:
-            return service.list_branches()
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/scenes/branches/{branch_id}",
-        response_model=SceneBranchDetailResponse,
-        tags=["Scene Branches"],
-    )
-    def get_branch(branch_id: str) -> SceneBranchDetailResponse:
-        try:
-            return service.get_branch(branch_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.post(
-        "/api/scenes/branches",
-        response_model=SceneBranchResource,
-        status_code=201,
-        tags=["Scene Branches"],
-    )
-    def create_branch(
-        payload: SceneBranchCreateRequest,
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the branch mutation."
-            ),
-        ),
-    ) -> SceneBranchResource:
-        _enforce_scene_permission(
-            acting_user_id,
-            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
-            action="create branches",
-        )
-        try:
-            return service.create_branch(
-                branch_name=payload.branch_name,
-                scenes=payload.scenes,
-                schema_version=payload.schema_version,
-                generated_at=payload.generated_at,
-                expected_base_version=payload.base_version_id,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except FileExistsError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.delete(
-        "/api/scenes/branches/{branch_id}",
-        response_model=None,
-        status_code=204,
-        tags=["Scene Branches"],
-    )
-    def delete_branch(
-        branch_id: str,
-        acting_user_id: str | None = Query(
-            None,
-            description=(
-                "Identifier of the collaborator performing the branch mutation."
-            ),
-        ),
-    ) -> None:
-        _enforce_scene_permission(
-            acting_user_id,
-            allowed_roles=(CollaboratorRole.OWNER, CollaboratorRole.EDITOR),
-            action="delete branches",
-        )
-        try:
-            service.delete_branch(branch_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.post(
-        "/api/scenes/branches/plan",
-        response_model=SceneBranchPlanResponse,
-        tags=["Scene Branches"],
-    )
-    def plan_branch(payload: SceneBranchPlanRequest) -> SceneBranchPlanResponse:
-        try:
-            return service.plan_branch(
-                branch_name=payload.branch_name,
-                scenes=payload.scenes,
-                schema_version=payload.schema_version,
-                generated_at=payload.generated_at,
-                expected_base_version=payload.base_version_id,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.post(
-        "/api/scenes/diff",
-        response_model=SceneDiffResponse,
-        tags=["Scenes"],
-    )
-    def diff_scenes(payload: SceneDiffRequest) -> SceneDiffResponse:
-        try:
-            return service.diff_scenes(
-                scenes=payload.scenes,
-                schema_version=payload.schema_version,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/projects",
-        response_model=AdventureProjectListResponse,
-        tags=["Projects"],
-    )
-    def list_projects() -> AdventureProjectListResponse:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            return project.list_projects()
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/projects/{project_id}",
-        response_model=AdventureProjectDetailResponse,
-        tags=["Projects"],
-    )
-    def get_project(project_id: str) -> AdventureProjectDetailResponse:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            return project.get_project(project_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/projects/{project_id}/export",
-        tags=["Projects"],
-    )
-    def export_project_archive(project_id: str) -> BinaryResponse:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            archive = project.export_project(project_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        headers = {
-            "content-disposition": f'attachment; filename="{archive.filename}"',
-            "content-length": str(archive.size),
-            "x-textadventure-project-id": archive.project_id,
-            "x-textadventure-project-version": archive.version_id,
-            "x-textadventure-project-checksum": archive.checksum,
-        }
-
-        return BinaryResponse(
-            content=archive.content,
-            media_type=archive.content_type,
-            headers=headers,
-        )
-
-    @app.get(
-        "/api/projects/{project_id}/collaborators",
-        response_model=ProjectCollaboratorListResponse,
-        tags=["Projects"],
-    )
-    def list_project_collaborators(
-        project_id: str,
-    ) -> ProjectCollaboratorListResponse:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            return project.list_project_collaborators(project_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.put(
-        "/api/projects/{project_id}/collaborators",
-        response_model=ProjectCollaboratorListResponse,
-        tags=["Projects"],
-    )
-    def replace_project_collaborators(
-        project_id: str,
-        payload: ProjectCollaboratorUpdateRequest,
-        acting_user_id: str | None = Query(
-            None,
-            description=("Identifier of the collaborator performing the update."),
-        ),
-    ) -> ProjectCollaboratorListResponse:
-        if project is None:
-            raise HTTPException(404, "Project management endpoints are not enabled.")
-
-        try:
-            return project.replace_project_collaborators(
-                project_id,
-                payload.collaborators,
-                acting_user_id=acting_user_id,
-            )
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except ProjectPermissionError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     app.include_router(  # type: ignore[attr-defined]
         create_marketplace_router(
@@ -6768,213 +6087,17 @@ def create_app(
         )
     )
 
-    @app.get(
-        "/api/forums/threads",
-        response_model=ForumThreadListResponse,
-        tags=["Forums"],
+    app.include_router(  # type: ignore[attr-defined]
+        create_forum_router(
+            forum_service=forum,
+        )
     )
-    def list_forum_threads(
-        page: int = Query(1, ge=1),
-        page_size: int = Query(
-            20,
-            ge=1,
-            le=100,
-            description="Number of threads to return per page (maximum 100).",
-        ),
-    ) -> ForumThreadListResponse:
-        try:
-            return forum.list_threads(page=page, page_size=page_size)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.post(
-        "/api/forums/threads",
-        response_model=ForumThreadDetail,
-        status_code=201,
-        tags=["Forums"],
+    app.include_router(  # type: ignore[attr-defined]
+        create_users_router(
+            user_service=user,
+        )
     )
-    def create_forum_thread(
-        payload: ForumThreadCreateRequest,
-    ) -> ForumThreadDetail:
-        try:
-            record = forum.create_thread(payload)
-        except ForumThreadAlreadyExistsError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return _build_forum_thread_detail(record)
-
-    @app.get(
-        "/api/forums/threads/{thread_id}",
-        response_model=ForumThreadDetail,
-        tags=["Forums"],
-    )
-    def get_forum_thread(thread_id: str) -> ForumThreadDetail:
-        try:
-            record = forum.get_thread(thread_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return _build_forum_thread_detail(record)
-
-    @app.post(
-        "/api/forums/threads/{thread_id}/posts",
-        response_model=ForumPostResource,
-        status_code=201,
-        tags=["Forums"],
-    )
-    def create_forum_post(
-        thread_id: str, payload: ForumPostCreateRequest
-    ) -> ForumPostResource:
-        try:
-            post = forum.add_post(thread_id, payload)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return _build_forum_post(post)
-
-    @app.get(
-        "/api/users",
-        response_model=UserProfileListResponse,
-        tags=["Users"],
-    )
-    def list_users() -> UserProfileListResponse:
-        if user is None:
-            raise HTTPException(404, "User management endpoints are not enabled.")
-
-        try:
-            return user.list_users()
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/users/{user_id}",
-        response_model=UserProfileResource,
-        tags=["Users"],
-    )
-    def get_user(user_id: str) -> UserProfileResource:
-        if user is None:
-            raise HTTPException(404, "User management endpoints are not enabled.")
-
-        try:
-            return user.get_user(user_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.post(
-        "/api/users",
-        response_model=UserProfileResource,
-        status_code=201,
-        tags=["Users"],
-    )
-    def create_user(payload: UserProfileCreateRequest) -> UserProfileResource:
-        if user is None:
-            raise HTTPException(404, "User management endpoints are not enabled.")
-
-        try:
-            return user.create_user(
-                identifier=payload.id,
-                display_name=payload.display_name,
-                email=payload.email,
-                bio=payload.bio,
-            )
-        except FileExistsError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.put(
-        "/api/users/{user_id}",
-        response_model=UserProfileResource,
-        tags=["Users"],
-    )
-    def update_user(
-        user_id: str, payload: UserProfileUpdateRequest
-    ) -> UserProfileResource:
-        if user is None:
-            raise HTTPException(404, "User management endpoints are not enabled.")
-
-        update_kwargs: dict[str, Any] = {}
-        if "display_name" in payload.model_fields_set:
-            update_kwargs["display_name"] = payload.display_name
-        if "email" in payload.model_fields_set:
-            update_kwargs["email"] = payload.email
-        if "bio" in payload.model_fields_set:
-            update_kwargs["bio"] = payload.bio
-
-        try:
-            return user.update_user(user_id, **update_kwargs)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.get(
-        "/api/project-templates",
-        response_model=AdventureProjectTemplateListResponse,
-        tags=["Project Templates"],
-    )
-    def list_project_templates() -> AdventureProjectTemplateListResponse:
-        if template_service is None:
-            raise HTTPException(404, "Project template endpoints are not enabled.")
-
-        try:
-            return template_service.list_templates()
-        except ValueError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @app.post(
-        "/api/project-templates/{template_id}/instantiate",
-        response_model=AdventureProjectDetailResponse,
-        status_code=201,
-        tags=["Project Templates"],
-    )
-    def instantiate_project_template(
-        template_id: str, payload: ProjectTemplateInstantiateRequest
-    ) -> AdventureProjectDetailResponse:
-        if template_service is None:
-            raise HTTPException(404, "Project template endpoints are not enabled.")
-
-        try:
-            return template_service.instantiate_template(
-                template_id,
-                project_id=payload.project_id,
-                name=payload.name,
-                description=payload.description,
-            )
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except FileExistsError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     app.include_router(  # type: ignore[attr-defined]
         create_playtest_router(

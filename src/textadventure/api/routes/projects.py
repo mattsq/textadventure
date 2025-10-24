@@ -11,6 +11,7 @@ from ..models import (
     ProjectCollaboratorListResponse,
     ProjectCollaboratorUpdateRequest,
     ProjectTemplateInstantiateRequest,
+    ProjectPermissionError,
 )
 
 # Import services (type hints only - actual instances passed at runtime)
@@ -42,7 +43,7 @@ def create_projects_router(
     def list_projects() -> AdventureProjectListResponse:
         if project_service is None:
             raise HTTPException(
-                status_code=501,
+                status_code=404,
                 detail="Project service is not configured.",
             )
         try:
@@ -60,11 +61,11 @@ def create_projects_router(
     def get_project(project_id: str) -> AdventureProjectDetailResponse:
         if project_service is None:
             raise HTTPException(
-                status_code=501,
+                status_code=404,
                 detail="Project service is not configured.",
             )
         try:
-            return project_service.get_project(project_id=project_id)
+            return project_service.get_project(identifier=project_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -80,16 +81,16 @@ def create_projects_router(
     def export_project_archive(project_id: str) -> Response:
         if project_service is None:
             raise HTTPException(
-                status_code=501,
+                status_code=404,
                 detail="Project service is not configured.",
             )
         try:
-            archive = project_service.export_project(project_id=project_id)
+            archive = project_service.export_project(identifier=project_id)
             headers = {
-                "content-disposition": f"attachment; filename={archive.filename}",
+                "content-disposition": f'attachment; filename="{archive.filename}"',
                 "content-length": str(len(archive.content)),
                 "x-textadventure-project-id": archive.project_id,
-                "x-textadventure-project-version": archive.version,
+                "x-textadventure-project-version": archive.version_id,
                 "x-textadventure-project-checksum": archive.checksum,
             }
             return Response(
@@ -116,11 +117,11 @@ def create_projects_router(
     ) -> ProjectCollaboratorListResponse:
         if project_service is None:
             raise HTTPException(
-                status_code=501,
+                status_code=404,
                 detail="Project service is not configured.",
             )
         try:
-            return project_service.list_project_collaborators(project_id=project_id)
+            return project_service.list_project_collaborators(identifier=project_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -143,12 +144,12 @@ def create_projects_router(
     ) -> ProjectCollaboratorListResponse:
         if project_service is None:
             raise HTTPException(
-                status_code=501,
+                status_code=404,
                 detail="Project service is not configured.",
             )
         try:
             return project_service.replace_project_collaborators(
-                project_id=project_id,
+                identifier=project_id,
                 collaborators=payload.collaborators,
                 acting_user_id=acting_user_id,
             )
@@ -156,6 +157,8 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ProjectPermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -169,7 +172,7 @@ def create_projects_router(
     def list_project_templates() -> AdventureProjectTemplateListResponse:
         if template_service is None:
             raise HTTPException(
-                status_code=501,
+                status_code=404,
                 detail="Project template service is not configured.",
             )
         try:
@@ -191,7 +194,7 @@ def create_projects_router(
     ) -> AdventureProjectDetailResponse:
         if template_service is None:
             raise HTTPException(
-                status_code=501,
+                status_code=404,
                 detail="Project template service is not configured.",
             )
         try:
